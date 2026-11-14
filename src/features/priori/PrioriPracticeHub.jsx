@@ -13,7 +13,6 @@ import {
   Printer,
   Maximize2,
   ChevronRight,
-  Sparkles,
   UserCheck,
   FileText,
   Check,
@@ -23,7 +22,6 @@ import {
   Headphones,
   Square,
   Zap,
-  ShieldCheck,
 } from 'lucide-react';
 import {
   PRIORI_SUBJECTS,
@@ -58,6 +56,13 @@ const FONT_FAMILY_STYLE = {
   fontFamily: "'Plus Jakarta Sans', 'Nunito', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif",
 };
 
+const HUB_GRADES = [
+  { id: '3', label: '三年級' },
+  { id: '4', label: '四年級' },
+  { id: '5', label: '五年級' },
+  { id: '6', label: '六年級' },
+];
+
 function pickZhTwVoice() {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null;
   const voices = window.speechSynthesis.getVoices() || [];
@@ -88,19 +93,39 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
 
   const [viewMode, setViewMode] = useState(() => {
     try {
-      const tab = new URLSearchParams(window.location.search).get('tab');
-      if (tab === 'teacher') return 'teacher';
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('tab') === 'teacher') return 'teacher';
+      if (initialPaper && params.get('entry') === 'qr') return 'qr-confirm';
     } catch {}
     return initialPaper ? 'quiz' : 'hub';
-  }); // 'hub' | 'quiz' | 'result' | 'teacher'
+  }); // 'hub' | 'qr-confirm' | 'quiz' | 'result' | 'teacher'
 
   const [activeSubject, setActiveSubject] = useState(() =>
     initialPaper ? initialPaper.subject : 'math'
   );
+  const [selectedGrade, setSelectedGrade] = useState(() => {
+    if (initialPaper?.grade) return String(initialPaper.grade);
+    const stuGrade = String(parseInt(currentStudent?.grade || '', 10) || '');
+    if (stuGrade && PRIORI_PAPERS.some((p) => String(p.grade) === stuGrade)) {
+      return stuGrade;
+    }
+    return '3';
+  });
   const [activePaperId, setActivePaperId] = useState(() =>
     initialPaper ? initialPaper.paperId : '114-math-g3'
   );
   const [savedRecords, setSavedRecords] = useState(() => loadPrioriRecords(studentKey));
+
+  // 當學生身分切換年級且該年級已有建置試卷時自動帶入
+  useEffect(() => {
+    const stuGrade = String(parseInt(currentStudent?.grade || '', 10) || '');
+    if (
+      stuGrade &&
+      PRIORI_PAPERS.some((p) => p.subject === activeSubject && String(p.grade) === stuGrade)
+    ) {
+      setSelectedGrade(stuGrade);
+    }
+  }, [currentStudent?.grade, activeSubject]);
 
   // 練習設定與作答狀態
   const [assistReadMode, setAssistReadMode] = useState(false); // false: 原卷模擬 | true: 輔助朗讀
@@ -241,8 +266,16 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
     [activeSubject]
   );
   const subjectPapers = useMemo(
-    () => PRIORI_PAPERS.filter((p) => p.subject === activeSubject),
+    () =>
+      PRIORI_PAPERS.filter((p) => p.subject === activeSubject).sort(
+        (a, b) => Number(b.year) - Number(a.year)
+      ),
     [activeSubject]
+  );
+  const visibleGradePapers = useMemo(
+    () =>
+      subjectPapers.filter((p) => String(p.grade) === String(selectedGrade)),
+    [subjectPapers, selectedGrade]
   );
   const subjectRemedialPool = useMemo(
     () => getSubjectRemedialPool(savedRecords, activeSubject, 'all'),
@@ -466,16 +499,14 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
     return { wrongList, correctCount, score };
   }, [uniqueActiveQuestions, answers]);
 
-  const shareUrl = useMemo(() => {
-    const base =
-      typeof window !== 'undefined' &&
+  const baseOrigin = useMemo(() => {
+    return typeof window !== 'undefined' &&
       window.location.origin &&
       !window.location.origin.includes('localhost') &&
       !window.location.origin.includes('127.0.0.1')
-        ? window.location.origin
-        : 'https://wutaivocab.pages.dev';
-    return `${base}/?view=priori&paper=${activePaperId}`;
-  }, [activePaperId]);
+      ? window.location.origin
+      : 'https://wutaivocab.pages.dev';
+  }, []);
 
   const printQuestions = useMemo(() => {
     if (viewMode === 'result' && printMode === 'wrong' && resultStats.wrongList.length > 0) {
@@ -531,194 +562,183 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
       </div>
 
       {/* ══════════════════════════════════════════════════════════════ */}
-      {/* 1. 大廳選卷視圖 (Hub — 分科隔離與待補強錯題沉底特訓專區)       */}
+      {/* 1. 極簡學生大廳視圖 (Hub — 科目 × 年級 × 115→108 緊湊條列)     */}
       {/* ══════════════════════════════════════════════════════════════ */}
       {viewMode === 'hub' && (
-        <div className="relative z-10 flex-1 w-full max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-5 animate-fadeIn print:hidden">
-          {/* 頂部導覽卡 */}
-          <header className="relative overflow-hidden rounded-3xl bg-white/95 dark:bg-slate-900/95 border-2 border-teal-200/80 dark:border-teal-800/70 p-4 sm:p-5 shadow-md">
-            <LilyEmblem className="absolute -right-2 -bottom-2 w-24 h-24 text-teal-600/10 dark:text-teal-300/10 pointer-events-none" />
-
-            <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={onBack}
-                  className="px-3 py-2 rounded-2xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs sm:text-sm flex items-center gap-1.5 transition cursor-pointer"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>返回首頁</span>
-                </button>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white flex items-center justify-center shadow-md shrink-0">
-                    <LilyEmblem className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h1 className="text-lg sm:text-xl font-black text-teal-900 dark:text-teal-100 tracking-tight">
-                      霧臺國小・學習扶助自主練習館
-                    </h1>
-                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                      分科獨立練習與錯題沉底特訓（與單字館金幣、英語檢定館完全隔離）
-                    </p>
-                  </div>
-                </div>
-              </div>
-
+        <div className="relative z-10 flex-1 w-full max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 animate-fadeIn print:hidden">
+          {/* 精簡頂部工具列 */}
+          <header className="rounded-3xl bg-white/95 dark:bg-slate-900/95 border-2 border-lime-300/80 dark:border-lime-700/60 p-3.5 sm:p-4 shadow-md flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={onBack}
+                className="px-3 py-2 rounded-2xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs sm:text-sm flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>返回首頁</span>
+              </button>
               <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-lime-400 to-lime-600 text-lime-950 flex items-center justify-center shadow-sm shrink-0">
+                  <LilyEmblem className="w-5 h-5" />
+                </div>
+                <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                  霧臺國小・學習扶助自主練習館
+                </h1>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              {/* 迷你練習模式雙段切換 */}
+              <div
+                className="inline-flex p-0.5 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700"
+                title="切換「原卷模擬」或「輔助朗讀」"
+              >
                 <button
                   type="button"
-                  onClick={openModal}
-                  className="px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/70 border border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-200 text-xs font-black flex items-center gap-1.5 hover:bg-teal-100 transition cursor-pointer"
+                  onClick={() => setAssistReadMode(false)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black flex items-center gap-1 transition cursor-pointer ${
+                    !assistReadMode
+                      ? 'bg-slate-800 dark:bg-lime-500 text-white dark:text-lime-950 shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
                 >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  <span>
-                    {isLoggedIn ? formatStudentDisplayName(currentStudent) : '訪客練習中'}
-                  </span>
+                  <FileText className="w-3 h-3" />
+                  <span>原卷</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsQrOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-600 text-white text-xs font-black flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                  onClick={() => setAssistReadMode(true)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black flex items-center gap-1 transition cursor-pointer ${
+                    assistReadMode
+                      ? 'bg-cyan-700 text-white shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
                 >
-                  <QrCode className="w-3.5 h-3.5" />
-                  <span>學生掃我</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    stopSpeech();
-                    setViewMode('teacher');
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-xs font-black flex items-center gap-1.5 hover:bg-amber-100 transition cursor-pointer"
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>教師後台</span>
+                  <Volume2 className="w-3 h-3" />
+                  <span>朗讀</span>
                 </button>
               </div>
+
+              <button
+                type="button"
+                onClick={openModal}
+                className="px-2.5 py-1.5 rounded-xl bg-lime-50 dark:bg-lime-950/60 border border-lime-300 dark:border-lime-700 text-lime-900 dark:text-lime-200 text-xs font-black flex items-center gap-1.5 hover:bg-lime-100 transition cursor-pointer"
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>
+                  {isLoggedIn ? formatStudentDisplayName(currentStudent) : '訪客練習中'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsQrOpen(true)}
+                className="px-2.5 py-1.5 rounded-xl bg-lime-500 hover:bg-lime-400 text-lime-950 text-xs font-black flex items-center gap-1 shadow-sm transition cursor-pointer"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>派卷 QR</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  stopSpeech();
+                  setViewMode('teacher');
+                }}
+                className="px-2.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-xs font-black flex items-center gap-1 hover:bg-amber-100 transition cursor-pointer"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>教師後台</span>
+              </button>
             </div>
           </header>
 
-          {/* 練習模式切換膠囊（雙模式：原卷模擬 vs 輔助朗讀） */}
-          <section className="rounded-2xl bg-white/90 dark:bg-slate-900/90 border border-teal-200/70 dark:border-slate-700 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-            <div className="space-y-0.5">
-              <div className="text-xs font-black text-teal-800 dark:text-teal-300 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>選擇本次練習模式</span>
-              </div>
-              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                {assistReadMode
-                  ? '「輔助朗讀」已開啟：每題與選項皆附自然中文口語喇叭，協助閱讀與理解題意。'
-                  : '「原卷模擬」已開啟：貼近篩選測驗現場，專注自行讀題與圖表判讀（作答中亦可隨時切換）。'}
-              </p>
-            </div>
-
-            <div className="inline-flex p-1 rounded-2xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 shrink-0">
-              <button
-                type="button"
-                onClick={() => setAssistReadMode(false)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition cursor-pointer ${
-                  !assistReadMode
-                    ? 'bg-teal-700 text-white shadow-sm'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5" />
-                原卷模擬
-              </button>
-              <button
-                type="button"
-                onClick={() => setAssistReadMode(true)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition cursor-pointer ${
-                  assistReadMode
-                    ? 'bg-cyan-700 text-white shadow-sm'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
-                }`}
-              >
-                <Volume2 className="w-3.5 h-3.5" />
-                輔助朗讀
-              </button>
-            </div>
-          </section>
-
-          {/* 三大分科分頁（國語 / 英語 / 數學嚴格分流，絕不混科錯題） */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {PRIORI_SUBJECTS.map((subj) => {
-              const active = activeSubject === subj.id;
-              const subjCount = PRIORI_PAPERS.filter((p) => p.subject === subj.id).length;
-              return (
-                <button
-                  key={subj.id}
-                  type="button"
-                  onClick={() => setActiveSubject(subj.id)}
-                  className={`px-4 py-2.5 rounded-2xl font-black text-sm flex items-center gap-2 border-2 transition shrink-0 cursor-pointer ${
-                    active
-                      ? 'bg-teal-700 border-teal-600 text-white shadow-md'
-                      : 'bg-white/90 dark:bg-slate-900/90 border-stone-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-teal-400'
-                  }`}
-                >
-                  <span>{subj.label}</span>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+          {/* 1. 科目分頁 + 2. 年級選擇膠囊 */}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+              {PRIORI_SUBJECTS.map((subj) => {
+                const active = activeSubject === subj.id;
+                const subjCount = PRIORI_PAPERS.filter((p) => p.subject === subj.id).length;
+                return (
+                  <button
+                    key={subj.id}
+                    type="button"
+                    onClick={() => setActiveSubject(subj.id)}
+                    className={`px-4 py-2.5 rounded-2xl font-black text-sm flex items-center gap-2 border-2 transition shrink-0 cursor-pointer ${
                       active
-                        ? 'bg-white/20 text-white'
-                        : subjCount > 0
-                        ? 'bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                        ? 'bg-lime-500 border-lime-600 text-lime-950 shadow-md'
+                        : 'bg-white/95 dark:bg-slate-900/95 border-stone-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-lime-400'
                     }`}
                   >
-                    {subjCount > 0 ? `${subjCount} 份試卷` : '建置中'}
-                  </span>
-                </button>
-              );
-            })}
+                    <span>{subj.label}</span>
+                    {subjCount > 0 && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-black tabular-nums ${
+                          active
+                            ? 'bg-lime-950/15 text-lime-950'
+                            : 'bg-stone-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        {subjCount} 卷
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs font-black text-slate-500 dark:text-slate-400 mr-1">
+                年級：
+              </span>
+              {HUB_GRADES.map((g) => {
+                const count = subjectPapers.filter((p) => String(p.grade) === g.id).length;
+                const active = String(selectedGrade) === g.id;
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => setSelectedGrade(g.id)}
+                    className={`px-3 py-1 rounded-xl text-xs font-black border transition cursor-pointer ${
+                      active
+                        ? 'bg-slate-800 dark:bg-lime-400 border-slate-800 dark:border-lime-400 text-white dark:text-lime-950 shadow-sm'
+                        : count > 0
+                        ? 'bg-white/90 dark:bg-slate-900/90 border-stone-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-lime-400'
+                        : 'bg-stone-50/70 dark:bg-slate-900/40 border-stone-200/70 dark:border-slate-800 text-slate-400 dark:text-slate-500'
+                    }`}
+                  >
+                    {g.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* 🎯 本科專屬「待補強與錯題沉底特訓專區」（僅彙整當前科目） */}
-          <section
-            aria-label={`${activeSubjectInfo.label}待補強與錯題沉底特訓專區`}
-            className="rounded-3xl bg-gradient-to-br from-rose-50/95 via-amber-50/90 to-white dark:from-rose-950/40 dark:via-slate-900 dark:to-slate-900 border-2 border-rose-200/90 dark:border-rose-800/70 p-4 sm:p-5 shadow-md space-y-3"
-          >
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-xl bg-rose-600 text-white text-xs font-black flex items-center gap-1">
+          {/* 錯題沉底特訓專區（僅在該科已經出現待補強題時才展開，未練習前不佔版面） */}
+          {subjectRemedialPool.practicedPaperCount > 0 &&
+            (subjectRemedialPool.allRemedialQuestions.length > 0 ? (
+              <section
+                aria-label={`${activeSubjectInfo.label}待補強與錯題沉底特訓專區`}
+                className="rounded-2xl bg-gradient-to-r from-rose-50/95 via-amber-50/90 to-white dark:from-rose-950/40 dark:via-slate-900 dark:to-slate-900 border-2 border-rose-200 dark:border-rose-800/70 px-4 py-3 shadow-sm flex flex-wrap items-center justify-between gap-2.5"
+              >
+                <div className="flex flex-wrap items-center gap-2 text-xs font-black">
+                  <span className="px-2.5 py-1 rounded-xl bg-rose-600 text-white flex items-center gap-1">
                     <Flame className="w-3.5 h-3.5" />
-                    <span>{activeSubjectInfo.label}・錯題沉底特訓專區</span>
+                    <span>{activeSubjectInfo.label}・錯題沉底特訓</span>
                   </span>
-                  <span className="text-[11px] font-black text-rose-800 dark:text-rose-200">
-                    僅限「{activeSubjectInfo.label}」，不會與其他科目混題
-                  </span>
+                  {subjectRemedialPool.wrongQuestions.length > 0 && (
+                    <span className="text-rose-700 dark:text-rose-300">
+                      待訂正 {subjectRemedialPool.wrongQuestions.length} 題
+                    </span>
+                  )}
+                  {subjectRemedialPool.progressQuestions.length > 0 && (
+                    <span className="text-amber-700 dark:text-amber-300">
+                      🌱 差1次精熟 {subjectRemedialPool.progressQuestions.length} 題
+                    </span>
+                  )}
                 </div>
 
-                {subjectRemedialPool.practicedPaperCount === 0 ? (
-                  <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                    完成下方任一份{activeSubjectInfo.label}試卷後，所有「答錯或尚未連續答對 2 次」的題目會自動集中在此，並支援「答錯沉底排到隊尾重練」直到全部過關。
-                  </p>
-                ) : subjectRemedialPool.allRemedialQuestions.length === 0 ? (
-                  <p className="text-xs sm:text-sm font-black text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
-                    <Award className="w-4 h-4 shrink-0" />
-                    <span>
-                      🎉 太棒了！你已練習的 {subjectRemedialPool.totalPracticedQuestions} 題
-                      {activeSubjectInfo.label}已全部連續答對 ≥ 2 次升級為「🌟 已精熟」！
-                    </span>
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-black pt-0.5">
-                    <span className="px-2 py-0.5 rounded-lg bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200">
-                      ❌ 答錯待訂正：{subjectRemedialPool.wrongQuestions.length} 題
-                    </span>
-                    <span className="px-2 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200">
-                      🌱 連對 1 次（差 1 次精熟）：{subjectRemedialPool.progressQuestions.length} 題
-                    </span>
-                    <span className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200">
-                      🌟 已精熟：{subjectRemedialPool.masteredCount} 題
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {subjectRemedialPool.allRemedialQuestions.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2">
                   {subjectRemedialPool.wrongQuestions.length > 0 &&
                     subjectRemedialPool.progressQuestions.length > 0 && (
                       <button
@@ -732,7 +752,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                             true
                           )
                         }
-                        className="px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-800 border-2 border-rose-300 dark:border-rose-700 hover:bg-rose-50 text-rose-700 dark:text-rose-200 font-black text-xs flex items-center gap-1.5 transition cursor-pointer"
+                        className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-200 font-black text-xs flex items-center gap-1 cursor-pointer"
                       >
                         <Zap className="w-3.5 h-3.5" />
                         <span>僅練錯題 ({subjectRemedialPool.wrongQuestions.length})</span>
@@ -750,117 +770,164 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                         true
                       )
                     }
-                    className="px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                   >
-                    <Flame className="w-4 h-4" />
+                    <Flame className="w-3.5 h-3.5" />
                     <span>
-                      啟動{activeSubjectInfo.label}錯題沉底特訓（
-                      {subjectRemedialPool.allRemedialQuestions.length} 題）
+                      開始特訓（{subjectRemedialPool.allRemedialQuestions.length} 題）
                     </span>
                   </button>
                 </div>
-              )}
-            </div>
-          </section>
+              </section>
+            ) : (
+              <div
+                aria-label={`${activeSubjectInfo.label}待補強與錯題沉底特訓專區`}
+                className="rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-4 py-2 text-xs font-black text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5"
+              >
+                <Award className="w-4 h-4 shrink-0" />
+                <span>
+                  🌟 {activeSubjectInfo.label}已練習題目全數精熟（連對 2 次，共{' '}
+                  {subjectRemedialPool.totalPracticedQuestions} 題）
+                </span>
+              </div>
+            ))}
 
-          {/* 本科歷屆試卷卡片列表 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {subjectPapers.map((paper) => {
-              const record = savedRecords[paper.paperId];
-              return (
-                <div
-                  key={paper.paperId}
-                  className="relative overflow-hidden rounded-3xl bg-white/95 dark:bg-slate-900/95 border-2 border-teal-300/80 dark:border-teal-700/70 p-5 shadow-md hover:shadow-xl transition-all flex flex-col justify-between gap-4"
-                >
-                  <div className="space-y-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="px-2.5 py-1 rounded-xl bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-200 text-xs font-black">
-                          {paper.year} 年・{paper.gradeLabel}
-                        </span>
-                        {paper.officialAnswerVerified ? (
-                          <span className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-[11px] font-black flex items-center gap-1">
-                            <ShieldCheck className="w-3 h-3" />
-                            官方標準答案
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-[11px] font-black">
-                            教師參考答案
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-xs font-black text-slate-500 dark:text-slate-400 tabular-nums">
-                        {paper.totalQuestions} 題・滿分 {paper.totalPoints} 分
+          {/* 115 → 108 降冪緊湊單行試卷列表 */}
+          {visibleGradePapers.length === 0 ? (
+            <div className="rounded-2xl bg-white/90 dark:bg-slate-900/90 border border-stone-200 dark:border-slate-700 p-6 text-center text-sm font-bold text-slate-500 dark:text-slate-400">
+              {HUB_GRADES.find((g) => g.id === String(selectedGrade))?.label || `${selectedGrade}年級`}{' '}
+              {activeSubjectInfo.label}試卷尚在建置中，請先切換「三年級」進行練習。
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {visibleGradePapers.map((paper) => {
+                const record = savedRecords[paper.paperId];
+                return (
+                  <div
+                    key={paper.paperId}
+                    onClick={() => startQuiz(paper)}
+                    className="group rounded-2xl bg-white/95 dark:bg-slate-900/95 border-2 border-stone-200/80 dark:border-slate-700 hover:border-lime-500 dark:hover:border-lime-500 px-4 py-3 shadow-sm hover:shadow-md transition-all flex flex-wrap items-center justify-between gap-3 cursor-pointer"
+                  >
+                    <div className="flex flex-wrap items-center gap-2.5 min-w-0">
+                      <span className="px-2.5 py-1 rounded-xl bg-lime-100 dark:bg-lime-950 text-lime-900 dark:text-lime-200 text-xs font-black tabular-nums shrink-0">
+                        {paper.year} 年
                       </span>
+                      <span className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
+                        {paper.gradeLabel}
+                        {paper.subjectLabel}
+                      </span>
+                      {!paper.officialAnswerVerified && (
+                        <span className="px-2 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 text-[10px] font-black">
+                          教師參考答案
+                        </span>
+                      )}
+                      {record ? (
+                        <span className="text-xs font-black text-teal-700 dark:text-teal-300 tabular-nums">
+                          {record.latestScore ?? record.score} 分 ・ 🌟 {record.masteredCount || 0}/
+                          {record.totalCount}
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold text-slate-400 dark:text-slate-500">
+                          尚未作答
+                        </span>
+                      )}
                     </div>
 
-                    <h2 className="text-lg font-black text-slate-900 dark:text-white">
-                      {paper.title}
-                    </h2>
-                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
-                      {paper.subtitle}
-                    </p>
-
-                    {record ? (
-                      <div className="p-2.5 rounded-2xl bg-teal-50/80 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800/60 flex flex-wrap items-center justify-between gap-2 text-xs">
-                        <span className="font-black text-teal-800 dark:text-teal-200">
-                          最新：{record.latestScore ?? record.score} 分（答對 {record.correctCount} /{' '}
-                          {record.totalCount} 題）
-                        </span>
-                        <span className="font-black text-emerald-700 dark:text-emerald-300">
-                          🌟 精熟 {record.masteredCount || 0}/{record.totalCount} 題・錯題{' '}
-                          {record.wrongIds?.length || 0} 題
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="p-2.5 rounded-2xl bg-stone-50 dark:bg-slate-800/60 border border-stone-200 dark:border-slate-700 text-xs font-bold text-slate-500 dark:text-slate-400">
-                        尚未作答・點擊下方按鈕直接進入第 1 題
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-stone-100 dark:border-slate-800">
-                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                      {paper.officialAnswerVerified
-                        ? '對齊國教署官方解答'
-                        : '＊教師解題參考答案（非官方答案卷）'}
-                    </span>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => {
+                        title="列印學習單"
+                        aria-label={`列印${paper.title}學習單`}
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setActivePaperId(paper.paperId);
                           handlePrint('all');
                         }}
-                        className="px-3.5 py-2.5 rounded-2xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs sm:text-sm flex items-center gap-1.5 transition cursor-pointer"
+                        className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-stone-100 dark:hover:bg-slate-800 transition cursor-pointer"
                       >
                         <Printer className="w-4 h-4" />
-                        <span>列印學習單</span>
                       </button>
+
                       <button
                         type="button"
-                        onClick={() => startQuiz(paper)}
-                        className="px-5 py-2.5 rounded-2xl bg-teal-700 hover:bg-teal-600 text-white font-black text-sm flex items-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startQuiz(paper);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-lime-500 hover:bg-lime-400 text-lime-950 font-black text-xs sm:text-sm flex items-center gap-1 shadow-sm active:scale-95 transition cursor-pointer"
                       >
-                        <span>{record ? '重新練習' : '開始練習'}</span>
-                        <ArrowRight className="w-4 h-4" />
+                        <span>{record ? '再練一次' : '開始測驗'}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
-          {/* 頁尾來源與隔離聲明 */}
-          <footer className="text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 pt-2 space-y-1">
-            <p>
-              試題取材自教育部國教署學習扶助篩選測驗，本館僅供霧臺國小校內教學自主練習；不修改單字館金幣或探索積分。
-            </p>
-            <p>
-              114 年三科試題、標準答案與英聽音檔皆核對自國教署官方公布檔案；115 年數學採教師解題參考答案，如有疑義請以官方為準。
-            </p>
-          </footer>
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* 1.5 派卷 QR 掃碼直達確認卡（身分 ＋ 指定試卷 ＋ 進入測驗）       */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {viewMode === 'qr-confirm' && activePaper && (
+        <div className="relative z-10 flex-1 w-full max-w-md mx-auto px-4 py-8 flex flex-col justify-center animate-fadeIn print:hidden">
+          <div className="rounded-3xl bg-white/95 dark:bg-slate-900/95 border-2 border-lime-400 dark:border-lime-600 p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between">
+              <span className="px-2.5 py-1 rounded-xl bg-lime-100 dark:bg-lime-950 text-lime-900 dark:text-lime-200 text-xs font-black">
+                派卷快速進入
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewMode('hub')}
+                className="text-xs font-black text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+              >
+                改選其他試卷
+              </button>
+            </div>
+
+            {/* 目前身分 */}
+            <div className="rounded-2xl bg-stone-50 dark:bg-slate-800/80 border border-stone-200 dark:border-slate-700 p-3.5 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[11px] font-black text-slate-400 dark:text-slate-500">
+                  目前身分
+                </div>
+                <div className="text-sm font-black text-slate-900 dark:text-white truncate">
+                  {isLoggedIn ? formatStudentDisplayName(currentStudent) : '尚未登入（訪客模式）'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={openModal}
+                className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-700 border border-stone-300 dark:border-slate-600 text-xs font-black text-slate-700 dark:text-slate-100 hover:border-lime-500 shrink-0 transition cursor-pointer"
+              >
+                {isLoggedIn ? '切換座號' : '登入座號'}
+              </button>
+            </div>
+
+            {/* 要做的試卷 */}
+            <div className="rounded-2xl bg-lime-50/80 dark:bg-lime-950/40 border border-lime-300 dark:border-lime-700 p-4 text-center space-y-1.5">
+              <div className="text-[11px] font-black text-lime-800 dark:text-lime-300">
+                即將進行測驗
+              </div>
+              <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                {activePaper.title}
+              </h2>
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                共 {activePaper.totalQuestions} 題・滿分 {activePaper.totalPoints} 分
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => startQuiz(activePaper)}
+              className="w-full py-3.5 px-5 rounded-2xl bg-lime-500 hover:bg-lime-400 text-lime-950 font-black text-base flex items-center justify-center gap-2 shadow-lg active:scale-98 transition cursor-pointer"
+            >
+              <span>進入測驗</span>
+              <ArrowRight className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -1772,8 +1839,8 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
       <PrioriQrModal
         isOpen={isQrOpen}
         onClose={() => setIsQrOpen(false)}
-        title={activePaper?.title || '霧臺國小學習扶助練習館'}
-        shareUrl={shareUrl}
+        initialPaperId={activePaperId}
+        baseOrigin={baseOrigin}
       />
 
       <PrioriSubmitConfirmModal

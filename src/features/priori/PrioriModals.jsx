@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { MathRichText } from './MathRichText';
 import { formatPrioriAnswerLabel } from './prioriStorage';
+import { PRIORI_PAPERS, PRIORI_SUBJECTS } from '../../data/priori';
 
 /**
  * 霧臺台灣百合花極簡向量徽章（點綴文化特色而不干擾閱讀）
@@ -249,11 +250,73 @@ export function PrioriZoomModal({
   );
 }
 
+const QR_YEARS = ['115', '114', '113', '112', '111', '110', '109', '108'];
+const QR_GRADES = [
+  { id: '3', label: '三年級' },
+  { id: '4', label: '四年級' },
+  { id: '5', label: '五年級' },
+  { id: '6', label: '六年級' },
+];
+
 /**
- * 派卷 QR Code 彈窗（投影給全班平板掃碼直達試卷）
+ * 派卷 QR Code 彈窗（教師自選 科目 × 年度 × 年級，學生掃碼直達準備開始畫面）
  */
-export function PrioriQrModal({ isOpen, onClose, title, shareUrl }) {
+export function PrioriQrModal({
+  isOpen,
+  onClose,
+  initialPaperId,
+  baseOrigin,
+  papers = PRIORI_PAPERS,
+  subjects = PRIORI_SUBJECTS,
+}) {
+  const initialPaper =
+    papers.find((p) => p.paperId === initialPaperId) || papers[0] || null;
+  const [selSubject, setSelSubject] = useState(initialPaper?.subject || 'math');
+  const [selYear, setSelYear] = useState(String(initialPaper?.year || '114'));
+  const [selGrade, setSelGrade] = useState(String(initialPaper?.grade || '3'));
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const p = papers.find((item) => item.paperId === initialPaperId) || papers[0];
+    if (p) {
+      setSelSubject(p.subject);
+      setSelYear(String(p.year));
+      setSelGrade(String(p.grade));
+    }
+    setCopied(false);
+  }, [isOpen, initialPaperId, papers]);
+
   if (!isOpen) return null;
+
+  const matchedPaper =
+    papers.find(
+      (p) =>
+        p.subject === selSubject &&
+        String(p.year) === String(selYear) &&
+        String(p.grade) === String(selGrade)
+    ) || null;
+
+  const resolvedOrigin =
+    baseOrigin ||
+    (typeof window !== 'undefined' &&
+    window.location.origin &&
+    !window.location.origin.includes('localhost') &&
+    !window.location.origin.includes('127.0.0.1')
+      ? window.location.origin
+      : 'https://wutaivocab.pages.dev');
+
+  const shareUrl = matchedPaper
+    ? `${resolvedOrigin}/?view=priori&paper=${matchedPaper.paperId}&entry=qr`
+    : `${resolvedOrigin}/?view=priori`;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {}
+  };
 
   return (
     <div
@@ -265,12 +328,12 @@ export function PrioriQrModal({ isOpen, onClose, title, shareUrl }) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border-2 border-teal-300 dark:border-teal-700 p-6 shadow-2xl text-center space-y-4"
+        className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border-2 border-lime-400 dark:border-lime-600 p-5 sm:p-6 shadow-2xl text-center space-y-3.5 max-h-[92dvh] overflow-y-auto"
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-teal-700 dark:text-teal-300 font-black text-base">
+          <div className="flex items-center gap-2 text-lime-800 dark:text-lime-300 font-black text-base">
             <QrCode className="w-5 h-5" />
-            <span>學生掃碼直接練習</span>
+            <span>派卷 QR Code</span>
           </div>
           <button
             type="button"
@@ -282,21 +345,143 @@ export function PrioriQrModal({ isOpen, onClose, title, shareUrl }) {
           </button>
         </div>
 
-        <p className="text-xs font-bold text-slate-600 dark:text-slate-300">{title}</p>
-
-        <div className="p-3 bg-white rounded-2xl border-2 border-teal-100 inline-block shadow-inner">
-          <img
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
-              shareUrl
-            )}`}
-            alt="學習扶助練習館 QR Code"
-            className="w-48 h-48 object-contain"
-          />
+        {/* 教師快速指定：科目 × 年度 × 年級 */}
+        <div className="grid grid-cols-3 gap-2 text-left">
+          <div>
+            <label
+              htmlFor="qr-subject-select"
+              className="block text-[11px] font-black text-slate-500 dark:text-slate-400 mb-1"
+            >
+              科目
+            </label>
+            <select
+              id="qr-subject-select"
+              value={selSubject}
+              onChange={(e) => setSelSubject(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-xl bg-stone-50 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-xs font-black text-slate-800 dark:text-slate-100"
+            >
+              {subjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label
+              htmlFor="qr-year-select"
+              className="block text-[11px] font-black text-slate-500 dark:text-slate-400 mb-1"
+            >
+              年度
+            </label>
+            <select
+              id="qr-year-select"
+              value={selYear}
+              onChange={(e) => setSelYear(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-xl bg-stone-50 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-xs font-black text-slate-800 dark:text-slate-100"
+            >
+              {QR_YEARS.map((y) => {
+                const exists = papers.some(
+                  (p) => p.subject === selSubject && String(p.year) === y
+                );
+                return (
+                  <option key={y} value={y}>
+                    {y} 年{exists ? '' : ' (未建)'}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+          <div>
+            <label
+              htmlFor="qr-grade-select"
+              className="block text-[11px] font-black text-slate-500 dark:text-slate-400 mb-1"
+            >
+              年級
+            </label>
+            <select
+              id="qr-grade-select"
+              value={selGrade}
+              onChange={(e) => setSelGrade(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-xl bg-stone-50 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-xs font-black text-slate-800 dark:text-slate-100"
+            >
+              {QR_GRADES.map((g) => {
+                const exists = papers.some(
+                  (p) =>
+                    p.subject === selSubject &&
+                    String(p.year) === String(selYear) &&
+                    String(p.grade) === g.id
+                );
+                return (
+                  <option key={g.id} value={g.id}>
+                    {g.label}
+                    {exists ? '' : ' (未建)'}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
         </div>
 
-        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-mono text-slate-500 dark:text-slate-400 break-all">
-          {shareUrl}
+        {/* 快速點選已建置試卷膠囊 */}
+        <div className="flex flex-wrap justify-center gap-1.5">
+          {papers.map((p) => {
+            const active = matchedPaper?.paperId === p.paperId;
+            return (
+              <button
+                key={p.paperId}
+                type="button"
+                onClick={() => {
+                  setSelSubject(p.subject);
+                  setSelYear(String(p.year));
+                  setSelGrade(String(p.grade));
+                }}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition cursor-pointer ${
+                  active
+                    ? 'bg-lime-500 border-lime-600 text-lime-950 shadow-sm'
+                    : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-lime-400'
+                }`}
+              >
+                {p.year} {p.gradeLabel}
+                {p.subjectLabel}
+              </button>
+            );
+          })}
         </div>
+
+        {matchedPaper ? (
+          <>
+            <p className="text-xs font-black text-slate-700 dark:text-slate-200">
+              {matchedPaper.title}（{matchedPaper.totalQuestions} 題）
+            </p>
+            <div className="p-3 bg-white rounded-2xl border-2 border-lime-200 inline-block shadow-inner">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
+                  shareUrl
+                )}`}
+                alt={`${matchedPaper.title} 派卷 QR Code`}
+                className="w-44 h-44 object-contain"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-mono text-slate-500 dark:text-slate-400 break-all text-left">
+                {shareUrl}
+              </div>
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="px-3 py-2 rounded-xl bg-lime-500 hover:bg-lime-400 text-lime-950 font-black text-xs shrink-0 transition cursor-pointer"
+              >
+                {copied ? '已複製' : '複製連結'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 p-4 text-xs font-bold text-amber-800 dark:text-amber-200">
+            「{selYear} 年・{QR_GRADES.find((g) => g.id === selGrade)?.label}・
+            {subjects.find((s) => s.id === selSubject)?.label}」試卷尚在建置中，請從上方膠囊挑選已建置試卷。
+          </div>
+        )}
       </div>
     </div>
   );

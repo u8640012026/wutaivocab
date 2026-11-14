@@ -28,6 +28,7 @@ export const Button3D = ({
     rose: 'bg-rose-500 hover:bg-rose-400 text-white border-b-4 border-rose-700 active:border-b-0',
     teal: 'bg-teal-500 hover:bg-teal-400 text-white border-b-4 border-teal-700 active:border-b-0',
     cyan: 'bg-cyan-600 hover:bg-cyan-500 text-white border-b-4 border-cyan-800 active:border-b-0',
+    lime: 'bg-lime-500 hover:bg-lime-400 text-lime-950 font-black border-b-4 border-lime-700 active:border-b-0',
     wood: 'bg-amber-700 hover:bg-amber-600 text-amber-100 border-b-4 border-amber-900 active:border-b-0',
     stone: 'bg-stone-700 hover:bg-stone-600 text-stone-100 border-b-4 border-stone-900 active:border-b-0',
     slate: 'bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 border-b-4 border-slate-400 dark:border-slate-900 active:border-b-0',

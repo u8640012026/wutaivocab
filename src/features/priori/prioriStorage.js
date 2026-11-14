@@ -547,11 +547,33 @@ async function syncPrioriRecordToCloud(identity, record) {
   }
 }
 
+function mergeStudentRecord(bucketMap, paperId, sk, nextRec) {
+  if (!bucketMap.has(paperId)) bucketMap.set(paperId, new Map());
+  const byStudent = bucketMap.get(paperId);
+  const existing = byStudent.get(sk);
+  const nextTime = new Date(nextRec.updatedAt || 0).getTime();
+  const prevTime = existing ? new Date(existing.updatedAt || 0).getTime() : -1;
+  if (!existing || nextTime >= prevTime) {
+    byStudent.set(sk, nextRec);
+  }
+}
+
+function sortTeacherRecords(list) {
+  return [...list].sort((a, b) => {
+    if (a.studentClass !== b.studentClass) {
+      return String(a.studentClass).localeCompare(String(b.studentClass), undefined, {
+        numeric: true,
+      });
+    }
+    return Number(a.studentSeat || 99) - Number(b.studentSeat || 99);
+  });
+}
+
 /**
- * 讀取教師後台所需的班級／各生學習扶助紀錄（融合雲端 + 本機各生紀錄，並回傳雲端錯誤狀態）
+ * 一次讀取全試卷的教師診斷紀錄（供班級成績矩陣跨科／跨年總覽與單卷分析共用）
  */
-export async function fetchPrioriTeacherRecordsWithMeta(paperId = '114-math-g3') {
-  const mergedByStudent = new Map();
+export async function fetchAllPrioriTeacherRecordsWithMeta(filterPaperId = null) {
+  const bucketByPaper = new Map();
   const metaIndex = loadStudentMetaIndex();
   let cloudError = '';
 
@@ -564,27 +586,31 @@ export async function fetchPrioriTeacherRecordsWithMeta(paperId = '114-math-g3')
       const raw = localStorage.getItem(key);
       if (!raw) continue;
       const parsedMap = JSON.parse(raw);
-      const rec = parsedMap?.[paperId];
-      if (!rec) continue;
+      if (!parsedMap || typeof parsedMap !== 'object') continue;
+
       const meta = metaIndex[studentKey] || {};
       const parsedId = studentKey !== 'guest' ? parseStudentId(studentKey) : {};
-      mergedByStudent.set(studentKey, {
-        ...rec,
-        paperId,
-        studentKey,
-        studentGrade: rec.studentGrade || meta.grade || parsedId.grade || '03',
-        studentClass:
-          rec.studentClass ||
-          meta.classNum ||
-          parsedId.classNum ||
-          (studentKey === 'guest' ? 'guest' : '1'),
-        studentSeat: rec.studentSeat || meta.seat || parsedId.seat || '00',
-        displayName:
-          rec.displayName ||
-          meta.displayName ||
-          (studentKey === 'guest' ? '訪客學生' : `學生 ${studentKey}`),
-        source: 'local',
-      });
+
+      for (const [paperId, rec] of Object.entries(parsedMap)) {
+        if (!rec || (filterPaperId && paperId !== filterPaperId)) continue;
+        mergeStudentRecord(bucketByPaper, paperId, studentKey, {
+          ...rec,
+          paperId,
+          studentKey,
+          studentGrade: rec.studentGrade || meta.grade || parsedId.grade || '03',
+          studentClass:
+            rec.studentClass ||
+            meta.classNum ||
+            parsedId.classNum ||
+            (studentKey === 'guest' ? 'guest' : '1'),
+          studentSeat: rec.studentSeat || meta.seat || parsedId.seat || '00',
+          displayName:
+            rec.displayName ||
+            meta.displayName ||
+            (studentKey === 'guest' ? '訪客學生' : `學生 ${studentKey}`),
+          source: 'local',
+        });
+      }
     }
   } catch {}
 
@@ -597,7 +623,7 @@ export async function fetchPrioriTeacherRecordsWithMeta(paperId = '114-math-g3')
         .eq('mode', PRIORI_CLOUD_MODE)
         .eq('week', PRIORI_CLOUD_WEEK)
         .order('created_at', { ascending: false })
-        .limit(200);
+        .limit(500);
 
       if (error) {
         cloudError = error.message || '雲端紀錄讀取失敗';
@@ -606,34 +632,30 @@ export async function fetchPrioriTeacherRecordsWithMeta(paperId = '114-math-g3')
           if (!row?.book) continue;
           try {
             const payload = JSON.parse(row.book);
-            if (payload?.paperId !== paperId) continue;
+            const pid = payload?.paperId;
+            if (!pid || (filterPaperId && pid !== filterPaperId)) continue;
             const sk = payload.studentKey || 'guest';
-            const existing = mergedByStudent.get(sk);
-            const cloudTime = new Date(payload.updatedAt || row.created_at || 0).getTime();
-            const localTime = existing ? new Date(existing.updatedAt || 0).getTime() : -1;
-            if (!existing || cloudTime >= localTime) {
-              mergedByStudent.set(sk, {
-                paperId,
-                studentKey: sk,
-                studentGrade: payload.grade || '03',
-                studentClass: payload.classNum || '1',
-                studentSeat: payload.seat || '01',
-                displayName: payload.displayName || row.name || sk,
-                firstScore: payload.firstScore ?? row.score ?? 0,
-                latestScore: payload.latestScore ?? row.score ?? 0,
-                score: payload.latestScore ?? row.score ?? 0,
-                correctCount: payload.correctCount ?? 0,
-                totalCount:
-                  payload.totalCount ?? (PRIORI_PAPER_MAP[paperId]?.totalQuestions || 25),
-                masteredCount: payload.masteredCount ?? row.time ?? 0,
-                attemptsCount: payload.attemptsCount ?? 1,
-                streaks: payload.streaks || {},
-                latestAnswers: payload.latestAnswers || {},
-                scratchpad: payload.scratchpad || {},
-                updatedAt: payload.updatedAt || row.created_at,
-                source: 'cloud',
-              });
-            }
+            mergeStudentRecord(bucketByPaper, pid, sk, {
+              paperId: pid,
+              studentKey: sk,
+              studentGrade: payload.grade || '03',
+              studentClass: payload.classNum || '1',
+              studentSeat: payload.seat || '01',
+              displayName: payload.displayName || row.name || sk,
+              firstScore: payload.firstScore ?? row.score ?? 0,
+              latestScore: payload.latestScore ?? row.score ?? 0,
+              score: payload.latestScore ?? row.score ?? 0,
+              correctCount: payload.correctCount ?? 0,
+              totalCount:
+                payload.totalCount ?? (PRIORI_PAPER_MAP[pid]?.totalQuestions || 25),
+              masteredCount: payload.masteredCount ?? row.time ?? 0,
+              attemptsCount: payload.attemptsCount ?? 1,
+              streaks: payload.streaks || {},
+              latestAnswers: payload.latestAnswers || {},
+              scratchpad: payload.scratchpad || {},
+              updatedAt: payload.updatedAt || row.created_at,
+              source: 'cloud',
+            });
           } catch {}
         }
       }
@@ -642,13 +664,19 @@ export async function fetchPrioriTeacherRecordsWithMeta(paperId = '114-math-g3')
     }
   }
 
-  const records = Array.from(mergedByStudent.values()).sort((a, b) => {
-    if (a.studentClass !== b.studentClass)
-      return String(a.studentClass).localeCompare(String(b.studentClass));
-    return Number(a.studentSeat || 99) - Number(b.studentSeat || 99);
-  });
+  const recordsByPaperId = {};
+  for (const [pid, byStudent] of bucketByPaper.entries()) {
+    recordsByPaperId[pid] = sortTeacherRecords(byStudent.values());
+  }
+  return { recordsByPaperId, cloudError };
+}
 
-  return { records, cloudError };
+/**
+ * 讀取教師後台所需的單卷班級／各生學習扶助紀錄（融合雲端 + 本機各生紀錄，並回傳雲端錯誤狀態）
+ */
+export async function fetchPrioriTeacherRecordsWithMeta(paperId = '114-math-g3') {
+  const { recordsByPaperId, cloudError } = await fetchAllPrioriTeacherRecordsWithMeta(paperId);
+  return { records: recordsByPaperId[paperId] || [], cloudError };
 }
 
 /**
