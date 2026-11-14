@@ -1,6 +1,6 @@
 # 霧臺國小英語自主學習宇宙 (WutaiVocab 2.0) — 單一現況交接總手冊
 
-> **最後整理**：2026-11-13（對齊 `d07d91e` / `7fcdc27` ＋ SAA 114 選項圖重切與 105 題契約門禁）  
+> **最後整理**：2026-11-13（對齊 `d07d91e`／`7fcdc27` ＋ SAA 114 圖片/實體音檔上線 ＋ 課本題庫 Batch D 擴充至 **1,989 題**）  
 > **正式環境**：[https://wutaivocab.pages.dev](https://wutaivocab.pages.dev)（Cloudflare Pages 綁定 `origin/main`）  
 > **Supabase**：帳號 `liguyt@wutps.ptc.edu.tw`｜Project ID `fqkdkmcqjswufzbvkram`｜[後台](https://supabase.com/dashboard/project/fqkdkmcqjswufzbvkram)
 
@@ -21,7 +21,7 @@
      npm run build && node scripts/smoke_test.mjs
      ```
    - PowerShell **必須以 `$LASTEXITCODE` 判斷 build 成敗（勿用 `$?`）**；**嚴禁同時啟動兩個 `smoke_test.mjs`**（共用 port 4198 會互相干擾）。
-   - 6 階段內容：`[0/6]` 靜態契約（`soundEngine.xxx()` 存在於 `src/services/audio.js`、禁 `if (queue.length === 0) return onBack()`、課本 1,889 題 & SAA 113–115 契約）→ `[1/6]` 排行榜 → `[2/6]` 大廳與教師台 → `[3/6]` 鷹眼神探 → `[4/6]` 口說評測 → `[5/6]` 核心遊戲互動與檢定館 E2E（含 SAA 113/114）→ `[6/6]` 14 款遊戲 × 4 身分（56 組）零崩潰。
+   - 6 階段內容：`[0/6]` 靜態契約（`soundEngine.xxx()` 存在於 `src/services/audio.js`、禁 `if (queue.length === 0) return onBack()`、課本 1,989 題 & SAA 113–115 契約）→ `[1/6]` 排行榜 → `[2/6]` 大廳與教師台 → `[3/6]` 鷹眼神探 → `[4/6]` 口說評測 → `[5/6]` 核心遊戲互動與檢定館 E2E（含 SAA 113/114）→ `[6/6]` 14 款遊戲 × 4 身分（56 組）零崩潰。
 3. **React 與音訊狀態安全規範**：
    - 嚴禁在 `setState(prev => ...)` updater 內執行副作用（如 `soundEngine`、Supabase 廣播、`onBack()`）。
    - 所有遊戲讀取 `settings?.selectedUnits` 必須加空值防禦 `(settings?.selectedUnits || [])`。
@@ -63,7 +63,7 @@
     - 同冊跨單元複製曾造成 1,728 筆冗餘複本與 7～8 個 `scopes`；經方案 A Prune 後以 `src/data/hereWeGoMcqBank.js` 為唯一來源（舊產生器 `expand_mcq_bank_100_per_book.mjs` 已退役嚴禁再跑）。
     - 嚴禁寫死 `1589`、`1689` 等常數，一律讀取 `CANONICAL_STATS`。
     - 腳本動態載入檔案一律用 `pathToFileURL()`（避免 Windows `c:` 協議報錯），且 SHA-256 先將 `\r\n` 正規化為 `\n`（`.gitattributes` 鎖定 `eol=lf`）。
-    - `rollback_canonical_migration.mjs` 僅適用於 1,589 題基準；含 Batch A~C（1,889 題）後禁止回滾覆蓋。
+    - `rollback_canonical_migration.mjs` 僅適用於 1,589 題基準；含 Batch A~D（1,989 題）後禁止回滾覆蓋。
 12. **檢定館 Runtime、背包與通行證地雷**：
     - 正式測驗須用 `deadlineAt` 防關分頁無限暫停，並於 `finalizeExam` 完成後才清除快照；僅 `scopeMode === 'curriculum'` 寫入課本排行榜；易錯題複習嚴禁以一般題補滿；Pre-A1 正式卷排除 `W-SCRAMBLE` 與 `S-READ`；`supabase.js` 錯題回報必檢 `{ error }`；精熟快照不得 fallback 至 `questions.length`。
     - 學生背包道具必經 `resolveItemMetadata()`（杜絕「無名快遞紙箱 📦」）；通行證禁止寫死遊戲名單與橫向捲動條（動態讀 `CONSOLIDATED_GAME_MODES` 與 `getInventorySummary`）。
@@ -80,7 +80,7 @@
 | **1. 霧臺家園 RPG**<br>& **背包／通行證** | `src/games/town/WutaiTownGame.jsx`<br>`CinemaTheaterModal.jsx`<br>`CurioBackpackModal.jsx`<br>`StudentProfileModal.jsx`<br>`src/utils/inventoryHelper.js` | • **地圖互動**：9 大建築探索、NPC 對話樹 (`DialogueEngine`)、任務板 (`QuestBoardModal`)、商店 (`ShopModal`)、文化典籍 (`WisdomCardModal`, `GrimoireSanctuaryModal`)。頂部 HUD 容器保持 `pointer-events-none`（按鈕設 `pointer-events-auto`）防擋地圖建築點擊。<br>• **山豬影城**：16:9 `youtube-nocookie.com` 無伺服器流量串流，開啟時自動暫停場景 BGM。<br>• **24 格多寶格與通行證**：`resolveItemMetadata` 自動解析 30+ 原民／生活物品並折疊堆疊 (`x10`)，點擊「把玩」觸發音效、英音與文化典故；通行證嚴格維持 768:1024 單頁石板並動態查詢 `CONSOLIDATED_GAME_MODES`。 |
 | **2. 英語單字冒險館**<br>(`Lobby` ＋ **14 款遊戲**) | `src/components/Lobby.jsx`<br>`src/games/{spotter,escape,maze,memory,mole,swipe,meteor,snake,quiz,spelling,handwriting,battle}/` | • **5×2 一頁式整備室與榮譽榜門檻 (`qualifyingBook`)**：一二年級採 `abc` 字母（可切換 `upper`/`lower`/`mixed` 膠囊）；三～六年級需**同冊且（$\ge 20$ 字 或 $\ge 2$ 單元）**方具上榜資格。<br>• **探索解謎**：**密室逃脫**（四大秘境進度即開、複合詞膠囊、秒數鎖定）、**鷹眼神探**（低年級 6 取 3 圓形托盤；中高年級 8 取 5 補丁；放大鏡連按 5 下或 `?view=spotter-test` 進測試工作台）、**字母巡航迷宮**（方向鍵/觸控收集字母）、**星際記憶翻牌**（9 組單字＋2 張神卡共 20 張、全場 8 秒同步流光、`PowerUpCodexModal` 3D 轉盤圖鑑、依全站 `isDark` 自動切換日之章/夜之章卡背）。<br>• **反應競技**：**打地鼠**（60 秒倒數、10 秒未答扣 1 心連擊歸零、3 心歸零結算）、**極速滑卡**（180ms 防抖）、**3D 隕石防衛戰**（`IcosahedronGeometry`＋GLSL 熔岩/大氣著色器、攝影機 `z: 27`、每 50 分得 1 層單一呼吸光罩最多顯示 5 層＋`soundEngine.powerUp()`）、**貪食蛇**（日/夜雙景、330/235/205ms、樣條骨骼 + `inputQueueRef`）。<br>• **基礎測驗與對戰**：**中英速辨 / 英語聽力** (`StandardQuiz`)、**單字積木拼裝** (`SpellingGame` `parsePhrase` 複合詞分組)、**神筆筆順書寫** (`HandwritingGame` 四線三格＋彈性筆順幾何判定)、**多人連線對戰** (`BattleGame` 三間固定擂台 PIN `1001~1003`、每房最多 4 人、`EmergencyRaidMeteor` 突襲限 1 顆飛行 + 1 顆排隊＋1.5 秒冷卻＋落點左翼 18%～30%)。 |
 | **3. 雙語聽說探險館** | `src/features/langlab/LanguageLabHub.jsx`<br>`MediaBookshelfModal.jsx`<br>`YouTubeClipPlayer.jsx` | • 三大入口：**聽力特訓**（15 題三選一、3 秒自動倒數、`listening_lab` 榜；所有英文選項經 `isValidEnglishSentence` 過濾零漢字）、**口說跟讀**（Web Speech API 雙擊錄音評分回饋卡、`speaking_lab` 榜）、**影音微電影**（`UNIT_VIDEO_LIBRARY` 微秒區間播放暫停選答＋老師原創／歌謠分類，支援現場自訂測試，並含第 3 張直通 `mcq-exam` 卡片）。 |
-| **4. 霧臺英語檢定館**<br>& **四大天王排行榜** | `src/games/exam/PureMcqExamView.jsx`<br>`examBlueprint.js`<br>`mistakeReview.js`<br>`src/utils/masteryHelper.js`<br>`src/components/exam/*`<br>`LeaderboardView.jsx` | • **全頁無干擾介面 (`h-[100dvh]`)**：隱藏全域 `<Header />`、零遊戲音效與彩帶，設「第 0 頁測驗說明」按開始作答才計時。<br>• **四軌統一響應式設定骨架與主色**：課本題庫（藍色；手機同頁四列手風琴、iPad 橫向/桌機四欄並排）、SAA 學力檢測（翡翠綠；3 步零捲動 Wizard）、Pre-A1 模擬（紫色；單頁 4 膠囊：正式 30 題限時 35 分 / 綜合 15+15 / 聽 20 / 閱 20）、個人易錯題（玫紅；`全部`/`課本`/`SAA`/`Pre-A1` 篩選與 `10/20/30/全部清空`，嚴禁以一般題補滿，錯題歸零沉底、連對 2 次出庫、清空即提前結算）。琥珀色保留給金幣與提示。<br>• **滾動精熟引擎**：四狀態 `unattempted` → `remedial` → `probation`（錯後連對 1 次）→ `mastered`（累計連對 2 次解鎖，猜對率僅 6.25%）。三大軌道分母：`CURRICULUM_TOTAL_ITEMS = CANONICAL_STATS.canonicalItems`（現 **1,889** 題）、`PRE_A1_TOTAL_ITEMS = 300`、`SAA_TOTAL_ITEMS = 315`。<br>• **金幣核發與四大天王**：課本本年級（或易錯題）且正確率 $\ge 60\%$ 核發 `Math.min(20, Math.round(題數 * 答對率 * 0.4))` 金幣；`LeaderboardView` 呈現「測驗之王 / 金幣之王 / 積分之谷 / 遊戲之王」大武山四聯手風琴與課本檢定三累計榜（`mcq-king`, `mcq-diligent`, `mcq-accurate`）。 |
+| **4. 霧臺英語檢定館**<br>& **四大天王排行榜** | `src/games/exam/PureMcqExamView.jsx`<br>`examBlueprint.js`<br>`mistakeReview.js`<br>`src/utils/masteryHelper.js`<br>`src/components/exam/*`<br>`LeaderboardView.jsx` | • **全頁無干擾介面 (`h-[100dvh]`)**：隱藏全域 `<Header />`、零遊戲音效與彩帶，設「第 0 頁測驗說明」按開始作答才計時。<br>• **四軌統一響應式設定骨架與主色**：課本題庫（藍色；手機同頁四列手風琴、iPad 橫向/桌機四欄並排）、SAA 學力檢測（翡翠綠；3 步零捲動 Wizard）、Pre-A1 模擬（紫色；單頁 4 膠囊：正式 30 題限時 35 分 / 綜合 15+15 / 聽 20 / 閱 20）、個人易錯題（玫紅；`全部`/`課本`/`SAA`/`Pre-A1` 篩選與 `10/20/30/全部清空`，嚴禁以一般題補滿，錯題歸零沉底、連對 2 次出庫、清空即提前結算）。琥珀色保留給金幣與提示。<br>• **滾動精熟引擎**：四狀態 `unattempted` → `remedial` → `probation`（錯後連對 1 次）→ `mastered`（累計連對 2 次解鎖，猜對率僅 6.25%）。三大軌道分母：`CURRICULUM_TOTAL_ITEMS = CANONICAL_STATS.canonicalItems`（現 **1,989** 題）、`PRE_A1_TOTAL_ITEMS = 300`、`SAA_TOTAL_ITEMS = 315`。<br>• **金幣核發與四大天王**：課本本年級（或易錯題）且正確率 $\ge 60\%$ 核發 `Math.min(20, Math.round(題數 * 答對率 * 0.4))` 金幣；`LeaderboardView` 呈現「測驗之王 / 金幣之王 / 積分之谷 / 遊戲之王」大武山四聯手風琴與課本檢定三累計榜（`mcq-king`, `mcq-diligent`, `mcq-accurate`）。 |
 | **5. 自然發音探索館** | `src/features/phonics/PhonicsBoard.tsx` | • 互動式磁性拼讀板（Blending Board）、音標庫 (`SoundBankModal`)、兩種發音模式（`phoneme` 純音素 vs `word` 錨定單字）、自訂音標卡 (`phonics_custom_cards`)、測驗模式 (`QuizView`)，語系與日夜主題與主站雙向即時同步。 |
 | **6. 自編英語電子教科書** | `src/components/TextbookViewer.jsx` | • 嵌入 Heyzine 48 頁翻頁書並提供章節目錄快捷跳轉（Cover / Alphabet / U1–U5 / Review / Audio Hub），右側/底部抽屜內建 0.85x 初學者語速 Web Speech 朗讀清單與自訂英句即時發音。 |
 | **7. 全域載入條／教師後台／閒置保護** | `src/components/ui/GamePreloader.jsx`<br>`PreloaderShowcase.jsx`<br>`TeacherHub.jsx`<br>`InactivityGuard.jsx` | • **GamePreloader**：最短展示 1.2 秒＋300ms 淡出，`Image.decode()` 實測進度＋中英格言 (`forestQuotes.js`)；4 常態守護神獸（雲豹、黑熊、野豬、水鹿）＋12 月份節慶限定角色（當月 32% 優先登場），禁 Emoji 降級；展示台路由 `?view=preloader-showcase`。<br>• **TeacherHub**（密碼 `wt7902230`，快捷鍵 `Ctrl+Shift+A` / `Ctrl+Alt+T` 或 ErrorBoundary ⚠️ 連點 5 下）：含 7 大分頁（題庫管理、成績異常管理、精熟熱力圖 `TeacherMasteryAnalytics`、試題檢核區 `ExamAuditZone`、對戰擂台監控、系統體檢、全校公告廣播），並可直達 `PreloaderShowcase` 與 `?view=zoom-showcase`。<br>• **InactivityGuard**：單人互動模組 45 分鐘無操作預警 60 秒後自動返回大廳。 |
@@ -115,12 +115,12 @@
 | 項目 | 狀態 | 備註 / 下一步 |
 | :--- | :---: | :--- |
 | **檢定館四軌響應式、易錯題、打地鼠/貪食蛇優化 (`d07d91e`)** | ✅ **已上線** | 正式站已具備四軌整合設定頁與自適應錯題流程 |
-| **課本題庫 Canonical 擴充 (Batches A～C)** | ✅ **1,889 題在線** | Book 1～6 已各有 +50 題高規擴充；**⏳ 待啟動 Batch D (Book 7 & Book 8 +100 題 → 目標 1,989 題)** |
+| **課本題庫 Canonical 擴充 (Batches A～D)** | ✅ **1,989 題在線** | Book 1～8 全冊各 +50 題高規擴充完成（Book 7: 178 題、Book 8: 176 題），全冊皆 ≥ 100 獨立 Canonical 題 |
 | **Pre-A1 官方模擬題庫** | ✅ **300 題在線** | 含 30 題正式卷藍圖與專項特訓 |
 | **SAA 113 年官方卷** | ✅ **105 題 + 45 音檔上線** | `scripts/test_saa_113_contract.mjs` 全過 |
 | **SAA 114 年官方卷 — P0 圖片與契約鎖定** | ✅ **已上線 (`c44e60d`)** | 144 張選項圖依獨立座標裁切完成、`optionAltTexts` 與 G4 Q20 (`50/25/15/5`) 校準鎖定，105 題標準答案與 Sharp 門禁通過 `test_saa_114_contract.mjs` 與 114 E2E |
-| **SAA 114 年官方卷 — P0 實體音檔** | ✅ **已上線** | 已依 `SAA/114/{4,5,6}` 官方英聽 MP3 完成 FFmpeg 波形時間戳校準（`TIMESTAMPS_CALIBRATED = true`），產出 45 個 `96kbps Mono` + `0.1s` fade 小檔至 `public/audio/saa/114/` 並寫入 `media.audioSrc` |
-| **SAA 115 年官方卷** | ✅ **105 題 + 70 圖上線** | 聽力目前走 TTS 備援；後續可依 114 SOP 評估選項解耦與官方音檔 |
+| **SAA 114 年官方卷 — P0 實體音檔** | ✅ **已上線 (`cee0282`)** | 已依 `SAA/114/{4,5,6}` 官方英聽 MP3 完成 FFmpeg 波形時間戳校準（`TIMESTAMPS_CALIBRATED = true`），產出 45 個 `96kbps Mono` + `0.1s` fade 小檔至 `public/audio/saa/114/` 並寫入 `media.audioSrc` |
+| **SAA 115 年官方卷** | ✅ **105 題 + 70 圖上線** | 現況稽核確認：70 張仍為四合一圖片 (`image` 欄位)＋劇透文字選項，45 題聽力為 `audioText` TTS 備援；待提供 SAA 115 原始 PDF／MP3 後可依 114 SOP 進行選項圖解耦與官方音檔切音 |
 | **檢定館後續擴充收斂共識（教師派發 / 學扶）** | 📝 **已定案待排程** | • **學習扶助測驗**：改採官方公開 PDF＋聽力 MP3 自行依「純圖＋系統文字選項／獨立選項圖」切檔，併入 `ministry-assessment`（共用引擎、分母獨立計算），不開第 5 條主軌。<br>• **錯題與派發**：沿用現有 `mistakeReview.js` 精熟練習；未來於 `TeacherHub.jsx` 增「一鍵派發連結／QR Code」（學生掃碼直進第 0 頁說明）與結果頁重練捷徑。<br>• **組卷列印**：採瀏覽器原生 `@media print` 印／存 PDF 學習單＋純文字複製，**不做**肥大且易跑版（須 WebP→PNG 轉碼）的 `.docx` 產生器。 |
 | **全站師生使用手冊** | ⏳ **待結案整理** | 未來完成全案後以第三節模組總覽產出對外操作說明書 |
 
@@ -141,6 +141,7 @@ node scripts/verify_canonical_schema.mjs
 node scripts/test_batch_a_contract.mjs
 node scripts/test_batch_b_contract.mjs
 node scripts/test_batch_c_contract.mjs
+node scripts/test_batch_d_contract.mjs
 
 # 3. 完整建置與 6 階段無頭 Chrome 回歸測試 (推送前必跑)
 npm run build && node scripts/smoke_test.mjs

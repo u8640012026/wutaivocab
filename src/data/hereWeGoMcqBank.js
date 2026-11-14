@@ -63886,5 +63886,3383 @@ export const HERE_WE_GO_MCQ_BANK = [
       "Festival"
     ],
     "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_01",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Starter",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 1,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "It is sunny outside. Let us go to the park and have a ______ together.",
+    "options": [
+      "picnic",
+      "shower",
+      "subway",
+      "fever",
+      "museum",
+      "station",
+      "temple"
+    ],
+    "answer": 0,
+    "explanation": "句意為「外面天氣晴朗，我們一起去公園野餐吧。」have a picnic 為「去野餐」，最符合情境。",
+    "canonicalId": "hwg_b7_bd_01",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_02",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Starter",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 1,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "A: ______ water bottle is this on the grass? B: Oh, it is mine.",
+    "options": [
+      "Whose",
+      "Who",
+      "Where",
+      "How",
+      "What",
+      "When",
+      "Which"
+    ],
+    "answer": 0,
+    "explanation": "回答為「Oh, it is mine.（喔，是我的。）」，可知問句詢問物品是誰的，應使用疑問詞 Whose。",
+    "canonicalId": "hwg_b7_bd_02",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_03",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Starter",
+    "section": "grammar",
+    "taskType": "G-CTX",
+    "difficulty": 1,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "在公園野餐時，你想有禮貌地詢問朋友「你要來點牛肉三明治嗎？」，應該怎麼問？",
+    "options": [
+      "Would you like some beef sandwiches?",
+      "Where do you go on weekends?",
+      "What time do you take a shower?",
+      "How do you go to the library?",
+      "Are you from Singapore or India?",
+      "Whose bicycle is under the tree?",
+      "What does he do after school?"
+    ],
+    "answer": 0,
+    "explanation": "有禮貌地詢問別人是否想吃某食物，標準句型為「Would you like some ...?」。",
+    "canonicalId": "hwg_b7_bd_03",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_04",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Starter",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 1,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "Would you like some orange juice?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "Yes, please. Thank you!",
+      "I go to school by bus.",
+      "We are from Taiwan.",
+      "He plays baseball at five.",
+      "It is on the second floor.",
+      "They are my new shoes.",
+      "She goes to bed at ten."
+    ],
+    "answer": 0,
+    "explanation": "問句「Would you like some orange juice?（你要來點柳橙汁嗎？）」的禮貌肯定回答為「Yes, please. Thank you!」。",
+    "canonicalId": "hwg_b7_bd_04",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_05",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Starter",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「It is Sunday afternoon. Mia, Rocky, and Amber are having a picnic in the park. Mia brings two beef sandwiches. Amber brings cold apple juice. Rocky puts his blue cap on the chair, and everyone enjoys the sunny day happily.」請問 Amber 帶了什麼去野餐？",
+    "options": [
+      "冰蘋果汁",
+      "牛肉三明治",
+      "起司漢堡",
+      "熱蔬菜湯",
+      "巧克力蛋糕",
+      "檸檬紅茶",
+      "鮮奶吐司"
+    ],
+    "answer": 0,
+    "explanation": "短文第 4 句寫到「Amber brings cold apple juice.（Amber 帶了冰蘋果汁）」，故選「冰蘋果汁」。",
+    "canonicalId": "hwg_b7_bd_05",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_06",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 1",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "Singapore",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "Singapore",
+      "Australia",
+      "Taiwan",
+      "India",
+      "Japan",
+      "Spain",
+      "Egypt"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為國家名稱「Singapore（新加坡）」。",
+    "canonicalId": "hwg_b7_bd_06",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_07",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 1",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "Australia",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "Australia",
+      "India",
+      "Singapore",
+      "Japan",
+      "Spain",
+      "Egypt",
+      "Taiwan"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為國家名稱「Australia（澳洲）」。",
+    "canonicalId": "hwg_b7_bd_07",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_08",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 1",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "Where are you and your sister from?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "We are from Taiwan.",
+      "I go home by metro.",
+      "They play the piano.",
+      "It is six thirty now.",
+      "Yes, I like beef curry.",
+      "He is in the museum.",
+      "She gets up at seven."
+    ],
+    "answer": 0,
+    "explanation": "問句問「Where are you and your sister from?（你和妹妹來自哪裡？）」，主詞為複數「你們」，故用「We are from Taiwan.」回答。",
+    "canonicalId": "hwg_b7_bd_08",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_09",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 1",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "The Taj Mahal is a very famous building in ______. Many travelers visit it every year.",
+    "options": [
+      "India",
+      "Japan",
+      "Spain",
+      "Taiwan",
+      "Singapore",
+      "Australia",
+      "Egypt"
+    ],
+    "answer": 0,
+    "explanation": "泰姬瑪哈陵（Taj Mahal）位於印度（India），為世界知名地標。",
+    "canonicalId": "hwg_b7_bd_09",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_10",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 1",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "Sydney Opera House and cute koalas are famous sights in ______.",
+    "options": [
+      "Australia",
+      "India",
+      "Spain",
+      "Japan",
+      "Taiwan",
+      "Egypt",
+      "Singapore"
+    ],
+    "answer": 0,
+    "explanation": "雪梨歌劇院（Sydney Opera House）與無尾熊（koalas）皆位於澳洲（Australia）。",
+    "canonicalId": "hwg_b7_bd_10",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_11",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 1",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "A: ______ your new classmate from the UK? B: No, she is from Japan.",
+    "options": [
+      "Is",
+      "Are",
+      "Am",
+      "Do",
+      "Does",
+      "Can",
+      "Be"
+    ],
+    "answer": 0,
+    "explanation": "主詞「your new classmate」為第三人稱單數，且句中無一般動詞而為 be 動詞＋from 句型，疑問句開頭須用 Is。",
+    "canonicalId": "hwg_b7_bd_11",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_12",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 1",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "My uncle lives in London. He is from ______.",
+    "options": [
+      "the UK",
+      "a UK",
+      "UK",
+      "an UK",
+      "Taiwan",
+      "Japan",
+      "Spain"
+    ],
+    "answer": 0,
+    "explanation": "英國（the UK）與美國（the USA）屬於縮寫國名，搭配 from 使用時必須加上定冠詞 the，故選 the UK。",
+    "canonicalId": "hwg_b7_bd_12",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_13",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 1",
+    "section": "grammar",
+    "taskType": "G-CTX",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "國際文化週上，你想問來自遠方的男孩「你從哪裡來？」，應該怎麼問？",
+    "options": [
+      "Where are you from?",
+      "How can you go there?",
+      "What time is the show?",
+      "Whose backpack is this?",
+      "What do you want to eat?",
+      "When is your birthday?",
+      "Do you like hot curry?"
+    ],
+    "answer": 0,
+    "explanation": "詢問對方來自哪個國家或城市，標準句型為「Where are you from?」。",
+    "canonicalId": "hwg_b7_bd_13",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_14",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 1",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「Hello, everyone. My name is Kenji. I am twelve years old, and I am from Japan. My best friend Emma is from the UK. We meet at an international camp in Taiwan. We both love Taiwanese beef noodles and mango ice very much.」請問 Kenji 的好朋友 Emma 來自哪個國家？",
+    "options": [
+      "英國",
+      "日本",
+      "台灣",
+      "印度",
+      "西班牙",
+      "美國",
+      "新加坡"
+    ],
+    "answer": 0,
+    "explanation": "短文第 4 句寫道「My best friend Emma is from the UK.（我的好朋友 Emma 來自英國）」，故選「英國」。",
+    "canonicalId": "hwg_b7_bd_14",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_15",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 2",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "scooter",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "scooter",
+      "metro",
+      "boat",
+      "taxi",
+      "train",
+      "bike",
+      "tram"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為交通工具單字「scooter（機車／滑板車）」。",
+    "canonicalId": "hwg_b7_bd_15",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_16",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 2",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "museum",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "museum",
+      "station",
+      "theater",
+      "library",
+      "hospital",
+      "bakery",
+      "office"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為場所單字「museum（博物館）」。",
+    "canonicalId": "hwg_b7_bd_16",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_17",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 2",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "How does Kevin go to school every morning?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "He goes to school by bike.",
+      "He is from the USA.",
+      "He plays basketball at four.",
+      "He wraps gifts at school.",
+      "He wants some noodles.",
+      "He likes sunny weather.",
+      "He is in the classroom."
+    ],
+    "answer": 0,
+    "explanation": "問句問「Kevin 每天早上怎麼去上學？」，詢問交通方式須用「by + 交通工具」或「on foot」回答，故選「He goes to school by bike.」。",
+    "canonicalId": "hwg_b7_bd_17",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_18",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 2",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "Do you go to the library by metro?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "No, I go there on foot.",
+      "Yes, I am from Taipei.",
+      "No, I get up at six.",
+      "Yes, he likes music.",
+      "No, it is my water bottle.",
+      "Yes, they are my friends.",
+      "No, we want some juice."
+    ],
+    "answer": 0,
+    "explanation": "問句是「Do you go to the library by metro?（你搭捷運去圖書館嗎？）」，以 Yes/No 簡答並說明實際交通方式「No, I go there on foot.（不，我走路去那裡）」。",
+    "canonicalId": "hwg_b7_bd_18",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_19",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 2",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "Our school is very close to my house, so I walk there ______ foot every day.",
+    "options": [
+      "on",
+      "by",
+      "in",
+      "at",
+      "to",
+      "with",
+      "under"
+    ],
+    "answer": 0,
+    "explanation": "「走路／步行」在英文的固定介系詞片語為 on foot，不可使用 by foot。",
+    "canonicalId": "hwg_b7_bd_19",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_20",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 2",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "Taking the ______ under the city is fast because there are no traffic lights underground.",
+    "options": [
+      "metro",
+      "boat",
+      "bicycle",
+      "horse",
+      "ship",
+      "plane",
+      "kite"
+    ],
+    "answer": 0,
+    "explanation": "「在地下行駛、沒有紅綠燈的快速交通工具」即捷運／地鐵（metro）。",
+    "canonicalId": "hwg_b7_bd_20",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_21",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 2",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "My father ______ to the office by train on weekdays.",
+    "options": [
+      "goes",
+      "go",
+      "going",
+      "to go",
+      "wenting",
+      "are",
+      "does"
+    ],
+    "answer": 0,
+    "explanation": "主詞 My father 為第三人稱單數，現在簡單式表達平常習慣（on weekdays），動詞 go 須加 es 變為 goes。",
+    "canonicalId": "hwg_b7_bd_21",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_22",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 2",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "A: ______ your sisters go to the night market by bus? B: Yes, they do.",
+    "options": [
+      "Do",
+      "Does",
+      "Are",
+      "Is",
+      "Am",
+      "Has",
+      "Was"
+    ],
+    "answer": 0,
+    "explanation": "主詞 your sisters 為複數名詞，且後面為原形動詞 go，疑問句助動詞須選 Do。",
+    "canonicalId": "hwg_b7_bd_22",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_23",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 2",
+    "section": "grammar",
+    "taskType": "G-CTX",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "同學家住得有點遠，你想問他「你爸爸都怎麼去博物館？」，下列哪一句最適合？",
+    "options": [
+      "How does your dad go to the museum?",
+      "Where is the history museum?",
+      "What does your dad do on Monday?",
+      "Is your dad from Australia?",
+      "What time does the museum open?",
+      "Whose car is in front of the museum?",
+      "Would you like to see the museum?"
+    ],
+    "answer": 0,
+    "explanation": "詢問第三人稱（your dad）如何前往某地，須使用「How does + 主詞 + go to + 地點?」。",
+    "canonicalId": "hwg_b7_bd_23",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_24",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 2",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「Every morning, Iris and her brother Leo leave home at seven thirty. Iris takes the metro to school because her school is downtown. Leo goes to school by bike with his neighbor. Their mother walks to the post office near their home on foot.」請問 Iris 每天早上如何去上學？",
+    "options": [
+      "搭捷運",
+      "騎腳踏車",
+      "步行走路",
+      "搭公車",
+      "坐爸爸的車",
+      "搭火車",
+      "騎機車"
+    ],
+    "answer": 0,
+    "explanation": "短文第 2 句寫到「Iris takes the metro to school because her school is downtown.（Iris 搭捷運上學）」，故選「搭捷運」。",
+    "canonicalId": "hwg_b7_bd_24",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_25",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Review 1",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「Ben is from Egypt, and his cousin Maya is from Spain. They are visiting Taipei this weekend. First, they go to the museum by metro in the morning. Then, they take a taxi to a famous beef noodle shop for lunch together.」請問 Ben 來自哪裡？",
+    "options": [
+      "埃及",
+      "西班牙",
+      "台灣",
+      "英國",
+      "澳洲",
+      "日本",
+      "印度"
+    ],
+    "answer": 0,
+    "explanation": "短文第 1 句明確指出「Ben is from Egypt（Ben 來自埃及）」，Maya 才來自西班牙，故選「埃及」。",
+    "canonicalId": "hwg_b7_bd_25",
+    "primaryScope": "Review 1",
+    "scopes": [
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_26",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 3",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "baseball",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "baseball",
+      "basketball",
+      "badminton",
+      "piano",
+      "guitar",
+      "violin",
+      "soccer"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為運動項目單字「baseball（棒球）」。",
+    "canonicalId": "hwg_b7_bd_26",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_27",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 3",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "jogging",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "jogging",
+      "reading",
+      "writing",
+      "singing",
+      "dancing",
+      "cooking",
+      "fishing"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為休閒活動單字「jogging（慢跑）」。",
+    "canonicalId": "hwg_b7_bd_27",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_28",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 3",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "What does your sister do in her free time?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "She plays the piano at home.",
+      "She goes to school by bus.",
+      "She is from Singapore.",
+      "She gets up at six o'clock.",
+      "She wants some sandwiches.",
+      "She is at the post office.",
+      "It is half past eight now."
+    ],
+    "answer": 0,
+    "explanation": "問句問「What does your sister do in her free time?（你妹妹空閒時間都在做什麼？）」，須回答休閒活動，故選「She plays the piano at home.」。",
+    "canonicalId": "hwg_b7_bd_28",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_29",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 3",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "Mozart loved music very much, and he could ______ the piano very well.",
+    "options": [
+      "play",
+      "ride",
+      "surf",
+      "wrap",
+      "watch",
+      "brush",
+      "walk"
+    ],
+    "answer": 0,
+    "explanation": "搭配樂器（the piano）表達「彈奏」應使用動詞 play（play the piano）。",
+    "canonicalId": "hwg_b7_bd_29",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_30",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 3",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "After finishing his homework, Ryan likes to ______ a bike along the river.",
+    "options": [
+      "ride",
+      "watch",
+      "listen",
+      "surf",
+      "play",
+      "write",
+      "take"
+    ],
+    "answer": 0,
+    "explanation": "搭配腳踏車（a bike）表達「騎乘」須使用動詞 ride（ride a bike）。",
+    "canonicalId": "hwg_b7_bd_30",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_31",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 3",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "What do you and your brother do after school?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "We ride bikes and listen to music.",
+      "We are from the UK.",
+      "It is eleven thirty now.",
+      "I go to school by scooter.",
+      "Yes, we want some apple juice.",
+      "My water bottle is under the chair.",
+      "She wraps gifts at the elf school."
+    ],
+    "answer": 0,
+    "explanation": "問句詢問「你和弟弟放學後都做什麼？」，主詞為複數且問日常休閒活動，故回答「We ride bikes and listen to music.」。",
+    "canonicalId": "hwg_b7_bd_31",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_32",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 3",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "My brother ______ TV with our grandfather after dinner every evening.",
+    "options": [
+      "watches",
+      "watch",
+      "watching",
+      "watchs",
+      "to watch",
+      "are watching",
+      "watched"
+    ],
+    "answer": 0,
+    "explanation": "主詞 My brother 為第三人稱單數，every evening 為現在簡單式習慣，watch 字尾為 ch，三單變化須加 es 為 watches。",
+    "canonicalId": "hwg_b7_bd_32",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_33",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 3",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "A: What ______ Chloe and her friends do on weekends? B: They go jogging in the park.",
+    "options": [
+      "do",
+      "does",
+      "are",
+      "is",
+      "can",
+      "has",
+      "did"
+    ],
+    "answer": 0,
+    "explanation": "主詞 Chloe and her friends 為複數，搭配原形動詞 do，疑問句助動詞須使用 do。",
+    "canonicalId": "hwg_b7_bd_33",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_34",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 3",
+    "section": "grammar",
+    "taskType": "G-CTX",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "你想知道好朋友 David 放學後的空閒時間都做些什麼活動，可以怎麼問他？",
+    "options": [
+      "What do you do in your free time?",
+      "How do you go home after school?",
+      "Where do you come from, David?",
+      "What time do you go to bed?",
+      "Whose baseball bat is this?",
+      "Do you want some hot soup?",
+      "Can you take a metro there?"
+    ],
+    "answer": 0,
+    "explanation": "詢問對方空閒時間做什麼休閒活動，標準問句為「What do you do in your free time?」。",
+    "canonicalId": "hwg_b7_bd_34",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_35",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 3",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「Eric and his twin sister Amy have different hobbies. On weekends, Eric plays baseball with his school team at the field. Amy does not like ball games. Instead, she stays at home to practice the piano and surf the Internet for music videos.」請問週末時 Amy 在家做什麼活動？",
+    "options": [
+      "彈鋼琴與上網看音樂影片",
+      "去棒球場打棒球",
+      "跟鄰居去公園慢跑",
+      "去圖書館寫功課",
+      "騎腳踏車逛夜市",
+      "到歌劇院聽演講",
+      "去超市買牛肉三明治"
+    ],
+    "answer": 0,
+    "explanation": "短文最後一句指出 Amy 留在家中「practice the piano and surf the Internet for music videos（練鋼琴與上網找音樂影片）」。",
+    "canonicalId": "hwg_b7_bd_35",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_36",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 4",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "homework",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "homework",
+      "breakfast",
+      "dinner",
+      "shower",
+      "snowman",
+      "reindeer",
+      "office"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為日常作息關鍵字「homework（家庭作業）」。",
+    "canonicalId": "hwg_b7_bd_36",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_37",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 4",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "breakfast",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "breakfast",
+      "lunch",
+      "dinner",
+      "homework",
+      "weekend",
+      "morning",
+      "evening"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為三餐單字「breakfast（早餐）」。",
+    "canonicalId": "hwg_b7_bd_37",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_38",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 4",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "What time do you get up on school days?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "I get up at six thirty.",
+      "I go to school by bus.",
+      "I play baseball with friends.",
+      "I am from Taiwan.",
+      "I like beef sandwiches.",
+      "I wrap gifts for my mom.",
+      "I am in the post office."
+    ],
+    "answer": 0,
+    "explanation": "問句問「What time do you get up on school days?（你上學日幾點起床？）」，須回答起床時間，故選「I get up at six thirty.」。",
+    "canonicalId": "hwg_b7_bd_38",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_39",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 4",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "What does Joy do after breakfast at the elf school?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "She wraps gifts and makes toys.",
+      "She is from the Arctic Circle.",
+      "She goes home at twelve thirty.",
+      "She takes the tram to Vienna.",
+      "It is ten o'clock in the morning.",
+      "Her bottle is on the table.",
+      "Yes, she would like some tea."
+    ],
+    "answer": 0,
+    "explanation": "問句詢問 Joy 早餐後在精靈學校做什麼事，應回答具體動作，故選「She wraps gifts and makes toys.」。",
+    "canonicalId": "hwg_b7_bd_39",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_40",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 4",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "Before going to bed every night, I take a warm ______ to relax.",
+    "options": [
+      "shower",
+      "picnic",
+      "subway",
+      "snowman",
+      "present",
+      "tram",
+      "museum"
+    ],
+    "answer": 0,
+    "explanation": "「睡前沖個熱水澡放鬆」英文固定為 take a shower。",
+    "canonicalId": "hwg_b7_bd_40",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_41",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 4",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "Joy is very busy before Christmas because she needs to ______ many colorful gifts.",
+    "options": [
+      "wrap",
+      "walk",
+      "surf",
+      "ride",
+      "ring",
+      "count",
+      "clean"
+    ],
+    "answer": 0,
+    "explanation": "聖誕節前包裝禮物（wrap gifts），應選動詞 wrap（包裝）。",
+    "canonicalId": "hwg_b7_bd_41",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_42",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 4",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "Santa always goes to bed ______ eleven thirty after he finishes his work.",
+    "options": [
+      "at",
+      "on",
+      "in",
+      "by",
+      "from",
+      "to",
+      "with"
+    ],
+    "answer": 0,
+    "explanation": "在英文時間介系詞中，精確的時間點（如 eleven thirty / 11:30）前面固定搭配介系詞 at。",
+    "canonicalId": "hwg_b7_bd_42",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_43",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 4",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "A: What time ______ your brother have dinner? B: He has dinner at six.",
+    "options": [
+      "does",
+      "do",
+      "is",
+      "are",
+      "has",
+      "was",
+      "can"
+    ],
+    "answer": 0,
+    "explanation": "主詞 your brother 為第三人稱單數，後面搭配原形動詞 have，疑問句助動詞須使用 does。",
+    "canonicalId": "hwg_b7_bd_43",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_44",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 4",
+    "section": "grammar",
+    "taskType": "G-CTX",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "媽媽想知道弟弟每天晚上幾點睡覺，她應該問什麼？",
+    "options": [
+      "What time does he go to bed?",
+      "What does he do in his free time?",
+      "How does he go to the park?",
+      "Where does your brother live?",
+      "Does he wrap gifts after dinner?",
+      "Whose clock is on the wall?",
+      "Would he like some warm milk?"
+    ],
+    "answer": 0,
+    "explanation": "詢問「幾點睡覺」應使用時間疑問詞 What time ＋ 助動詞 does ＋ go to bed。",
+    "canonicalId": "hwg_b7_bd_44",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_45",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Unit 4",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「Every morning, elf Joy gets up at eight o'clock in SantaPark. After a quick breakfast, she makes wooden toys and wraps pretty gifts with her friends. At noon, she walks the reindeer outside in the snow. She goes home at twelve at night.」請問 Joy 吃完早餐後在做什麼？",
+    "options": [
+      "製作木頭玩具與包裝禮物",
+      "在雪地裡堆雪人與洗冰浴",
+      "搭電車去維也納歌劇院",
+      "吃牛肉三明治與喝汽水",
+      "打棒球與彈鋼琴",
+      "上網查新年煙火時間",
+      "睡覺到下午三點"
+    ],
+    "answer": 0,
+    "explanation": "短文第 2 句寫到「After a quick breakfast, she makes wooden toys and wraps pretty gifts（製作木頭玩具並包裝漂亮禮物）」。",
+    "canonicalId": "hwg_b7_bd_45",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_46",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Review 2",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "My sister ______ her homework at seven and then listens to music before bed.",
+    "options": [
+      "does",
+      "do",
+      "doing",
+      "is do",
+      "are doing",
+      "doeses",
+      "did"
+    ],
+    "answer": 0,
+    "explanation": "句子與後半句 listens 並列為現在簡單式習慣動作，主詞 My sister 為三單，故選 does（do one’s homework）。",
+    "canonicalId": "hwg_b7_bd_46",
+    "primaryScope": "Review 2",
+    "scopes": [
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_47",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Review 2",
+    "section": "grammar",
+    "taskType": "G-CTX",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "你想同時問同學「你哥哥晚上幾點回家，回家後又喜歡做什麼休閒活動？」，下列哪一組說法最自然？",
+    "options": [
+      "What time does he go home, and what does he do in his free time?",
+      "Where is he from, and how does he go to the library?",
+      "Whose cap is on the desk, and do you want some cheese?",
+      "When is Lunar New Year, and can you ring the bell?",
+      "Are you going to Vienna by tram, or on foot?",
+      "What is your favorite subject in fifth grade?",
+      "How much is the beef sandwich at this park?"
+    ],
+    "answer": 0,
+    "explanation": "前半問回家時間（What time does he go home），後半問空閒休閒活動（what does he do in his free time），完全對應 Review 2 兩大單元主題。",
+    "canonicalId": "hwg_b7_bd_47",
+    "primaryScope": "Review 2",
+    "scopes": [
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_48",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Festival",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "During Lunar New Year in Taiwan, families ______ up red spring couplets on the doors for good luck.",
+    "options": [
+      "put",
+      "wrap",
+      "surf",
+      "ring",
+      "take",
+      "ride",
+      "drop"
+    ],
+    "answer": 0,
+    "explanation": "台灣農曆新年「貼春聯」的固定動詞片語為 put up spring couplets。",
+    "canonicalId": "hwg_b7_bd_48",
+    "primaryScope": "Festival",
+    "scopes": [
+      "Festival"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_49",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Festival",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「On New Year's Eve in Australia, Emily and her family watch colorful fireworks over the Sydney Harbor Bridge. Before midnight, they share a warm picnic dinner by the water and count down happily with friendly neighbors from around the world.」請問 Emily 一家人在澳洲跨年時會觀賞什麼？",
+    "options": [
+      "五彩繽紛的煙火",
+      "十二顆西班牙葡萄",
+      "日本寺廟的銅鐘",
+      "芬蘭的馴鹿雪橇",
+      "台北夜市的小吃",
+      "維也納的電車遊行",
+      "公園裡的棒球比賽"
+    ],
+    "answer": 0,
+    "explanation": "短文第 1 句指出「watch colorful fireworks over the Sydney Harbor Bridge（在雪梨港灣大橋上方觀賞五彩繽紛的煙火）」，故選「五彩繽紛的煙火」。",
+    "canonicalId": "hwg_b7_bd_49",
+    "primaryScope": "Festival",
+    "scopes": [
+      "Festival"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b7_bd_50",
+    "track": "textbook",
+    "book": 7,
+    "unit": "Festival",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「People celebrate New Year differently around the world. In Japan, temples ring bells 108 times on New Year's Eve. In Spain, people eat twelve grapes as the clock chimes midnight. In Taiwan, families clean their houses, put up spring couplets, and share a big dinner.」請問在西班牙跨年時人們會吃什麼？",
+    "options": [
+      "十二顆葡萄",
+      "牛肉麵與水餃",
+      "蘋果與吐司",
+      "起司漢堡",
+      "鳳梨酥",
+      "抹茶蛋糕",
+      "橘子與香蕉"
+    ],
+    "answer": 0,
+    "explanation": "短文第 3 句指出「In Spain, people eat twelve grapes as the clock chimes midnight.（在西班牙人們會吃十二顆葡萄）」。",
+    "canonicalId": "hwg_b7_bd_50",
+    "primaryScope": "Festival",
+    "scopes": [
+      "Festival"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_01",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Starter",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 1,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "My grandfather goes to the park early every morning to ______ Tai Chi.",
+    "options": [
+      "do",
+      "go",
+      "play",
+      "take",
+      "watch",
+      "visit",
+      "clean"
+    ],
+    "answer": 0,
+    "explanation": "打太極拳與練功夫（Tai Chi / kung fu）在英文固定搭配動詞 do，故選 do Tai Chi。",
+    "canonicalId": "hwg_b8_bd_01",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_02",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Starter",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 1,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "A: What do you do in your free time? B: I go ______ in the mountains with my family.",
+    "options": [
+      "camping",
+      "camp",
+      "badminton",
+      "kung fu",
+      "Tai Chi",
+      "piano",
+      "videos"
+    ],
+    "answer": 0,
+    "explanation": "在「go + V-ing」句型中，去露營為 go camping；badminton 用 play，Tai Chi 和 kung fu 用 do。",
+    "canonicalId": "hwg_b8_bd_02",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_03",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Starter",
+    "section": "grammar",
+    "taskType": "G-CTX",
+    "difficulty": 1,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "公園裡你看到同學在揮羽球拍，你想用英文問「你平常空閒時間都做什麼運動？」，該怎麼問？",
+    "options": [
+      "What do you do in your free time?",
+      "Where were you yesterday morning?",
+      "How much is your new jacket?",
+      "What did you do last night?",
+      "How is the weather in winter?",
+      "Whose badminton racket is on the bench?",
+      "Were they at the movie theater?"
+    ],
+    "answer": 0,
+    "explanation": "詢問平常空閒時間的興趣或運動習慣，使用現在式問句「What do you do in your free time?」。",
+    "canonicalId": "hwg_b8_bd_03",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_04",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Starter",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 1,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "What do you do in your free time, Mia?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "I play badminton with my brother.",
+      "I was at the restaurant yesterday.",
+      "The T-shirt is four hundred dollars.",
+      "My favorite season is cool fall.",
+      "We cleaned our room last night.",
+      "Yes, it is very snowy today.",
+      "No, they were not at the zoo."
+    ],
+    "answer": 0,
+    "explanation": "問句問 Mia 平常空閒時間做什麼（現在式），應以現在簡單式活動回答，故選「I play badminton with my brother.」。",
+    "canonicalId": "hwg_b8_bd_04",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_05",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Starter",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「Every Saturday morning, Uncle Tom goes jogging around the lake near his house. His son Leo prefers indoor sports, so Leo practices kung fu at a sports center. In the afternoon, they often go fishing together by the quiet river.」請問星期六下午父子倆常一起去做什麼？",
+    "options": [
+      "一起去釣魚",
+      "一起打羽毛球",
+      "一起在公園打太極",
+      "一起去購物中心",
+      "一起去電影院看片",
+      "一起在健身房練功夫",
+      "一起在湖邊慢跑"
+    ],
+    "answer": 0,
+    "explanation": "短文最後一句指出「In the afternoon, they often go fishing together by the quiet river.（下午他們常去安靜的河邊釣魚）」。",
+    "canonicalId": "hwg_b8_bd_05",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_06",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 1",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "yesterday",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "yesterday",
+      "tomorrow",
+      "tonight",
+      "today",
+      "winter",
+      "summer",
+      "weekend"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為過去時間副詞「yesterday（昨天）」。",
+    "canonicalId": "hwg_b8_bd_06",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_07",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 1",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "restaurant",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "restaurant",
+      "hospital",
+      "theater",
+      "museum",
+      "library",
+      "station",
+      "bakery"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為地點單字「restaurant（餐廳）」。",
+    "canonicalId": "hwg_b8_bd_07",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_08",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 1",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "Where were you and Max yesterday afternoon?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "We were at the movie theater.",
+      "We are playing basketball now.",
+      "I go camping in my free time.",
+      "They cost five hundred dollars.",
+      "My favorite season is spring.",
+      "Yes, I cleaned my room.",
+      "It is warm and sunny in summer."
+    ],
+    "answer": 0,
+    "explanation": "問句問「Where were you and Max yesterday afternoon?（昨天下午你和 Max 在哪裡？）」，主詞是你們且為過去時間，故答「We were at the movie theater.」。",
+    "canonicalId": "hwg_b8_bd_08",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_09",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 1",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "We wanted to buy a new jacket and some gifts, so we went to the ______ yesterday.",
+    "options": [
+      "mall",
+      "zoo",
+      "hospital",
+      "lake",
+      "kitchen",
+      "playground",
+      "temple"
+    ],
+    "answer": 0,
+    "explanation": "要買夾克跟禮物（buy a new jacket and some gifts），最適合前往購物中心（mall）。",
+    "canonicalId": "hwg_b8_bd_09",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_10",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 1",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "My parents were hungry last night, so we had salad and steak at a nice ______.",
+    "options": [
+      "restaurant",
+      "theater",
+      "museum",
+      "library",
+      "school",
+      "bookstore",
+      "airport"
+    ],
+    "answer": 0,
+    "explanation": "吃沙拉與牛排（had salad and steak）的地方是餐廳（restaurant）。",
+    "canonicalId": "hwg_b8_bd_10",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_11",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 1",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "A: Where ______ Rocky yesterday morning? B: He was at the zoo.",
+    "options": [
+      "was",
+      "were",
+      "is",
+      "are",
+      "did",
+      "do",
+      "does"
+    ],
+    "answer": 0,
+    "explanation": "時間為 yesterday morning（過去時間），主詞 Rocky 為第三人稱單數，故過去式 be 動詞應選 was。",
+    "canonicalId": "hwg_b8_bd_11",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_12",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 1",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "A: Were your friends at the mall last Sunday? B: No, they ______.",
+    "options": [
+      "weren’t",
+      "wasn’t",
+      "aren’t",
+      "isn’t",
+      "didn’t",
+      "don’t",
+      "doesn’t"
+    ],
+    "answer": 0,
+    "explanation": "問句以「Were your friends...」提問，過去式複數否定簡答固定為「No, they weren’t.」。",
+    "canonicalId": "hwg_b8_bd_12",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_13",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 1",
+    "section": "grammar",
+    "taskType": "G-CTX",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "在希臘奧運會場上找不到火把，你想問守護者「火把昨天在這裡嗎？」，該怎麼問？",
+    "options": [
+      "Was the torch here yesterday?",
+      "Are the torches here every day?",
+      "Where did you buy the torch?",
+      "How much was the Olympic torch?",
+      "What season was it yesterday?",
+      "Did the torch light up last night?",
+      "Were they at the restaurant yesterday?"
+    ],
+    "answer": 0,
+    "explanation": "單數名詞 the torch 在過去時間 yesterday 是否於此，應使用「Was the torch here yesterday?」。",
+    "canonicalId": "hwg_b8_bd_13",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_14",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 1",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「Yesterday was a busy day for Mia. In the morning, she was at school for a music club meeting. At noon, she was at a restaurant near the park with her aunt. In the evening, Mia and her brother were at the movie theater together.」請問昨天中午 Mia 在哪裡？",
+    "options": [
+      "在餐廳",
+      "在學校",
+      "在電影院",
+      "在購物中心",
+      "在動物園",
+      "在博物館",
+      "在家裡"
+    ],
+    "answer": 0,
+    "explanation": "短文第 3 句指出「At noon, she was at a restaurant near the park with her aunt.（中午她在餐廳）」，故選「在餐廳」。",
+    "canonicalId": "hwg_b8_bd_14",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_15",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 2",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "visited",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "visited",
+      "watched",
+      "cleaned",
+      "walked",
+      "listened",
+      "played",
+      "washed"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為過去式動詞「visited（拜訪）」。",
+    "canonicalId": "hwg_b8_bd_15",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_16",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 2",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "watched",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "watched",
+      "walked",
+      "cleaned",
+      "visited",
+      "listened",
+      "played",
+      "cooked"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為過去式動詞「watched（觀看）」。",
+    "canonicalId": "hwg_b8_bd_16",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_17",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 2",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "What did you do last night, Lucas?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "I cleaned my room and listened to music.",
+      "I was at the restaurant yesterday noon.",
+      "These jeans are six hundred dollars.",
+      "My favorite season is snowy winter.",
+      "I go jogging every Sunday morning.",
+      "Yes, it is foggy and cold today.",
+      "They are going to the movie theater."
+    ],
+    "answer": 0,
+    "explanation": "問句用過去式「What did you do last night?（昨晚你做了什麼？）」，須以過去式動詞動作回答「I cleaned my room and listened to music.」。",
+    "canonicalId": "hwg_b8_bd_17",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_18",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 2",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "Did Emma walk the dog yesterday evening?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "Yes, she did. They walked in the park.",
+      "Yes, she was at the mall yesterday.",
+      "No, she likes summer and fall.",
+      "No, the jacket is two hundred dollars.",
+      "Yes, she plays badminton every day.",
+      "No, we are watching videos now.",
+      "Yes, I visited my grandfather."
+    ],
+    "answer": 0,
+    "explanation": "問句以助動詞 Did 提問第三人稱女性 Emma，肯定簡答應為「Yes, she did.」。",
+    "canonicalId": "hwg_b8_bd_18",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_19",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 2",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "My bedroom was very messy, so I ______ my room yesterday afternoon.",
+    "options": [
+      "cleaned",
+      "visited",
+      "listened",
+      "watched",
+      "walked",
+      "surfed",
+      "rained"
+    ],
+    "answer": 0,
+    "explanation": "因為房間很亂（messy），所以「打掃房間」應選過去式動詞 cleaned（cleaned my room）。",
+    "canonicalId": "hwg_b8_bd_19",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_20",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 2",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "Kevin misses his grandmother, so he ______ her in Taipei last weekend.",
+    "options": [
+      "visited",
+      "cleaned",
+      "watched",
+      "walked",
+      "listened",
+      "played",
+      "finished"
+    ],
+    "answer": 0,
+    "explanation": "想念奶奶所以去「拜訪她」（visited her），最符合句意。",
+    "canonicalId": "hwg_b8_bd_20",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_21",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 2",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "A: Did Abu ______ video games late last night? B: Yes, he did.",
+    "options": [
+      "play",
+      "played",
+      "plays",
+      "playing",
+      "to play",
+      "did play",
+      "was play"
+    ],
+    "answer": 0,
+    "explanation": "過去式疑問句中已經有助動詞 Did 出現，後方的動詞必須恢復為原形動詞 play。",
+    "canonicalId": "hwg_b8_bd_21",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_22",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 2",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "Nina ______ videos with her brother after school yesterday.",
+    "options": [
+      "watched",
+      "watch",
+      "watches",
+      "watching",
+      "was watch",
+      "did watched",
+      "are watching"
+    ],
+    "answer": 0,
+    "explanation": "時間副詞為 yesterday（昨天），且句中無助動詞 did，故動詞 watch 須用過去式 watched。",
+    "canonicalId": "hwg_b8_bd_22",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_23",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 2",
+    "section": "grammar",
+    "taskType": "G-CTX",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "你想問好友昨晚有沒有跟大家一起打籃球，應該怎麼用英文問？",
+    "options": [
+      "Did you play basketball last night?",
+      "Do you play basketball every night?",
+      "Were you at the basketball court?",
+      "What did you watch last night?",
+      "Are you playing basketball now?",
+      "How much was the basketball?",
+      "Did you clean your room yesterday?"
+    ],
+    "answer": 0,
+    "explanation": "詢問過去某晚是否做了「打籃球」這個動作，應使用過去式助動詞問句「Did you play basketball last night?」。",
+    "canonicalId": "hwg_b8_bd_23",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_24",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 2",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「Last Sunday was rainy, so Jason stayed at home all day. In the morning, he cleaned his room and finished his math homework. In the afternoon, he watched funny videos and listened to K-pop music with his sister on the sofa.」請問上週日下午 Jason 和妹妹一起做了什麼？",
+    "options": [
+      "看影片和聽韓國流行音樂",
+      "去公園打籃球和遛狗",
+      "打掃房間與寫數學作業",
+      "去餐廳吃沙拉和看電影",
+      "去購物中心買藍色牛仔褲",
+      "去河邊釣魚和搭帳篷",
+      "在健身房打太極拳"
+    ],
+    "answer": 0,
+    "explanation": "短文最後一句清楚指出「In the afternoon, he watched funny videos and listened to K-pop music with his sister」，故選看影片和聽 K-pop 音樂。",
+    "canonicalId": "hwg_b8_bd_24",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_25",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Review 1",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「Where were Noah and Grace yesterday? In the morning, they were at a kimchi workshop in Korea. After lunch, Noah visited a friend near the park, and Grace walked her white dog by the lake. They both had a wonderful day.」請問昨天上午 Noah 和 Grace 在哪裡？",
+    "options": [
+      "在泡菜工作坊",
+      "在電影院看片",
+      "在湖邊遛狗",
+      "在餐廳吃牛排",
+      "在購物中心買衣服",
+      "在家裡看影片",
+      "在動物園看獅子"
+    ],
+    "answer": 0,
+    "explanation": "短文第 2 句寫到「In the morning, they were at a kimchi workshop in Korea.（早上他們在韓國的泡菜工作坊）」。",
+    "canonicalId": "hwg_b8_bd_25",
+    "primaryScope": "Review 1",
+    "scopes": [
+      "Review 1"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_26",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 3",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "jacket",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "jacket",
+      "skirt",
+      "dress",
+      "jeans",
+      "shorts",
+      "pants",
+      "coat"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為服飾單字「jacket（夾克外套）」。",
+    "canonicalId": "hwg_b8_bd_26",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_27",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 3",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "shorts",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "shorts",
+      "skirt",
+      "dress",
+      "coat",
+      "jacket",
+      "hat",
+      "cap"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為複數服飾單字「shorts（短褲）」。",
+    "canonicalId": "hwg_b8_bd_27",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_28",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 3",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "How much are those blue jeans?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "They are eight hundred dollars.",
+      "It is eight hundred dollars.",
+      "Yes, I was at the mall yesterday.",
+      "My favorite season is winter.",
+      "They cleaned the room last night.",
+      "I go camping in my free time.",
+      "No, it is sunny and warm today."
+    ],
+    "answer": 0,
+    "explanation": "jeans（牛仔褲）為成雙複數名詞，問句以 are 提問，故金額回答必須用複數主詞「They are eight hundred dollars.」。",
+    "canonicalId": "hwg_b8_bd_28",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_29",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 3",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "It is very windy outside. Please put on your warm ______ before you leave.",
+    "options": [
+      "coat",
+      "shorts",
+      "skirt",
+      "sandals",
+      "sunglasses",
+      "swimsuit",
+      "umbrella"
+    ],
+    "answer": 0,
+    "explanation": "外面風大時要穿上保暖的外套／大衣（warm coat），最符合情境。",
+    "canonicalId": "hwg_b8_bd_29",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_30",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 3",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "The sun is very bright today. You should wear a ______ to shade your eyes and face.",
+    "options": [
+      "hat",
+      "dress",
+      "pants",
+      "jeans",
+      "coat",
+      "sweater",
+      "socks"
+    ],
+    "answer": 0,
+    "explanation": "太陽很大時可以戴一頂有帽簷的帽子（wear a hat）來遮陽。",
+    "canonicalId": "hwg_b8_bd_30",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_31",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 3",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "How much is that warm red coat?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "It is nine hundred dollars.",
+      "They are nine hundred dollars.",
+      "I cleaned my room yesterday.",
+      "We were at the movie theater.",
+      "My favorite season is cool fall.",
+      "Yes, it is very foggy today.",
+      "She plays badminton after school."
+    ],
+    "answer": 0,
+    "explanation": "問句詢問單數衣物「that warm red coat（那件紅色保暖外套）多少錢？」，須以單數主詞回答價格「It is nine hundred dollars.」。",
+    "canonicalId": "hwg_b8_bd_31",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_32",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 3",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "A: How much ______ these black pants? B: They are seven hundred dollars.",
+    "options": [
+      "are",
+      "is",
+      "am",
+      "do",
+      "does",
+      "was",
+      "be"
+    ],
+    "answer": 0,
+    "explanation": "pants（長褲）屬於成雙成對的複數服飾名詞，前面搭配指示代名詞 these，詢問價錢時 be 動詞必須用 are。",
+    "canonicalId": "hwg_b8_bd_32",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_33",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 3",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "A: How much is that green dress? B: ______ nine hundred fifty dollars.",
+    "options": [
+      "It is",
+      "They are",
+      "It were",
+      "They were",
+      "He is",
+      "She is",
+      "There are"
+    ],
+    "answer": 0,
+    "explanation": "that green dress 為單數服飾，回答金額時應使用單數代名詞與單數 be 動詞「It is」。",
+    "canonicalId": "hwg_b8_bd_33",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_34",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 3",
+    "section": "grammar",
+    "taskType": "G-CTX",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "在夜市攤位看中一件藍色夾克，你想問老闆「這件夾克多少錢？」，該怎麼問？",
+    "options": [
+      "How much is this blue jacket?",
+      "How much are these blue pants?",
+      "What did you wear yesterday?",
+      "Where did you buy this jacket?",
+      "Whose blue jacket is on the chair?",
+      "Do you wear jackets in summer?",
+      "Was the blue jacket at the mall?"
+    ],
+    "answer": 0,
+    "explanation": "詢問單件商品（this blue jacket）的價格，標準問句為「How much is this blue jacket?」。",
+    "canonicalId": "hwg_b8_bd_34",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_35",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 3",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「Tina went shopping at the mall with her mom yesterday. First, she bought a yellow T-shirt for three hundred dollars. Next, she liked a pair of blue jeans, which cost six hundred dollars. They spent nine hundred dollars in total.」請問 Tina 買的黃色 T 恤多少錢？",
+    "options": [
+      "三百元",
+      "六百元",
+      "九百元",
+      "兩百元",
+      "四百五十元",
+      "五百元",
+      "八百元"
+    ],
+    "answer": 0,
+    "explanation": "短文第 2 句寫道「First, she bought a yellow T-shirt for three hundred dollars.（她花了三百元買一件黃色 T 恤）」。",
+    "canonicalId": "hwg_b8_bd_35",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_36",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 4",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "foggy",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "foggy",
+      "snowy",
+      "rainy",
+      "windy",
+      "sunny",
+      "cloudy",
+      "stormy"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為天氣形容詞「foggy（有霧的）」。",
+    "canonicalId": "hwg_b8_bd_36",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_37",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 4",
+    "section": "listening",
+    "taskType": "L-WORD",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "season",
+      "imageId": null
+    },
+    "question": "【聽力：聽音選字】請聽英語發音，選出聽到的單字：",
+    "options": [
+      "season",
+      "weather",
+      "spring",
+      "summer",
+      "winter",
+      "autumn",
+      "weekend"
+    ],
+    "answer": 0,
+    "explanation": "聽力發音為季節總稱單字「season（季節）」。",
+    "canonicalId": "hwg_b8_bd_37",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_38",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 4",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "What is your favorite season, Eric?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "My favorite season is fall because it is cool.",
+      "I was at the movie theater last night.",
+      "These blue shorts are four hundred dollars.",
+      "I walked the dog in the park yesterday.",
+      "Yes, I can play badminton very well.",
+      "No, there were no students at school.",
+      "She wore a pretty pink dress today."
+    ],
+    "answer": 0,
+    "explanation": "問句問「你最喜歡的季節是什麼？」，直接回答最喜愛的季節與原因，故選「My favorite season is fall because it is cool.」。",
+    "canonicalId": "hwg_b8_bd_38",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_39",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 4",
+    "section": "listening",
+    "taskType": "L-RESP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": "How is the weather in winter in Iceland?",
+      "imageId": null
+    },
+    "question": "【聽力：聽問句選回應】請聽英語問句，選出最適合的回應句：",
+    "options": [
+      "It is very cold and snowy.",
+      "It is three hundred fifty dollars.",
+      "I visited my cousin last Friday.",
+      "We were at a restaurant for dinner.",
+      "He plays basketball after school.",
+      "They are my favorite blue jeans.",
+      "Yes, I like to go camping."
+    ],
+    "answer": 0,
+    "explanation": "問句問「冰島冬天的天氣如何？」，應以天氣形容詞回答，故選「It is very cold and snowy.」。",
+    "canonicalId": "hwg_b8_bd_39",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_40",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 4",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "Wait carefully when you drive up the mountain because it is very ______ and hard to see.",
+    "options": [
+      "foggy",
+      "dry",
+      "sunny",
+      "warm",
+      "hot",
+      "clear",
+      "bright"
+    ],
+    "answer": 0,
+    "explanation": "視線模糊難以看清（hard to see）的天氣狀況是有霧的（foggy）。",
+    "canonicalId": "hwg_b8_bd_40",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_41",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 4",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "Look at the white snow falling on the trees! Today is cold and ______.",
+    "options": [
+      "snowy",
+      "wet",
+      "hot",
+      "warm",
+      "sunny",
+      "rainy",
+      "windy"
+    ],
+    "answer": 0,
+    "explanation": "樹上飄落白雪（white snow falling），對應的天氣形容詞是下雪的（snowy）。",
+    "canonicalId": "hwg_b8_bd_41",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_42",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 4",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "In Taiwan, it is usually hot and ______ in summer, so bring an umbrella.",
+    "options": [
+      "wet",
+      "snowy",
+      "freezing",
+      "dry",
+      "icy",
+      "cool",
+      "foggy"
+    ],
+    "answer": 0,
+    "explanation": "後半句提示要記得帶傘（bring an umbrella），可知天氣又熱又潮濕多雨（wet）。",
+    "canonicalId": "hwg_b8_bd_42",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_43",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 4",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "A: ______ your sisters like winter? B: Yes, they love going to hot springs in winter.",
+    "options": [
+      "Do",
+      "Does",
+      "Are",
+      "Is",
+      "Were",
+      "Was",
+      "Did"
+    ],
+    "answer": 0,
+    "explanation": "詢問「現在的喜好（like winter）」且主詞 your sisters 為複數名詞，疑問句助動詞須使用 Do。",
+    "canonicalId": "hwg_b8_bd_43",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_44",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 4",
+    "section": "grammar",
+    "taskType": "G-CTX",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "看到外國筆友來自北方雪國，你想問他「你們那裡秋天的天氣怎麼樣？」，應該怎麼問？",
+    "options": [
+      "How is the weather in fall there?",
+      "What did you wear last fall?",
+      "Were you in Iceland last winter?",
+      "How much is that winter coat?",
+      "What do you do on rainy days?",
+      "Which dress do you want to buy?",
+      "Did it snow in summer yesterday?"
+    ],
+    "answer": 0,
+    "explanation": "詢問特定季節（in fall）的天氣狀況，標準問句為「How is the weather in fall there?」。",
+    "canonicalId": "hwg_b8_bd_44",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_45",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Unit 4",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「Welcome to Iceland! In winter, the weather is freezing and snowy, and you can sometimes see green Northern Lights in the night sky. Best of all, you can relax in famous warm hot springs all year round, even when snow falls around you.」請問在冰島即使冬天也可以享受什麼活動？",
+    "options": [
+      "泡溫暖的溫泉",
+      "到海邊穿短褲衝浪",
+      "去公園看相撲比賽",
+      "吃西瓜和芒果冰",
+      "穿無袖背心慢跑",
+      "逛台北夜市",
+      "到印度看泰姬瑪哈陵"
+    ],
+    "answer": 0,
+    "explanation": "短文第 3 句指出「you can relax in famous warm hot springs all year round（全年都可以泡在著名的溫暖溫泉裡）」。",
+    "canonicalId": "hwg_b8_bd_45",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_46",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Review 2",
+    "section": "grammar",
+    "taskType": "G-MC",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "It is cool and dry ______ fall. Let us put on our light jackets and go camping.",
+    "options": [
+      "in",
+      "on",
+      "at",
+      "by",
+      "under",
+      "for",
+      "with"
+    ],
+    "answer": 0,
+    "explanation": "表達季節（spring / summer / fall / winter）時，前面固定搭配時間介系詞 in。",
+    "canonicalId": "hwg_b8_bd_46",
+    "primaryScope": "Review 2",
+    "scopes": [
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_47",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Review 2",
+    "section": "grammar",
+    "taskType": "G-CTX",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "天氣突然變冷了，媽媽叫店員把櫥窗裡的黑色外套拿出來並問價格，她應該怎麼問？",
+    "options": [
+      "Excuse me, how much is that black coat?",
+      "Excuse me, where were my black jeans?",
+      "Excuse me, did you see the Northern Lights?",
+      "Excuse me, what did you do in summer?",
+      "Excuse me, are those shorts warm enough?",
+      "Excuse me, when does spring start here?",
+      "Excuse me, who won the Olympic game?"
+    ],
+    "answer": 0,
+    "explanation": "詢問單件櫥窗商品（that black coat）的價錢，禮貌說法為「Excuse me, how much is that black coat?」。",
+    "canonicalId": "hwg_b8_bd_47",
+    "primaryScope": "Review 2",
+    "scopes": [
+      "Review 2"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_48",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Festival",
+    "section": "vocabulary",
+    "taskType": "V-MEAN",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "Sumo is a traditional sport in Japan. Sumo wrestlers try to stay inside the ______ to win.",
+    "options": [
+      "circle",
+      "square",
+      "triangle",
+      "theater",
+      "season",
+      "jacket",
+      "restaurant"
+    ],
+    "answer": 0,
+    "explanation": "日本相撲比賽規則為選手須留在土俵圓圈內（stay inside the circle），出界即落敗。",
+    "canonicalId": "hwg_b8_bd_48",
+    "primaryScope": "Festival",
+    "scopes": [
+      "Festival"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_49",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Festival",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「In the United Kingdom, polo is an exciting outdoor team sport. Players sit on horseback and ride across a large green field. They hold long mallets and hit a small white ball into the goal to score points for their team.」請問在英國馬球比賽中，選手是怎麼移動的？",
+    "options": [
+      "騎在馬背上奔馳",
+      "穿著冰鞋在冰面滑行",
+      "站在圓圈裡推對方出界",
+      "搭地鐵前往比賽會場",
+      "沿著河邊慢跑熱身",
+      "划著龍舟向前衝刺",
+      "開著汽車繞過障礙物"
+    ],
+    "answer": 0,
+    "explanation": "短文第 2 句指出「Players sit on horseback and ride across a large green field.（選手騎在馬背上奔馳於大片綠草地上）」。",
+    "canonicalId": "hwg_b8_bd_49",
+    "primaryScope": "Festival",
+    "scopes": [
+      "Festival"
+    ],
+    "isCanonical": true
+  },
+  {
+    "id": "hwg_b8_bd_50",
+    "track": "textbook",
+    "book": 8,
+    "unit": "Festival",
+    "section": "reading",
+    "taskType": "R-COMP",
+    "difficulty": 2,
+    "reviewed": true,
+    "groupId": null,
+    "media": {
+      "audioText": null,
+      "imageId": null
+    },
+    "question": "閱讀短文：「Different countries love different sports. Yesterday, Zack watched Japanese sumo at home, where wrestlers stay inside a circle. Meanwhile, Jenny visited a friend and watched American football, which has eleven players on each team. Charles watched British polo played on horseback.」請問昨日美式足球比賽每隊有幾名球員？",
+    "options": [
+      "十一名球員",
+      "四名球員",
+      "五名球員",
+      "八名球員",
+      "兩名力士",
+      "九名球員",
+      "十五名球員"
+    ],
+    "answer": 0,
+    "explanation": "短文第 3 句指出「American football, which has eleven players on each team.（美式足球每隊有十一名球員）」。",
+    "canonicalId": "hwg_b8_bd_50",
+    "primaryScope": "Festival",
+    "scopes": [
+      "Festival"
+    ],
+    "isCanonical": true
   }
 ];

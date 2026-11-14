@@ -1,8 +1,8 @@
 /**
- * 課本題庫 Canonical Question 映射表與結構定義 (Scheme A + Batch A, B & C Expanded)
+ * 課本題庫 Canonical Question 映射表與結構定義 (Scheme A + Batches A, B, C & D Expanded)
  *
  * 規範依據：
- * - 冊內正規化 (In-book Canonical)：現有 1889 題 (原 1,589 題 + Batch A 100 題 + Batch B 100 題 + Batch C 100 題)
+ * - 冊內正規化 (In-book Canonical)：現有 1989 題 (原 1,589 題 + Batch A 100 題 + Batch B 100 題 + Batch C 100 題 + Batch D 100 題)
  * - 已刪除同冊跨單元重複複本：1,728 筆
  * - 跨冊複現題目保留各自獨立進度：22 組
  * - 每冊保證獨立題目數 >= 100 題
@@ -10,8 +10,8 @@
  */
 
 export const CANONICAL_STATS = {
-  "totalLegacyMapped": 3617,
-  "canonicalItems": 1889,
+  "totalLegacyMapped": 3717,
+  "canonicalItems": 1989,
   "duplicateClones": 1728,
   "prunedClonesCount": 1728,
   "crossBookIndependentSets": 22,
@@ -22,8 +22,8 @@ export const CANONICAL_STATS = {
     "4": 185,
     "5": 183,
     "6": 199,
-    "7": 128,
-    "8": 126,
+    "7": 178,
+    "8": 176,
     "9": 137,
     "g1": 143,
     "g2": 170
@@ -49,13 +49,13 @@ export const CANONICAL_STATS = {
     "b5_Unit 3": 44,
     "b5_Unit 4": 30,
     "b5_Festival": 6,
-    "b7_Starter": 10,
-    "b7_Unit 1": 36,
-    "b7_Unit 2": 26,
-    "b7_Review 1": 4,
-    "b7_Unit 3": 14,
-    "b7_Unit 4": 33,
-    "b7_Review 2": 5,
+    "b7_Starter": 15,
+    "b7_Unit 1": 45,
+    "b7_Unit 2": 36,
+    "b7_Review 1": 5,
+    "b7_Unit 3": 24,
+    "b7_Unit 4": 43,
+    "b7_Review 2": 7,
     "b9_Unit 1": 36,
     "b9_Unit 2": 32,
     "b9_Unit 3": 23,
@@ -85,13 +85,13 @@ export const CANONICAL_STATS = {
     "b6_Unit 3": 52,
     "b6_Unit 4": 46,
     "b6_Review 2": 6,
-    "b8_Starter": 6,
-    "b8_Unit 1": 32,
-    "b8_Unit 2": 30,
-    "b8_Review 1": 1,
-    "b8_Unit 3": 35,
-    "b8_Unit 4": 16,
-    "b8_Review 2": 6,
+    "b8_Starter": 11,
+    "b8_Unit 1": 41,
+    "b8_Unit 2": 40,
+    "b8_Review 1": 2,
+    "b8_Unit 3": 45,
+    "b8_Unit 4": 26,
+    "b8_Review 2": 8,
     "bg1_Unit 1 (A~G)": 38,
     "bg1_Unit 2 (H~N)": 42,
     "bg1_Unit 3 (O~T)": 36,
@@ -100,7 +100,9 @@ export const CANONICAL_STATS = {
     "bg2_Unit 2 (Hh~Nn)": 46,
     "bg2_Unit 3 (Oo~Tt)": 42,
     "bg2_Unit 4 (Uu~Zz)": 36,
-    "b6_Festival": 2
+    "b6_Festival": 2,
+    "b7_Festival": 3,
+    "b8_Festival": 3
   }
 };
 
@@ -3722,7 +3724,107 @@ export const LEGACY_TO_CANONICAL_MAP = {
   "hwg_b6_bc_47": "hwg_b6_bc_47",
   "hwg_b6_bc_48": "hwg_b6_bc_48",
   "hwg_b6_bc_49": "hwg_b6_bc_49",
-  "hwg_b6_bc_50": "hwg_b6_bc_50"
+  "hwg_b6_bc_50": "hwg_b6_bc_50",
+  "hwg_b7_bd_01": "hwg_b7_bd_01",
+  "hwg_b7_bd_02": "hwg_b7_bd_02",
+  "hwg_b7_bd_03": "hwg_b7_bd_03",
+  "hwg_b7_bd_04": "hwg_b7_bd_04",
+  "hwg_b7_bd_05": "hwg_b7_bd_05",
+  "hwg_b7_bd_06": "hwg_b7_bd_06",
+  "hwg_b7_bd_07": "hwg_b7_bd_07",
+  "hwg_b7_bd_08": "hwg_b7_bd_08",
+  "hwg_b7_bd_09": "hwg_b7_bd_09",
+  "hwg_b7_bd_10": "hwg_b7_bd_10",
+  "hwg_b7_bd_11": "hwg_b7_bd_11",
+  "hwg_b7_bd_12": "hwg_b7_bd_12",
+  "hwg_b7_bd_13": "hwg_b7_bd_13",
+  "hwg_b7_bd_14": "hwg_b7_bd_14",
+  "hwg_b7_bd_15": "hwg_b7_bd_15",
+  "hwg_b7_bd_16": "hwg_b7_bd_16",
+  "hwg_b7_bd_17": "hwg_b7_bd_17",
+  "hwg_b7_bd_18": "hwg_b7_bd_18",
+  "hwg_b7_bd_19": "hwg_b7_bd_19",
+  "hwg_b7_bd_20": "hwg_b7_bd_20",
+  "hwg_b7_bd_21": "hwg_b7_bd_21",
+  "hwg_b7_bd_22": "hwg_b7_bd_22",
+  "hwg_b7_bd_23": "hwg_b7_bd_23",
+  "hwg_b7_bd_24": "hwg_b7_bd_24",
+  "hwg_b7_bd_25": "hwg_b7_bd_25",
+  "hwg_b7_bd_26": "hwg_b7_bd_26",
+  "hwg_b7_bd_27": "hwg_b7_bd_27",
+  "hwg_b7_bd_28": "hwg_b7_bd_28",
+  "hwg_b7_bd_29": "hwg_b7_bd_29",
+  "hwg_b7_bd_30": "hwg_b7_bd_30",
+  "hwg_b7_bd_31": "hwg_b7_bd_31",
+  "hwg_b7_bd_32": "hwg_b7_bd_32",
+  "hwg_b7_bd_33": "hwg_b7_bd_33",
+  "hwg_b7_bd_34": "hwg_b7_bd_34",
+  "hwg_b7_bd_35": "hwg_b7_bd_35",
+  "hwg_b7_bd_36": "hwg_b7_bd_36",
+  "hwg_b7_bd_37": "hwg_b7_bd_37",
+  "hwg_b7_bd_38": "hwg_b7_bd_38",
+  "hwg_b7_bd_39": "hwg_b7_bd_39",
+  "hwg_b7_bd_40": "hwg_b7_bd_40",
+  "hwg_b7_bd_41": "hwg_b7_bd_41",
+  "hwg_b7_bd_42": "hwg_b7_bd_42",
+  "hwg_b7_bd_43": "hwg_b7_bd_43",
+  "hwg_b7_bd_44": "hwg_b7_bd_44",
+  "hwg_b7_bd_45": "hwg_b7_bd_45",
+  "hwg_b7_bd_46": "hwg_b7_bd_46",
+  "hwg_b7_bd_47": "hwg_b7_bd_47",
+  "hwg_b7_bd_48": "hwg_b7_bd_48",
+  "hwg_b7_bd_49": "hwg_b7_bd_49",
+  "hwg_b7_bd_50": "hwg_b7_bd_50",
+  "hwg_b8_bd_01": "hwg_b8_bd_01",
+  "hwg_b8_bd_02": "hwg_b8_bd_02",
+  "hwg_b8_bd_03": "hwg_b8_bd_03",
+  "hwg_b8_bd_04": "hwg_b8_bd_04",
+  "hwg_b8_bd_05": "hwg_b8_bd_05",
+  "hwg_b8_bd_06": "hwg_b8_bd_06",
+  "hwg_b8_bd_07": "hwg_b8_bd_07",
+  "hwg_b8_bd_08": "hwg_b8_bd_08",
+  "hwg_b8_bd_09": "hwg_b8_bd_09",
+  "hwg_b8_bd_10": "hwg_b8_bd_10",
+  "hwg_b8_bd_11": "hwg_b8_bd_11",
+  "hwg_b8_bd_12": "hwg_b8_bd_12",
+  "hwg_b8_bd_13": "hwg_b8_bd_13",
+  "hwg_b8_bd_14": "hwg_b8_bd_14",
+  "hwg_b8_bd_15": "hwg_b8_bd_15",
+  "hwg_b8_bd_16": "hwg_b8_bd_16",
+  "hwg_b8_bd_17": "hwg_b8_bd_17",
+  "hwg_b8_bd_18": "hwg_b8_bd_18",
+  "hwg_b8_bd_19": "hwg_b8_bd_19",
+  "hwg_b8_bd_20": "hwg_b8_bd_20",
+  "hwg_b8_bd_21": "hwg_b8_bd_21",
+  "hwg_b8_bd_22": "hwg_b8_bd_22",
+  "hwg_b8_bd_23": "hwg_b8_bd_23",
+  "hwg_b8_bd_24": "hwg_b8_bd_24",
+  "hwg_b8_bd_25": "hwg_b8_bd_25",
+  "hwg_b8_bd_26": "hwg_b8_bd_26",
+  "hwg_b8_bd_27": "hwg_b8_bd_27",
+  "hwg_b8_bd_28": "hwg_b8_bd_28",
+  "hwg_b8_bd_29": "hwg_b8_bd_29",
+  "hwg_b8_bd_30": "hwg_b8_bd_30",
+  "hwg_b8_bd_31": "hwg_b8_bd_31",
+  "hwg_b8_bd_32": "hwg_b8_bd_32",
+  "hwg_b8_bd_33": "hwg_b8_bd_33",
+  "hwg_b8_bd_34": "hwg_b8_bd_34",
+  "hwg_b8_bd_35": "hwg_b8_bd_35",
+  "hwg_b8_bd_36": "hwg_b8_bd_36",
+  "hwg_b8_bd_37": "hwg_b8_bd_37",
+  "hwg_b8_bd_38": "hwg_b8_bd_38",
+  "hwg_b8_bd_39": "hwg_b8_bd_39",
+  "hwg_b8_bd_40": "hwg_b8_bd_40",
+  "hwg_b8_bd_41": "hwg_b8_bd_41",
+  "hwg_b8_bd_42": "hwg_b8_bd_42",
+  "hwg_b8_bd_43": "hwg_b8_bd_43",
+  "hwg_b8_bd_44": "hwg_b8_bd_44",
+  "hwg_b8_bd_45": "hwg_b8_bd_45",
+  "hwg_b8_bd_46": "hwg_b8_bd_46",
+  "hwg_b8_bd_47": "hwg_b8_bd_47",
+  "hwg_b8_bd_48": "hwg_b8_bd_48",
+  "hwg_b8_bd_49": "hwg_b8_bd_49",
+  "hwg_b8_bd_50": "hwg_b8_bd_50"
 };
 
 /** 標準題號 (canonicalId) -> 範圍與複本元資料 */
@@ -28693,6 +28795,884 @@ export const CANONICAL_META_MAP = {
   },
   "hwg_b6_bc_50": {
     "canonicalId": "hwg_b6_bc_50",
+    "primaryScope": "Festival",
+    "scopes": [
+      "Festival"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_01": {
+    "canonicalId": "hwg_b7_bd_01",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_02": {
+    "canonicalId": "hwg_b7_bd_02",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_03": {
+    "canonicalId": "hwg_b7_bd_03",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_04": {
+    "canonicalId": "hwg_b7_bd_04",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_05": {
+    "canonicalId": "hwg_b7_bd_05",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_06": {
+    "canonicalId": "hwg_b7_bd_06",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_07": {
+    "canonicalId": "hwg_b7_bd_07",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_08": {
+    "canonicalId": "hwg_b7_bd_08",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_09": {
+    "canonicalId": "hwg_b7_bd_09",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_10": {
+    "canonicalId": "hwg_b7_bd_10",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_11": {
+    "canonicalId": "hwg_b7_bd_11",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_12": {
+    "canonicalId": "hwg_b7_bd_12",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_13": {
+    "canonicalId": "hwg_b7_bd_13",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_14": {
+    "canonicalId": "hwg_b7_bd_14",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_15": {
+    "canonicalId": "hwg_b7_bd_15",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_16": {
+    "canonicalId": "hwg_b7_bd_16",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_17": {
+    "canonicalId": "hwg_b7_bd_17",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_18": {
+    "canonicalId": "hwg_b7_bd_18",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_19": {
+    "canonicalId": "hwg_b7_bd_19",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_20": {
+    "canonicalId": "hwg_b7_bd_20",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_21": {
+    "canonicalId": "hwg_b7_bd_21",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_22": {
+    "canonicalId": "hwg_b7_bd_22",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_23": {
+    "canonicalId": "hwg_b7_bd_23",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_24": {
+    "canonicalId": "hwg_b7_bd_24",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_25": {
+    "canonicalId": "hwg_b7_bd_25",
+    "primaryScope": "Review 1",
+    "scopes": [
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_26": {
+    "canonicalId": "hwg_b7_bd_26",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_27": {
+    "canonicalId": "hwg_b7_bd_27",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_28": {
+    "canonicalId": "hwg_b7_bd_28",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_29": {
+    "canonicalId": "hwg_b7_bd_29",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_30": {
+    "canonicalId": "hwg_b7_bd_30",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_31": {
+    "canonicalId": "hwg_b7_bd_31",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_32": {
+    "canonicalId": "hwg_b7_bd_32",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_33": {
+    "canonicalId": "hwg_b7_bd_33",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_34": {
+    "canonicalId": "hwg_b7_bd_34",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_35": {
+    "canonicalId": "hwg_b7_bd_35",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_36": {
+    "canonicalId": "hwg_b7_bd_36",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_37": {
+    "canonicalId": "hwg_b7_bd_37",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_38": {
+    "canonicalId": "hwg_b7_bd_38",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_39": {
+    "canonicalId": "hwg_b7_bd_39",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_40": {
+    "canonicalId": "hwg_b7_bd_40",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_41": {
+    "canonicalId": "hwg_b7_bd_41",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_42": {
+    "canonicalId": "hwg_b7_bd_42",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_43": {
+    "canonicalId": "hwg_b7_bd_43",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_44": {
+    "canonicalId": "hwg_b7_bd_44",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_45": {
+    "canonicalId": "hwg_b7_bd_45",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_46": {
+    "canonicalId": "hwg_b7_bd_46",
+    "primaryScope": "Review 2",
+    "scopes": [
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_47": {
+    "canonicalId": "hwg_b7_bd_47",
+    "primaryScope": "Review 2",
+    "scopes": [
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_48": {
+    "canonicalId": "hwg_b7_bd_48",
+    "primaryScope": "Festival",
+    "scopes": [
+      "Festival"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_49": {
+    "canonicalId": "hwg_b7_bd_49",
+    "primaryScope": "Festival",
+    "scopes": [
+      "Festival"
+    ],
+    "clones": []
+  },
+  "hwg_b7_bd_50": {
+    "canonicalId": "hwg_b7_bd_50",
+    "primaryScope": "Festival",
+    "scopes": [
+      "Festival"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_01": {
+    "canonicalId": "hwg_b8_bd_01",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_02": {
+    "canonicalId": "hwg_b8_bd_02",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_03": {
+    "canonicalId": "hwg_b8_bd_03",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_04": {
+    "canonicalId": "hwg_b8_bd_04",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_05": {
+    "canonicalId": "hwg_b8_bd_05",
+    "primaryScope": "Starter",
+    "scopes": [
+      "Starter"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_06": {
+    "canonicalId": "hwg_b8_bd_06",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_07": {
+    "canonicalId": "hwg_b8_bd_07",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_08": {
+    "canonicalId": "hwg_b8_bd_08",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_09": {
+    "canonicalId": "hwg_b8_bd_09",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_10": {
+    "canonicalId": "hwg_b8_bd_10",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_11": {
+    "canonicalId": "hwg_b8_bd_11",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_12": {
+    "canonicalId": "hwg_b8_bd_12",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_13": {
+    "canonicalId": "hwg_b8_bd_13",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_14": {
+    "canonicalId": "hwg_b8_bd_14",
+    "primaryScope": "Unit 1",
+    "scopes": [
+      "Unit 1",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_15": {
+    "canonicalId": "hwg_b8_bd_15",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_16": {
+    "canonicalId": "hwg_b8_bd_16",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_17": {
+    "canonicalId": "hwg_b8_bd_17",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_18": {
+    "canonicalId": "hwg_b8_bd_18",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_19": {
+    "canonicalId": "hwg_b8_bd_19",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_20": {
+    "canonicalId": "hwg_b8_bd_20",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_21": {
+    "canonicalId": "hwg_b8_bd_21",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_22": {
+    "canonicalId": "hwg_b8_bd_22",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_23": {
+    "canonicalId": "hwg_b8_bd_23",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_24": {
+    "canonicalId": "hwg_b8_bd_24",
+    "primaryScope": "Unit 2",
+    "scopes": [
+      "Unit 2",
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_25": {
+    "canonicalId": "hwg_b8_bd_25",
+    "primaryScope": "Review 1",
+    "scopes": [
+      "Review 1"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_26": {
+    "canonicalId": "hwg_b8_bd_26",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_27": {
+    "canonicalId": "hwg_b8_bd_27",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_28": {
+    "canonicalId": "hwg_b8_bd_28",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_29": {
+    "canonicalId": "hwg_b8_bd_29",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_30": {
+    "canonicalId": "hwg_b8_bd_30",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_31": {
+    "canonicalId": "hwg_b8_bd_31",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_32": {
+    "canonicalId": "hwg_b8_bd_32",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_33": {
+    "canonicalId": "hwg_b8_bd_33",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_34": {
+    "canonicalId": "hwg_b8_bd_34",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_35": {
+    "canonicalId": "hwg_b8_bd_35",
+    "primaryScope": "Unit 3",
+    "scopes": [
+      "Unit 3",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_36": {
+    "canonicalId": "hwg_b8_bd_36",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_37": {
+    "canonicalId": "hwg_b8_bd_37",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_38": {
+    "canonicalId": "hwg_b8_bd_38",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_39": {
+    "canonicalId": "hwg_b8_bd_39",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_40": {
+    "canonicalId": "hwg_b8_bd_40",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_41": {
+    "canonicalId": "hwg_b8_bd_41",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_42": {
+    "canonicalId": "hwg_b8_bd_42",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_43": {
+    "canonicalId": "hwg_b8_bd_43",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_44": {
+    "canonicalId": "hwg_b8_bd_44",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_45": {
+    "canonicalId": "hwg_b8_bd_45",
+    "primaryScope": "Unit 4",
+    "scopes": [
+      "Unit 4",
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_46": {
+    "canonicalId": "hwg_b8_bd_46",
+    "primaryScope": "Review 2",
+    "scopes": [
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_47": {
+    "canonicalId": "hwg_b8_bd_47",
+    "primaryScope": "Review 2",
+    "scopes": [
+      "Review 2"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_48": {
+    "canonicalId": "hwg_b8_bd_48",
+    "primaryScope": "Festival",
+    "scopes": [
+      "Festival"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_49": {
+    "canonicalId": "hwg_b8_bd_49",
+    "primaryScope": "Festival",
+    "scopes": [
+      "Festival"
+    ],
+    "clones": []
+  },
+  "hwg_b8_bd_50": {
+    "canonicalId": "hwg_b8_bd_50",
     "primaryScope": "Festival",
     "scopes": [
       "Festival"
