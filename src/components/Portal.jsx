@@ -13,6 +13,7 @@ import {
   QrCode,
   GraduationCap,
   ClipboardCheck,
+  Layers,
   ExternalLink,
   Store,
   ChevronDown,
@@ -153,6 +154,29 @@ export const Portal = ({
               </div>
             </div>
             <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <ArrowRight className="w-3.5 h-3.5" />
+            </div>
+          </div>
+
+          {/* 4.5 學習扶助練習館 (獨立題庫與手寫草稿，不與金幣／檢定統計混算) */}
+          <div
+            onClick={() => onNavigate('priori')}
+            className="p-2.5 px-3 rounded-2xl bg-gradient-to-r from-teal-500/15 via-cyan-500/10 to-transparent dark:from-teal-950/60 dark:to-slate-900/60 border-2 border-teal-400/70 dark:border-teal-600/70 flex items-center justify-between gap-2.5 shadow-sm active:scale-98 transition-all cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-600 via-teal-700 to-cyan-700 text-white flex items-center justify-center shadow-md shadow-teal-500/25 shrink-0">
+                <Layers className="w-5 h-5" />
+              </div>
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="text-[15px] font-black text-slate-800 dark:text-slate-100 font-heading truncate">
+                  學習扶助練習館
+                </h3>
+                <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-teal-700 text-white shrink-0">
+                  篩選練習
+                </span>
+              </div>
+            </div>
+            <div className="w-7 h-7 rounded-lg bg-teal-700 text-white flex items-center justify-center shrink-0 shadow-sm">
               <ArrowRight className="w-3.5 h-3.5" />
             </div>
           </div>
@@ -365,6 +389,40 @@ export const Portal = ({
               <Button3D variant="indigo" size="md" className="shrink-0">
                 <div className="flex items-center gap-1.5">
                   <span>進入檢定館</span>
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+              </Button3D>
+            </div>
+          </GlassCard>
+
+          {/* 4.5 學習扶助練習館 (獨立國/數/英篩選練習，資料完全隔離) */}
+          <GlassCard
+            hoverable={true}
+            onClick={() => onNavigate('priori')}
+            className="relative overflow-hidden group cursor-pointer border-2 border-teal-300/80 dark:border-teal-700/60 bg-gradient-to-r from-teal-500/10 via-cyan-500/5 to-teal-500/10 dark:from-teal-950/40 dark:via-slate-900/50 dark:to-teal-950/30 p-4 sm:p-5 shadow-md hover:shadow-xl transition-all"
+          >
+            <div className="flex items-center justify-between gap-4 relative z-10">
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-teal-600 via-teal-700 to-cyan-700 text-white flex items-center justify-center group-hover:scale-105 transition-transform shadow-lg shadow-teal-500/25 shrink-0">
+                  <Layers className="w-7 h-7 sm:w-8 sm:h-8" />
+                </div>
+                <div className="space-y-1 flex-1 min-w-0">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <h3 className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100 font-heading">
+                      學習扶助練習館
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-teal-700 text-white">
+                      115 篩選練習・原卷模擬／輔助朗讀・互動計算紙
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 truncate">
+                    獨立篩選測驗刷題與講解空間：iPad 橫屏並排計算紙、錯題重練與逐步解析，不與金幣或檢定積分混算。
+                  </p>
+                </div>
+              </div>
+              <Button3D variant="cyan" size="md" className="shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <span>進入練習館</span>
                   <ArrowRight className="w-4 h-4" />
                 </div>
               </Button3D>

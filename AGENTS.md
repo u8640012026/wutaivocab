@@ -30,6 +30,8 @@
    - **開工必拉**：無論在本機（Windows 桌面工作區）或雲端（Cloud Agent）啟動工作，動手前一律先執行 `git pull origin main`（勿覆蓋本機 `SAA/` / `tmp/`），對齊最新 [`HANDOVER.md`](HANDOVER.md)。
    - **大檔留本機**：`SAA/`、`tmp/`、`textbook_docx/` 等原始大檔列於 `.gitignore` 僅留本機（或聊天附件上傳），只提交壓縮切好的 `public/assets/`、`public/audio/` 小檔與程式碼。
    - **收工必推**：完成驗證並更新 [`HANDOVER.md`](HANDOVER.md) 第五節進度表後再 `git push origin main`，確保跨環境切換零斷層。
+7. **本機預覽主動啟動與一鍵網址規範**：
+   - 當使用者詢問或需要本機預覽新功能時，**主動啟動背景預覽伺服器**（如 `npm run dev -- --host 127.0.0.1 --port 5173` Daemon 或開啟內建瀏覽器面板），並於回覆中直接提供**一鍵直達網址**（含對應 `?view=...` 與試卷參數），免去使用者手動切換目錄與下指令。
 
 ---
 

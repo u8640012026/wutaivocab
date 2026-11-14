@@ -121,7 +121,7 @@
 | **SAA 114 年官方卷 — P0 圖片與契約鎖定** | ✅ **已上線 (`c44e60d`)** | 144 張選項圖依獨立座標裁切完成、`optionAltTexts` 與 G4 Q20 (`50/25/15/5`) 校準鎖定，105 題標準答案與 Sharp 門禁通過 `test_saa_114_contract.mjs` 與 114 E2E |
 | **SAA 114 年官方卷 — P0 實體音檔** | ✅ **已上線 (`cee0282`)** | 已依 `SAA/114/{4,5,6}` 官方英聽 MP3 完成 FFmpeg 波形時間戳校準（`TIMESTAMPS_CALIBRATED = true`），產出 45 個 `96kbps Mono` + `0.1s` fade 小檔至 `public/audio/saa/114/` 並寫入 `media.audioSrc` |
 | **SAA 115 年官方卷** | ✅ **105 題 + 148 選項圖 + 45 音檔結案 (`9b425e2`)** | 已通過 GPT 複檢結案（暫停 SAA 開發）。兩項非阻擋 P2 待日後順手優化：`G6 Q3 (C)/(D)` 下緣略緊、將 `0.5%` 相似度門禁改回「全局 `1%`＋明確數字題例外清單」＋保留官方音檔人工抽聽紀錄 |
-| **學習扶助篩選測驗 (`PRIORI` — 獨立「學習扶助練習館」)** | 🚀 **下一階段開發啟動** | Stage 0 已盤點完畢（詳細交接見第七節）；改由**本機桌面板 Antigravity 新對話**接手本機 `PRIORI/115篩選測驗/`，首波推進 **115 三年級數學單卷 MVP**（先補齊官方答案來源與公開授權核實） |
+| **學習扶助篩選測驗 (`PRIORI` — 獨立「學習扶助練習館」)** | ✅ **Stage 1 + Route 1「114 年三年級三科官方完整版」暨分科沉底特訓完成 (`100 題 / 4 卷`)** | 首頁增獨立「學習扶助練習館 (`?view=priori`)」入口，完整收錄 **114 年三年級 國／英／數三科（各 25 題，100% 對齊教育部國教署官方標準答案 PDF＋25 題英語官方 MP3 切分原音）** 與 **115 年三年級數學（25 題教師參考答案）**，共 4 卷 100 題、121 張 WebP 圖資與 25 個 MP3。具備分科隔離「**錯題沉底特訓專區**」（答錯立即排回隊尾直到連對 2 次升級「🌟 已精熟」且絕不混科）、英語聽音寫大小寫四線格作答板 (`PrioriAlphabetPad`)、國語左文右題閱讀分割欄、iPad 雙欄分題記憶方格計算紙與密碼 `wt7902230` 獨立教師後台（含 `114`/`115` 切換與常見誤寫分布）。紀錄存於隔離通道 `mode='priori-record', week=0` 絕不碰金幣或積分。驗證：`test_priori_115_math_g3_contract.mjs`、`test_priori_114_g3_contract.mjs`、`verify_priori_e2e.mjs` 與 6 階段 `smoke_test.mjs` 全過。 |
 | **檢定館教師派發與列印** | 📝 **已定案待排程** | 未來於 `TeacherHub.jsx` 增「一鍵派發連結／QR Code」（學生掃碼直進第 0 頁說明）、結果頁重練捷徑與瀏覽器原生 `@media print` 學習單（不做 `.docx` 產生器） |
 | **全站師生使用手冊** | ⏳ **待結案整理** | 未來完成全案後以第三節模組總覽產出對外操作說明書 |
 
@@ -184,3 +184,24 @@ npm run build && node scripts/smoke_test.mjs
   - 共 25 題四選一（每題 4 分），涵蓋計算、單位、分數與圖形題（MVP 不需英語音檔）。
   - **上線前紅線**：在確認官方答案來源及公開授權前，**不得公開啟用自動計分或宣稱官方答案**；通過後再決定作答紀錄儲存機制與靜態媒體是否使用 Cloudflare R2。
   - **驗收門檻**：逐題對照原卷 PDF 與官方答案、實測圖片縮放／手機版操作／朗讀精確度／資料與金幣隔離，並 100% 通過 `npm run build` 與 6 階段 `smoke_test.mjs`。
+
+#### 7.5 Stage 1 MVP 完成實作紀錄（115 年三年級數學科）
+- **資料與資產管線**：
+  - [`scripts/build_priori_115_math_g3_assets.mjs`](scripts/build_priori_115_math_g3_assets.mjs)：擷取 `PRIORI/115篩選測驗/數學/115年篩選測驗數學科3年級試卷.pdf` 產出 25 張全題原卷注音圖（`q01.webp`–`q25.webp`）與 6 張幾何／數線專圖（`q09_fig`, `q11_fig`, `q13_fig`, `q15_fig`, `q19_fig`, `q25_fig` 共 31 張 WebP，自動去白邊加均勻留白），並生成 Contact Sheet 目視確認。
+  - [`src/data/priori/priori115MathG3.js`](src/data/priori/priori115MathG3.js) 與 [`src/data/priori/index.js`](src/data/priori/index.js)：落實三層資料（`questionImage` / `figureImage` / `questionText` + 分數 `{a/b}` 語法 / `ttsText` 與 `optionTtsTexts` 自然口語稿）、課綱／學扶指標代碼、`explanationSteps`（3～4 步引導詳解）與預留欄位（`groupId`, `passage`, `media`）；明確標記 `answerSource: 'teacher_solved'`、`officialAnswerVerified: false`（因國教署尚未公布 115 三～六年級官方答案卷，經由原卷算驗及外部教師參考鍵交叉確認）。
+  - [`scripts/test_priori_115_math_g3_contract.mjs`](scripts/test_priori_115_math_g3_contract.mjs)：驗證 25 題格式、答案、禁止生硬計算符號出現在 `ttsText`/`optionTtsTexts`、`ttsVerified === true`，並對 31 張 WebP 執行 Sharp 尺寸／非白像素（`>= 2.0%`）／影像熵檢查（標準題圖 `>= 0.80`；4 張純黑白線條幾何與數線檔列明確例外 `>= 0.50`）。
+- **獨立練習館介面與互動元件 (`src/features/priori/`)**：
+  - [`PrioriPracticeHub.jsx`](src/features/priori/PrioriPracticeHub.jsx)、[`PrioriScratchpad.jsx`](src/features/priori/PrioriScratchpad.jsx)、[`PrioriTeacherDashboard.jsx`](src/features/priori/PrioriTeacherDashboard.jsx)、[`prioriStorage.js`](src/features/priori/prioriStorage.js)、[`PrioriModals.jsx`](src/features/priori/PrioriModals.jsx)、[`MathRichText.jsx`](src/features/priori/MathRichText.jsx) 與首頁／路由整合（[`Portal.jsx`](src/components/Portal.jsx)、[`App.jsx`](src/App.jsx)、[`Button3D.jsx`](src/components/ui/Button3D.jsx) 加 `cyan` 變體）。
+  - 支援：`?view=priori`、`?view=priori&paper=115-math-g3` 與 `?view=priori&tab=teacher` 直達連結；iPad 橫屏（`>= 1024px`）自動展開右欄分題記憶方格計算紙（切換題目自動保存／還原筆跡並支援 `PrioriScratchpadPreview` 唯讀回放）；原卷模擬／輔助朗讀即時切換；原卷注音圖切換與放大平移燈箱；交卷防呆確認；逐題逐步解題提示；錯題重練；**連續答對 2 次 (`streaks[q.id] >= 2`) 自動升級為「已精熟」**；獨立紀錄儲存於 `wutai_priori_v1_${studentId}` 並同步至隔離通道 `leaderboard (mode='priori-record', week=0)`，絕不觸碰單字館金幣、積分或 `mcq-exam`。
+  - **獨立教師診斷後台 (`?view=priori&tab=teacher`，密碼 `wt7902230`)**：可切年度／科目／年級／班級與示範班級開關；「各題答題情況與單題計算紙」可看 25 題答對率、精熟率、4 選項誘答人數並點開單題全班學生手寫計算紙；「各生作答與精熟明細」可點閱個別學生初測→最新進步分數與各題筆跡回放。
+- **後續擴充進度 — Route 1（114 年三年級 國／英／數完整官方三科 ＋ 分科錯題沉底特訓）已完成**：
+  - **資產與音檔管線 (`scripts/build_priori_114_g3_assets.mjs`)**：依 K-12EA 114 年三年級空白試卷與紅字標準答案卷產生 **90 張 WebP 圖資**（數學 34 張含 9 張獨立圖形 `q01/02/07/08/11/12/19/20/25_fig`、國語 27 張含 2 篇題組原卷圖 `passage_20_22`/`passage_23_25`、英語 29 張含 `q22..25_fig`），並用 FFmpeg 將 `PRIORI/114篩選測驗/114年篩選測驗英語科3年級試卷聽力檔.mp3` 依 95 段靜音邊界精確切分為 **25 個官方題音檔 (`public/audio/priori/114/eng-g3/q01.mp3`–`q25.mp3`，每題 7.2s–12.7s)**。
+  - **三科官方題庫與專屬題型 UI (`officialAnswerVerified: true, answerSource: 'official_pdf'`)**：
+    - [`src/data/priori/priori114MathG3.js`](src/data/priori/priori114MathG3.js)（25 題四選一）、[`src/data/priori/priori114ChineseG3.js`](src/data/priori/priori114ChineseG3.js)（19 單題＋2 組共 6 題左文右題閱讀理解）、[`src/data/priori/priori114EnglishG3.js`](src/data/priori/priori114EnglishG3.js)（Q1–15 `alphabet-pair` 聽音大小寫寫入 [`PrioriAlphabetPad.jsx`](src/features/priori/PrioriAlphabetPad.jsx) 四線格、Q16–21 `O/X` 2 選、Q22–25 聽辨對話 3 圖選＋官方 MP3 慢/原速切換）與統一索引 [`src/data/priori/index.js`](src/data/priori/index.js)（4 卷 100 題）。
+  - **分科隔離錯題沉底引擎與教師後台擴充**：
+    - [`prioriStorage.js`](src/features/priori/prioriStorage.js) 新增 `getSubjectRemedialPool`、`recordPrioriSubjectDrillAttempt` 與英語大小寫寬鬆解析比對 (`parseAlphabetPairAnswer` / `isPrioriAnswerCorrect`)；[`PrioriPracticeHub.jsx`](src/features/priori/PrioriPracticeHub.jsx) 於各科分頁建置嚴格分流不混科之「**錯題沉底特訓專區**」（答錯即時提示並排至題組隊尾重作、連對 2 次升級「🌟 已精熟」），[`PrioriTeacherDashboard.jsx`](src/features/priori/PrioriTeacherDashboard.jsx) 支援 `114`/`115` 雙年度切換、三科班級統計與英語「常見誤寫」字對剖析。
+  - **圖資與列印品質修正**：
+    - `115-math-g3` Q11 (`q11_fig.webp`) 裁切座標擴大上緣高度（`top: 3022, height: 268`）確保雙圓頂部完整無切邊；`114-math-g3` Q1 (`q01_fig.webp`) 精準裁至純圖形規律列（`height: 64`）並精簡 `questionText` 消除題圖與文字重複。
+    - 列印分流 (`PrioriModals.jsx` `PrioriPrintableSheet`)：外部學生學習單列印（`showAnswerKey={false}`）徹底隱藏「作答／正解」；僅於密碼 `wt7902230` 之獨立教師診斷後台提供「列印解答卷（含正解）」（`showAnswerKey={true}`）。
+  - **驗證**：[`scripts/test_priori_114_g3_contract.mjs`](scripts/test_priori_114_g3_contract.mjs)、[`scripts/test_priori_115_math_g3_contract.mjs`](scripts/test_priori_115_math_g3_contract.mjs)、[`tmp/verify_priori_e2e.mjs`](tmp/verify_priori_e2e.mjs)（Tests A–H 涵蓋 iPad + 手機雙尺寸、分科沉底、音檔／四線格／題組／學生與教師雙軌列印／教師後台）、`npm run build` 與 6 階段 `scripts/smoke_test.mjs` 全部通過。
+- **下一步建議（Stage 3）**：比照本規格向上延伸 114 年（或 115 年官方公告後）四～六年級國／英／數試卷，並預留公開授權確認與正式版佈署。

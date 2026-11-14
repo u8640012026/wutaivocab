@@ -24,6 +24,7 @@ import { PreloaderShowcase } from './components/PreloaderShowcase';
 import { ImageZoomShowcase } from './components/exam/ImageZoomShowcase';
 import { LanguageLabHub } from './features/langlab/LanguageLabHub';
 import { PureMcqExamView } from './games/exam/PureMcqExamView';
+import { PrioriPracticeHub } from './features/priori/PrioriPracticeHub';
 import { TeacherAuthModal } from './components/TeacherAuthModal';
 import { StudentProfileModal } from './components/StudentProfileModal';
 import { InactivityGuard } from './components/common/InactivityGuard';
@@ -107,7 +108,7 @@ export function App() {
       if (target === 'vocab' || target === 'lobby') return 'lobby';
 
       const VALID_VIEWS = [
-        'phonics', 'lobby', 'town', 'textbook', 'langlab', 'mcq-exam',
+        'phonics', 'lobby', 'town', 'textbook', 'langlab', 'mcq-exam', 'priori',
         'escape', 'spotter', 'spotter-test', 'maze', 'memory',
         'mole', 'swipe', 'meteor', 'snake', 'spelling', 'handwriting',
         'battle', 'leaderboard', 'teacher-hub', 'preloader-showcase', 'loader-showcase', 'zoom-showcase'
@@ -146,6 +147,13 @@ export function App() {
   });
 
   const [autoJoinCode, setAutoJoinCode] = useState(null);
+  const [initialPrioriPaper] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('paper') || null;
+    } catch {
+      return null;
+    }
+  });
 
   const loadWords = async () => {
     setIsLoading(true);
@@ -279,7 +287,7 @@ export function App() {
   }, []);
 
   // 當處於單字學習遊戲或大廳且單字尚未同步完成時顯示輕量載入動畫
-  if (isLoading && words.length === 0 && currentView !== 'portal' && currentView !== 'phonics' && currentView !== 'textbook' && currentView !== 'langlab' && currentView !== 'town' && currentView !== 'mcq-exam') {
+  if (isLoading && words.length === 0 && currentView !== 'portal' && currentView !== 'phonics' && currentView !== 'textbook' && currentView !== 'langlab' && currentView !== 'town' && currentView !== 'mcq-exam' && currentView !== 'priori') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
         <div className="w-16 h-16 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin mb-4" />
@@ -295,8 +303,8 @@ export function App() {
 
   const handleGoParent = () => {
     // 依層級關係精確返回上一層：
-    // 若當前在單字學習館大廳 (lobby)、自然發音 (phonics)、小鎮 (town)、電子書 (textbook)、聽說館 (langlab) 或題庫檢定館 (mcq-exam)，上一層為學習宇宙首頁 (portal)
-    if (currentView === 'lobby' || currentView === 'phonics' || currentView === 'town' || currentView === 'textbook' || currentView === 'langlab' || currentView === 'mcq-exam') {
+    // 若當前在單字學習館大廳 (lobby)、自然發音 (phonics)、小鎮 (town)、電子書 (textbook)、聽說館 (langlab)、題庫檢定館 (mcq-exam) 或學習扶助練習館 (priori)，上一層為學習宇宙首頁 (portal)
+    if (currentView === 'lobby' || currentView === 'phonics' || currentView === 'town' || currentView === 'textbook' || currentView === 'langlab' || currentView === 'mcq-exam' || currentView === 'priori') {
       handleNavigate('portal');
     } else if (currentView !== 'portal') {
       // 若當前在任何單字遊戲、字母迷宮、排行榜或教師後台，上一層為單字學習館 (lobby)
@@ -306,8 +314,8 @@ export function App() {
 
   return (
     <div className="min-h-screen flex flex-col transition-colors duration-300">
-      {/* 全域統一導覽列 (大廳、排行榜、打地鼠與課本題庫檢定館擁有專屬零干擾頂欄，其餘頁面維持標準 Header) */}
-      {currentView !== 'lobby' && currentView !== 'leaderboard' && currentView !== 'mole' && currentView !== 'mcq-exam' && (
+      {/* 全域統一導覽列 (大廳、排行榜、打地鼠、課本題庫檢定館與學習扶助練習館擁有專屬零干擾頂欄，其餘頁面維持標準 Header) */}
+      {currentView !== 'lobby' && currentView !== 'leaderboard' && currentView !== 'mole' && currentView !== 'mcq-exam' && currentView !== 'priori' && (
         <Header
           onOpenTeacherHub={handleOpenTeacherHub}
           onOpenLeaderboard={() => handleNavigate('leaderboard')}
@@ -322,7 +330,7 @@ export function App() {
       {/* 畫面路由視圖切換 (含全域安全防護熔斷) */}
       <main className="flex-1 flex flex-col">
         <ErrorBoundary
-          onReset={() => handleNavigate(currentView === 'portal' || currentView === 'phonics' ? 'portal' : 'lobby')}
+          onReset={() => handleNavigate(currentView === 'portal' || currentView === 'phonics' || currentView === 'priori' ? 'portal' : 'lobby')}
           onOpenTeacherHub={handleOpenTeacherHub}
         >
           {currentView === 'portal' && (
@@ -509,6 +517,13 @@ export function App() {
           {currentView === 'mcq-exam' && (
             <PureMcqExamView
               settings={settings}
+              onBack={() => handleNavigate('portal')}
+            />
+          )}
+
+          {currentView === 'priori' && (
+            <PrioriPracticeHub
+              initialPaperId={initialPrioriPaper}
               onBack={() => handleNavigate('portal')}
             />
           )}
