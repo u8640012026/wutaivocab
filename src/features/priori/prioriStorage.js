@@ -253,6 +253,7 @@ export function recordPrioriAttempt({
   firstTryWrongIds = [],
   isMistakeRetry = false,
   elapsedSeconds = 0,
+  onCloudSyncResult = null,
 }) {
   if (!paper || !Array.isArray(paper.questions)) return null;
 
@@ -390,7 +391,15 @@ export function recordPrioriAttempt({
 
   // 雲端同步僅寫入隔離通道 mode='priori-record', week=0（CI 測試環境略過網路寫入）
   if (typeof window === 'undefined' || !window.__CI__) {
-    syncPrioriRecordToCloud(identity, nextRecord).catch(() => {});
+    syncPrioriRecordToCloud(identity, nextRecord)
+      .then((res) => {
+        if (typeof onCloudSyncResult === 'function') onCloudSyncResult(res);
+      })
+      .catch((err) => {
+        if (typeof onCloudSyncResult === 'function') {
+          onCloudSyncResult({ ok: false, error: err?.message || '雲端同步失敗' });
+        }
+      });
   }
 
   return nextRecord;
@@ -408,6 +417,7 @@ export function recordPrioriSubjectDrillAttempt({
   strokesByQuestion = {},
   firstTryWrongIds = [],
   elapsedSeconds = 0,
+  onCloudSyncResult = null,
 }) {
   const byPaperId = new Map();
   for (const q of activeQueue) {
@@ -433,6 +443,7 @@ export function recordPrioriSubjectDrillAttempt({
       firstTryWrongIds,
       isMistakeRetry: true,
       elapsedSeconds,
+      onCloudSyncResult,
     });
     if (rec) {
       updatedByPaper[pid] = rec;
@@ -483,7 +494,7 @@ async function syncPrioriRecordToCloud(identity, record) {
       serialized = JSON.stringify({ ...compactPayload, scratchpad: trimmedPad });
     }
 
-    const { data: existing } = await supabase
+    const { data: existing, error: selectError } = await supabase
       .from('leaderboard')
       .select('id')
       .eq('device_id', cloudDeviceId)
@@ -491,8 +502,13 @@ async function syncPrioriRecordToCloud(identity, record) {
       .eq('week', PRIORI_CLOUD_WEEK)
       .maybeSingle();
 
+    if (selectError) {
+      console.warn('學習扶助紀錄雲端查詢失敗（已保存本機）:', selectError.message);
+      return { ok: false, error: selectError.message };
+    }
+
     if (existing?.id) {
-      await supabase
+      const { error: updateError } = await supabase
         .from('leaderboard')
         .update({
           name: identity.displayName,
@@ -502,8 +518,12 @@ async function syncPrioriRecordToCloud(identity, record) {
           created_at: record.updatedAt,
         })
         .eq('id', existing.id);
+      if (updateError) {
+        console.warn('學習扶助紀錄雲端更新失敗（已保存本機）:', updateError.message);
+        return { ok: false, error: updateError.message };
+      }
     } else {
-      await supabase.from('leaderboard').insert([
+      const { error: insertError } = await supabase.from('leaderboard').insert([
         {
           device_id: cloudDeviceId,
           name: identity.displayName,
@@ -514,18 +534,26 @@ async function syncPrioriRecordToCloud(identity, record) {
           week: PRIORI_CLOUD_WEEK,
         },
       ]);
+      if (insertError) {
+        console.warn('學習扶助紀錄雲端寫入失敗（已保存本機）:', insertError.message);
+        return { ok: false, error: insertError.message };
+      }
     }
+    return { ok: true };
   } catch (err) {
-    console.warn('學習扶助紀錄雲端同步暫緩（已保存本機）:', err?.message || err);
+    const msg = err?.message || String(err);
+    console.warn('學習扶助紀錄雲端同步暫緩（已保存本機）:', msg);
+    return { ok: false, error: msg };
   }
 }
 
 /**
- * 讀取教師後台所需的班級／各生學習扶助紀錄（融合雲端 + 本機各生紀錄）
+ * 讀取教師後台所需的班級／各生學習扶助紀錄（融合雲端 + 本機各生紀錄，並回傳雲端錯誤狀態）
  */
-export async function fetchPrioriTeacherRecords(paperId = '114-math-g3') {
+export async function fetchPrioriTeacherRecordsWithMeta(paperId = '114-math-g3') {
   const mergedByStudent = new Map();
   const metaIndex = loadStudentMetaIndex();
+  let cloudError = '';
 
   // 1. 收集所有本機端紀錄
   try {
@@ -571,7 +599,9 @@ export async function fetchPrioriTeacherRecords(paperId = '114-math-g3') {
         .order('created_at', { ascending: false })
         .limit(200);
 
-      if (!error && Array.isArray(data)) {
+      if (error) {
+        cloudError = error.message || '雲端紀錄讀取失敗';
+      } else if (Array.isArray(data)) {
         for (const row of data) {
           if (!row?.book) continue;
           try {
@@ -607,14 +637,26 @@ export async function fetchPrioriTeacherRecords(paperId = '114-math-g3') {
           } catch {}
         }
       }
-    } catch {}
+    } catch (err) {
+      cloudError = err?.message || '雲端連線異常';
+    }
   }
 
-  return Array.from(mergedByStudent.values()).sort((a, b) => {
+  const records = Array.from(mergedByStudent.values()).sort((a, b) => {
     if (a.studentClass !== b.studentClass)
       return String(a.studentClass).localeCompare(String(b.studentClass));
     return Number(a.studentSeat || 99) - Number(b.studentSeat || 99);
   });
+
+  return { records, cloudError };
+}
+
+/**
+ * 讀取教師後台所需的班級／各生學習扶助紀錄（向後相容只回傳陣列）
+ */
+export async function fetchPrioriTeacherRecords(paperId = '114-math-g3') {
+  const { records } = await fetchPrioriTeacherRecordsWithMeta(paperId);
+  return records;
 }
 
 // ── 教學展示用：三年級示範班級模擬學生資料（含 114/115 數國英與計算紙筆跡，可在教師後台開關） ──

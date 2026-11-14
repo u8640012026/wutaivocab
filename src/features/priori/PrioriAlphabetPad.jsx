@@ -135,6 +135,9 @@ export function PrioriAlphabetPad({ value = '', onChange, disabled = false }) {
                 （也可直接用鍵盤輸入）
               </span>
             </div>
+            <p className="w-full text-[11px] font-bold text-amber-700 dark:text-amber-300">
+              大小寫字母辨識練習：採輸入字元自動核對，與紙筆評分規準之字形、四線格位置人工批閱不同。
+            </p>
 
             <div className="flex items-center gap-1.5">
               <button

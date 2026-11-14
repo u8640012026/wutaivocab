@@ -417,8 +417,8 @@ export function PrioriPrintableSheet({ paper, questions, answers, showAnswerKey 
                 )}
                 {q.questionType === 'alphabet-pair' ? (
                   <div className="flex items-center gap-6 text-xs font-bold pt-1">
-                    <span>大寫：[　　　]</span>
-                    <span>小寫：[　　　]</span>
+                    <span>大寫：[<span className="inline-block w-10" />]</span>
+                    <span>小寫：[<span className="inline-block w-10" />]</span>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">

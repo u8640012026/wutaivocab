@@ -121,6 +121,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
   const [firstTryWrongIds, setFirstTryWrongIds] = useState([]);
   const [slotFeedback, setSlotFeedback] = useState(null); // { correct: boolean, sunk?: boolean, headline: string, detail?: string }
   const [lastSubmissionByPaper, setLastSubmissionByPaper] = useState({});
+  const [cloudSyncNotice, setCloudSyncNotice] = useState(null);
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -277,6 +278,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
       setFirstTryWrongIds([]);
       setSlotFeedback(null);
       setLastSubmissionByPaper({});
+      setCloudSyncNotice(null);
       setRevealedSteps({});
       setStartedAt(Date.now());
       setElapsedSeconds(0);
@@ -381,6 +383,14 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
         ? formatStudentDisplayName(currentStudent)
         : '訪客學生';
 
+      const handleCloudSyncResult = (syncRes) => {
+        if (syncRes && !syncRes.ok) {
+          setCloudSyncNotice({ type: 'error', message: syncRes.error || '雲端同步失敗' });
+        } else if (syncRes?.ok) {
+          setCloudSyncNotice((prev) => (prev?.type === 'error' ? prev : { type: 'ok' }));
+        }
+      };
+
       if (isSubjectDrill) {
         const res = recordPrioriSubjectDrillAttempt({
           student: currentStudent,
@@ -391,6 +401,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
           strokesByQuestion,
           firstTryWrongIds,
           elapsedSeconds: seconds,
+          onCloudSyncResult: handleCloudSyncResult,
         });
         setLastSubmissionByPaper(res.updatedByPaper || {});
         setSavedRecords(loadPrioriRecords(studentKey));
@@ -405,6 +416,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
           firstTryWrongIds,
           isMistakeRetry,
           elapsedSeconds: seconds,
+          onCloudSyncResult: handleCloudSyncResult,
         });
         if (updatedRecord) {
           setLastSubmissionByPaper({ [activePaper.paperId]: updatedRecord });
@@ -1449,6 +1461,15 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
           <div className="rounded-2xl bg-amber-50/95 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 p-3 sm:p-3.5 text-xs font-bold text-amber-900 dark:text-amber-200 leading-relaxed">
             💡 {activePaper.answerSourceNote}本練習館作答紀錄完全獨立，不會改動單字館金幣與英語檢定館成績。
           </div>
+
+          {cloudSyncNotice?.type === 'error' && (
+            <div
+              role="alert"
+              className="rounded-2xl bg-rose-50/95 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-700 p-3 sm:p-3.5 text-xs font-black text-rose-800 dark:text-rose-200 leading-relaxed"
+            >
+              ⚠️ 雲端紀錄同步未完成（作答與計算紙已安全保存於本機瀏覽器）：{cloudSyncNotice.message}
+            </div>
+          )}
 
           <section className="rounded-3xl bg-white/95 dark:bg-slate-900/95 border-2 border-teal-300 dark:border-teal-700 p-5 shadow-md space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-4">

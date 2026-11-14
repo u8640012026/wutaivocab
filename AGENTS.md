@@ -11,9 +11,9 @@
    - **雙軌聯集融合（Union Merge）**：`src/services/supabase.js` 同時讀寫 `student_profiles` 與 `leaderboard (mode = 'profile-sync')`，永遠以 `Math.max` 取最高金幣 (`coins`) 與探索積分 (`quest_points`)。
    - **學期制保留**：由 `src/utils/semesterHelper.js` 判定學期（2/1～7/31 下學期、8/1～隔年1/31 上學期），整學期保留資料，跨學期自動封存至 `semester_history`。**任何更新嚴禁清空或覆蓋學生資料**。
 2. **強制 6 階段全自動防回歸測試（杜絕改 A 壞 B、免除人工重測）**：
-   - 任何程式碼變更後、推送前，**必須執行**：
+   - 任何程式碼變更後、推送前，**必須執行**（含 `npm run lint`，因 Cloudflare Pages CI 部署前會強制檢查 ESLint，`0 errors` 才會進行建置與發布）：
      ```powershell
-     npm run build ; if ($LASTEXITCODE -eq 0) { node scripts/smoke_test.mjs }
+     npm run lint ; if ($LASTEXITCODE -eq 0) { npm run build } ; if ($LASTEXITCODE -eq 0) { node scripts/smoke_test.mjs }
      ```
    - **以 `$LASTEXITCODE` 判斷 build 成敗**（勿用 `$?`）：PowerShell 的 `$?` 在 stderr 被重導（如 `2>&1 | Select-Object`）時，會把 Vite 警告誤判為失敗而跳過 smoke test。另**勿同時啟動兩個 smoke test**（共用 port 4198，會互相干擾產生假失敗）。
    - 必須 100% 通過 6 大階段：(0) 靜態契約檢查（所有 `soundEngine.xxx()` 必須存在於 `src/services/audio.js`，嚴禁 `if (queue.length === 0) return onBack()` 閃退寫法）、(1) 排行榜、(2) 大廳與教師台、(3) 鷹眼神探、(4) 口說評測、(5) 核心遊戲真實互動點擊/按鍵/開房模擬與檢定館 E2E、(6) 14 款遊戲 × 4 身分全量矩陣。

@@ -51,7 +51,8 @@ BEGIN
         ALTER TABLE public.leaderboard ADD CONSTRAINT chk_leaderboard_name CHECK (char_length(name) >= 1 AND char_length(name) <= 20);
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_leaderboard_week') THEN
-        ALTER TABLE public.leaderboard ADD CONSTRAINT chk_leaderboard_week CHECK (week >= 1 AND week <= 53);
+        -- week = 0 保留給非週期性隔離通道（如 exam-audit-note / exam-student-report / priori-record）
+        ALTER TABLE public.leaderboard ADD CONSTRAINT chk_leaderboard_week CHECK (week >= 0 AND week <= 53);
     END IF;
 END $$;
 

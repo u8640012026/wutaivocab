@@ -67,6 +67,10 @@
 12. **檢定館 Runtime、背包與通行證地雷**：
     - 正式測驗須用 `deadlineAt` 防關分頁無限暫停，並於 `finalizeExam` 完成後才清除快照；僅 `scopeMode === 'curriculum'` 寫入課本排行榜；易錯題複習嚴禁以一般題補滿；Pre-A1 正式卷排除 `W-SCRAMBLE` 與 `S-READ`；`supabase.js` 錯題回報必檢 `{ error }`；精熟快照不得 fallback 至 `questions.length`。
     - 學生背包道具必經 `resolveItemMetadata()`（杜絕「無名快遞紙箱 📦」）；通行證禁止寫死遊戲名單與橫向捲動條（動態讀 `CONSOLIDATED_GAME_MODES` 與 `getInventorySummary`）。
+13. **Cloudflare Pages CI 因 `eslint src` 全形空白阻塞部署 & Vercel GitHub Webhook 誤觸發**：
+    - `.github/workflows/deploy-cloudflare.yml` 會在 `npm run build` 前先跑 `npm run lint`（`eslint src`），任何 `no-irregular-whitespace`（例如 JSX 文字中的全形空白 `　`）都會讓 Action 在建置前直接中止並跳過 `wrangler pages deploy`；又因 Cloudflare Pages SPA 會以 HTTP 200 回傳舊版 `index.html`，未上線的 `/assets/priori/...` 會靜默回傳 HTML 而非報 404。**解方**：列印預留空寬改用 CSS（如 `<span className="inline-block w-10" />`），且每次推送前必跑 `npm run lint && npm run build && node scripts/smoke_test.mjs`。
+    - 同時 Vercel 若曾於 Vercel 後台綁定 GitHub `u8640012026/wutaivocab` 倉庫，即使本機沒有 `vercel` git remote，每次 `git push origin main` 仍會透過 GitHub App 自動觸發 Vercel 建置並消耗免費配額；欲徹底關閉日常自動消耗需於 Vercel Project Settings → Git / Ignored Build Step 設定忽略或中斷連動。
+    - 雲端寫入約束與錯誤顯示：`supabase_schema.sql` 原 `chk_leaderboard_week` 寫作 `week >= 1`，但實測線網與 `exam-audit-note`／`priori-record` 皆寫入 `week = 0`；此外 Supabase JS 回傳 `{ error }` 不會自動 throw，必須明確檢查 `error` 並於前端顯示同步失敗提示。
 
 ---
 
@@ -145,8 +149,8 @@ node scripts/test_batch_b_contract.mjs
 node scripts/test_batch_c_contract.mjs
 node scripts/test_batch_d_contract.mjs
 
-# 3. 完整建置與 6 階段無頭 Chrome 回歸測試 (推送前必跑)
-npm run build && node scripts/smoke_test.mjs
+# 3. 完整 ESLint、建置與 6 階段無頭 Chrome 回歸測試 (推送前必跑)
+npm run lint ; if ($LASTEXITCODE -eq 0) { npm run build } ; if ($LASTEXITCODE -eq 0) { node scripts/smoke_test.mjs }
 ```
 
 - **管理者快捷通道**：鍵盤 `Ctrl+Shift+A`／`Ctrl+Alt+T`，或 ErrorBoundary ⚠️ 圖示連點 5 下，教師密碼 `wt7902230`。
@@ -203,5 +207,7 @@ npm run build && node scripts/smoke_test.mjs
   - **圖資與列印品質修正**：
     - `115-math-g3` Q11 (`q11_fig.webp`) 裁切座標擴大上緣高度（`top: 3022, height: 268`）確保雙圓頂部完整無切邊；`114-math-g3` Q1 (`q01_fig.webp`) 精準裁至純圖形規律列（`height: 64`）並精簡 `questionText` 消除題圖與文字重複。
     - 列印分流 (`PrioriModals.jsx` `PrioriPrintableSheet`)：外部學生學習單列印（`showAnswerKey={false}`）徹底隱藏「作答／正解」；僅於密碼 `wt7902230` 之獨立教師診斷後台提供「列印解答卷（含正解）」（`showAnswerKey={true}`）。
-  - **驗證**：[`scripts/test_priori_114_g3_contract.mjs`](scripts/test_priori_114_g3_contract.mjs)、[`scripts/test_priori_115_math_g3_contract.mjs`](scripts/test_priori_115_math_g3_contract.mjs)、[`tmp/verify_priori_e2e.mjs`](tmp/verify_priori_e2e.mjs)（Tests A–H 涵蓋 iPad + 手機雙尺寸、分科沉底、音檔／四線格／題組／學生與教師雙軌列印／教師後台）、`npm run build` 與 6 階段 `scripts/smoke_test.mjs` 全部通過。
+  - **英語四線格標示與雲端同步可視化（GPT 審查跟進）**：
+    - 移除 `PrioriModals.jsx` 列印空格處會觸發 ESLint `no-irregular-whitespace` 的全形空白改用 CSS 寬度，解除 Cloudflare Pages CI 部署阻塞；[`PrioriAlphabetPad.jsx`](src/features/priori/PrioriAlphabetPad.jsx) 補上「字元輸入辨識與紙筆字形／四線格位置人工批閱差異」提示；[`prioriStorage.js`](src/features/priori/prioriStorage.js) 補齊 Supabase `.select/.update/.insert` `{ error }` 檢查並在 [`PrioriPracticeHub.jsx`](src/features/priori/PrioriPracticeHub.jsx) 與 [`PrioriTeacherDashboard.jsx`](src/features/priori/PrioriTeacherDashboard.jsx) 顯性呈現雲端同步錯誤；同步更新 [`supabase_schema.sql`](supabase_schema.sql) `chk_leaderboard_week`（`week >= 0 AND week <= 53`）對齊隔離通道設計。
+  - **驗證**：[`scripts/test_priori_114_g3_contract.mjs`](scripts/test_priori_114_g3_contract.mjs)、[`scripts/test_priori_115_math_g3_contract.mjs`](scripts/test_priori_115_math_g3_contract.mjs)、[`tmp/verify_priori_e2e.mjs`](tmp/verify_priori_e2e.mjs)、`npm run lint`、`npm run build` 與 6 階段 `scripts/smoke_test.mjs` 全部通過。
 - **下一步建議（Stage 3）**：比照本規格向上延伸 114 年（或 115 年官方公告後）四～六年級國／英／數試卷，並預留公開授權確認與正式版佈署。

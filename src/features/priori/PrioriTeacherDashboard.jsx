@@ -23,7 +23,7 @@ import { MathRichText } from './MathRichText';
 import { PrioriScratchpadPreview } from './PrioriScratchpad';
 import { LilyEmblem, PrioriPrintableSheet } from './PrioriModals';
 import {
-  fetchPrioriTeacherRecords,
+  fetchPrioriTeacherRecordsWithMeta,
   PRIORI_DEMO_CLASS_RECORDS,
   isPrioriAnswerCorrect,
   formatPrioriAnswerLabel,
@@ -84,6 +84,7 @@ export function PrioriTeacherDashboard({ onBack }) {
 
   // 資料載入與展示切換
   const [realRecords, setRealRecords] = useState([]);
+  const [cloudError, setCloudError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showDemo, setShowDemo] = useState(false);
   const [demoAutoChecked, setDemoAutoChecked] = useState(false);
@@ -108,12 +109,16 @@ export function PrioriTeacherDashboard({ onBack }) {
   const loadRecords = useCallback(async () => {
     if (!activePaper) {
       setRealRecords([]);
+      setCloudError('');
       return;
     }
     setIsLoading(true);
     try {
-      const fetched = await fetchPrioriTeacherRecords(activePaper.paperId);
+      const { records: fetched, cloudError: fetchErr } = await fetchPrioriTeacherRecordsWithMeta(
+        activePaper.paperId
+      );
       setRealRecords(fetched);
+      setCloudError(fetchErr || '');
       if (!demoAutoChecked) {
         setShowDemo(fetched.length === 0);
         setDemoAutoChecked(true);
@@ -444,6 +449,16 @@ export function PrioriTeacherDashboard({ onBack }) {
           </button>
         </div>
       </header>
+
+      {cloudError && (
+        <div
+          role="alert"
+          className="rounded-2xl bg-rose-50/95 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-700 px-4 py-2.5 text-xs font-black text-rose-800 dark:text-rose-200 flex items-center gap-2"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>雲端紀錄讀取失敗（目前僅顯示本機紀錄）：{cloudError}</span>
+        </div>
+      )}
 
       {/* 年度 / 科目 / 年級 / 班級 / 搜尋篩選列 */}
       <section className="rounded-2xl bg-white/95 dark:bg-slate-900/95 border border-teal-200/70 dark:border-slate-700 p-3 sm:p-4 shadow-sm grid grid-cols-2 sm:grid-cols-5 gap-2.5">
