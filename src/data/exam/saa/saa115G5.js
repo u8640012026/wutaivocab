@@ -22,9 +22,13 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 3,
     "media": {
-      "audioText": "wave"
+      "audioText": "wave",
+      "audioSrc": "/audio/saa/115/g5/q01.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力語音為「wave」，母音發長母音 /eɪ/。"
+    "explanation": "聽力語音為「wave」，母音發長母音 /eɪ/。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-02",
@@ -49,9 +53,13 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "Nicole"
+      "audioText": "Nicole",
+      "audioSrc": "/audio/saa/115/g5/q02.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力語音為女子名字「Nicole」，重音在第二音節。"
+    "explanation": "聽力語音為女子名字「Nicole」，重音在第二音節。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-03",
@@ -69,17 +77,32 @@ export const SAA_115_G5_QUESTIONS = [
     "dimension": "辭彙聽辨",
     "question": "請看圖並聽語音，選出最相符的季節與天氣圖片：",
     "options": [
-      "圖片 ① (冬天下雪寒冷)",
-      "圖片 ② (秋天涼爽吹風)",
-      "圖片 ③ (春天溫暖坐長椅)",
-      "圖片 ④ (夏天炎熱遮陽流汗)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 3,
-    "image": "/assets/exam/saa/115/g5_q3.webp",
     "media": {
-      "audioText": "It is hot and sunny in summer."
+      "audioText": "It is hot and sunny in summer.",
+      "audioSrc": "/audio/saa/115/g5/q03.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力語音「It is hot and sunny in summer.（夏天炎熱又晴朗）」，圖片 ④ 男子戴遮陽帽揮汗且氣溫高，故選 ④。"
+    "explanation": "聽力語音「It is hot and sunny in summer.（夏天炎熱又晴朗）」，圖片 ④ 男子戴遮陽帽揮汗且氣溫高，故選 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g5_q3_a.webp",
+      "/assets/exam/saa/115/options/g5_q3_b.webp",
+      "/assets/exam/saa/115/options/g5_q3_c.webp",
+      "/assets/exam/saa/115/options/g5_q3_d.webp"
+    ],
+    "optionAltTexts": [
+      "冬天下雪寒冷",
+      "秋天涼爽吹風",
+      "春天溫暖坐長椅",
+      "夏天炎熱遮陽流汗"
+    ]
   },
   {
     "id": "saa-115-g5-04",
@@ -97,17 +120,32 @@ export const SAA_115_G5_QUESTIONS = [
     "dimension": "辭彙聽辨",
     "question": "請看圖並聽語音，選出正確的物品圖片：",
     "options": [
-      "圖片 ① (書本)",
-      "圖片 ② (電腦螢幕)",
-      "圖片 ③ (紙箱)",
-      "圖片 ④ (尺)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 3,
-    "image": "/assets/exam/saa/115/g5_q4.webp",
     "media": {
-      "audioText": "ruler"
+      "audioText": "ruler",
+      "audioSrc": "/audio/saa/115/g5/q04.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力單字為「ruler（直尺）」，圖片 ④ 為刻度尺，故選 ④。"
+    "explanation": "聽力單字為「ruler（直尺）」，圖片 ④ 為刻度尺，故選 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g5_q4_a.webp",
+      "/assets/exam/saa/115/options/g5_q4_b.webp",
+      "/assets/exam/saa/115/options/g5_q4_c.webp",
+      "/assets/exam/saa/115/options/g5_q4_d.webp"
+    ],
+    "optionAltTexts": [
+      "書本",
+      "電腦螢幕",
+      "紙箱",
+      "尺"
+    ]
   },
   {
     "id": "saa-115-g5-05",
@@ -132,9 +170,13 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 3,
     "media": {
-      "audioText": "Grandma loves her sister."
+      "audioText": "Grandma loves her sister.",
+      "audioSrc": "/audio/saa/115/g5/q05.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力整句為「Grandma loves her sister.（祖母愛她的姊妹）」，注意 Grandma 與 her sister 之辨識。"
+    "explanation": "聽力整句為「Grandma loves her sister.（祖母愛她的姊妹）」，注意 Grandma 與 her sister 之辨識。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-06",
@@ -152,17 +194,32 @@ export const SAA_115_G5_QUESTIONS = [
     "dimension": "辭彙聽辨",
     "question": "請看街道建築並聽語音，選出正確的建築位置：",
     "options": [
-      "建築 ① (Green St 上的 Bank 銀行)",
-      "建築 ② (Black St 上的書店)",
-      "建築 ③ (White St 上的書店)",
-      "建築 ④ (Red St 上的郵局)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 0,
-    "image": "/assets/exam/saa/115/g5_q6.webp",
     "media": {
-      "audioText": "The bank is on Green Street."
+      "audioText": "The bank is on Green Street.",
+      "audioSrc": "/audio/saa/115/g5/q06.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力內容「The bank is on Green Street.（銀行在綠街上）」，建築 ① 門楣標示 $ 符號為銀行且位於 Green St，故選 ①。"
+    "explanation": "聽力內容「The bank is on Green Street.（銀行在綠街上）」，建築 ① 門楣標示 $ 符號為銀行且位於 Green St，故選 ①。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g5_q6_a.webp",
+      "/assets/exam/saa/115/options/g5_q6_b.webp",
+      "/assets/exam/saa/115/options/g5_q6_c.webp",
+      "/assets/exam/saa/115/options/g5_q6_d.webp"
+    ],
+    "optionAltTexts": [
+      "Green St 上的 Bank 銀行",
+      "Black St 上的書店",
+      "White St 上的書店",
+      "Red St 上的郵局"
+    ]
   },
   {
     "id": "saa-115-g5-07",
@@ -180,17 +237,32 @@ export const SAA_115_G5_QUESTIONS = [
     "dimension": "教室生活辭句理解與回應",
     "question": "請看圖並聽語音，選出遺失物品地點正確的圖片：",
     "options": [
-      "地點 ① (動物園門口掉書)",
-      "地點 ② (美術館地上掉鑰匙)",
-      "地點 ③ (餐廳桌上掉背包)",
-      "地點 ④ (公園遊戲區地上掉手錶)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 3,
-    "image": "/assets/exam/saa/115/g5_q7.webp",
     "media": {
-      "audioText": "I lost my watch at the park."
+      "audioText": "I lost my watch at the park.",
+      "audioSrc": "/audio/saa/115/g5/q07.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力內容「I lost my watch at the park.（我在公園弄丟了我的手錶）」，圖片 ④ 為公園遊戲區且地上有一隻手錶，故選 ④。"
+    "explanation": "聽力內容「I lost my watch at the park.（我在公園弄丟了我的手錶）」，圖片 ④ 為公園遊戲區且地上有一隻手錶，故選 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g5_q7_a.webp",
+      "/assets/exam/saa/115/options/g5_q7_b.webp",
+      "/assets/exam/saa/115/options/g5_q7_c.webp",
+      "/assets/exam/saa/115/options/g5_q7_d.webp"
+    ],
+    "optionAltTexts": [
+      "動物園門口掉書",
+      "美術館地上掉鑰匙",
+      "餐廳桌上掉背包",
+      "公園遊戲區地上掉手錶"
+    ]
   },
   {
     "id": "saa-115-g5-08",
@@ -208,17 +280,32 @@ export const SAA_115_G5_QUESTIONS = [
     "dimension": "教室生活辭句理解與回應",
     "question": "請看圖並聽語音，選出最相符的情境：",
     "options": [
-      "情境 ① (老師看手錶催促 Hurry up! 學生寫考卷)",
-      "情境 ② (彎腰撿起掉在地上的鉛筆)",
-      "情境 ③ (男女生分享畫筆畫畫)",
-      "情境 ④ (學生看黑板寫 cat)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 0,
-    "image": "/assets/exam/saa/115/g5_q8.webp",
     "media": {
-      "audioText": "Hurry up! Time is almost up."
+      "audioText": "Hurry up! Time is almost up.",
+      "audioSrc": "/audio/saa/115/g5/q08.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力情境「Hurry up! Time is almost up.（快點！時間快到了）」，情境 ① 為監考老師看手錶催促學生加快答題，故選 ①。"
+    "explanation": "聽力情境「Hurry up! Time is almost up.（快點！時間快到了）」，情境 ① 為監考老師看手錶催促學生加快答題，故選 ①。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g5_q8_a.webp",
+      "/assets/exam/saa/115/options/g5_q8_b.webp",
+      "/assets/exam/saa/115/options/g5_q8_c.webp",
+      "/assets/exam/saa/115/options/g5_q8_d.webp"
+    ],
+    "optionAltTexts": [
+      "老師看手錶催促 Hurry up! 學生寫考卷",
+      "彎腰撿起掉在地上的鉛筆",
+      "男女生分享畫筆畫畫",
+      "學生看黑板寫 cat"
+    ]
   },
   {
     "id": "saa-115-g5-09",
@@ -236,17 +323,32 @@ export const SAA_115_G5_QUESTIONS = [
     "dimension": "教室生活辭句理解與回應",
     "question": "請看建築排列並聽語音，選出正確的排列：",
     "options": [
-      "排列 ① (學校 - 麵包店 - 銀行)",
-      "排列 ② (書店 - 銀行 - 公園)",
-      "排列 ③ (銀行 - 書店 - 麵包店)",
-      "排列 ④ (公園 - 學校 - 書店)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 1,
-    "image": "/assets/exam/saa/115/g5_q9.webp",
     "media": {
-      "audioText": "The bank is between the bookstore and the park."
+      "audioText": "The bank is between the bookstore and the park.",
+      "audioSrc": "/audio/saa/115/g5/q09.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力內容「The bank is between the bookstore and the park.（銀行在書店與公園中間）」，排列 ② 為書店 - 銀行 - 公園，完全相符，故選 ②。"
+    "explanation": "聽力內容「The bank is between the bookstore and the park.（銀行在書店與公園中間）」，排列 ② 為書店 - 銀行 - 公園，完全相符，故選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g5_q9_a.webp",
+      "/assets/exam/saa/115/options/g5_q9_b.webp",
+      "/assets/exam/saa/115/options/g5_q9_c.webp",
+      "/assets/exam/saa/115/options/g5_q9_d.webp"
+    ],
+    "optionAltTexts": [
+      "學校 - 麵包店 - 銀行",
+      "書店 - 銀行 - 公園",
+      "銀行 - 書店 - 麵包店",
+      "公園 - 學校 - 書店"
+    ]
   },
   {
     "id": "saa-115-g5-10",
@@ -271,9 +373,13 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "What time do you have lunch?"
+      "audioText": "What time do you have lunch?",
+      "audioSrc": "/audio/saa/115/g5/q10.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "問句詢問午餐時間「What time do you have lunch?」，回應「I have lunch at eleven thirty.（我十一點半吃午餐）」，故選 ①。"
+    "explanation": "問句詢問午餐時間「What time do you have lunch?」，回應「I have lunch at eleven thirty.（我十一點半吃午餐）」，故選 ①。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-11",
@@ -298,9 +404,13 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "Where is the puppy?"
+      "audioText": "Where is the puppy?",
+      "audioSrc": "/audio/saa/115/g5/q11.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "問句詢問小狗在哪裡「Where is the puppy?」，適當回應為說明位置「It’s in the box.（在盒子裡）」，故選 ②。"
+    "explanation": "問句詢問小狗在哪裡「Where is the puppy?」，適當回應為說明位置「It’s in the box.（在盒子裡）」，故選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-12",
@@ -318,17 +428,32 @@ export const SAA_115_G5_QUESTIONS = [
     "dimension": "文化節慶理解",
     "question": "請看節慶圖案並聽語音，選出正確的節慶圖片：",
     "options": [
-      "情境 ① (萬聖節下雨幽靈撐傘)",
-      "情境 ② (中秋節雲朵遮滿月)",
-      "情境 ③ (農曆新年放鞭炮)",
-      "情境 ④ (聖誕節雪人與聖誕樹)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 1,
-    "image": "/assets/exam/saa/115/g5_q12.webp",
     "media": {
-      "audioText": "Look at the full moon in the sky. Happy Moon Festival!"
+      "audioText": "Look at the full moon in the sky. Happy Moon Festival!",
+      "audioSrc": "/audio/saa/115/g5/q12.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "語音提及「full moon in the sky. Happy Moon Festival!（天上的滿月，中秋節快樂！）」，圖片 ② 為雲層後的皎潔滿月，故選 ②。"
+    "explanation": "語音提及「full moon in the sky. Happy Moon Festival!（天上的滿月，中秋節快樂！）」，圖片 ② 為雲層後的皎潔滿月，故選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g5_q12_a.webp",
+      "/assets/exam/saa/115/options/g5_q12_b.webp",
+      "/assets/exam/saa/115/options/g5_q12_c.webp",
+      "/assets/exam/saa/115/options/g5_q12_d.webp"
+    ],
+    "optionAltTexts": [
+      "萬聖節下雨幽靈撐傘",
+      "中秋節雲朵遮滿月",
+      "農曆新年放鞭炮",
+      "聖誕節雪人與聖誕樹"
+    ]
   },
   {
     "id": "saa-115-g5-13",
@@ -346,17 +471,32 @@ export const SAA_115_G5_QUESTIONS = [
     "dimension": "文化節慶理解",
     "question": "請看圖片並聽語音，選出正確的情境圖片：",
     "options": [
-      "圖片 ① (拿麥克風唱歌)",
-      "圖片 ② (畫母親節卡片 I Love Mom)",
-      "圖片 ③ (頭戴運動頭巾跳舞)",
-      "圖片 ④ (在書桌前看書寫字)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 1,
-    "image": "/assets/exam/saa/115/g5_q13.webp",
     "media": {
-      "audioText": "The boy is drawing a card for Mother’s Day."
+      "audioText": "The boy is drawing a card for Mother’s Day.",
+      "audioSrc": "/audio/saa/115/g5/q13.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力內容「The boy is drawing a card for Mother’s Day.（男孩正在畫母親節卡片）」，圖片 ② 小男孩正在畫卡片寫「I ❤ Mom」，故選 ②。"
+    "explanation": "聽力內容「The boy is drawing a card for Mother’s Day.（男孩正在畫母親節卡片）」，圖片 ② 小男孩正在畫卡片寫「I ❤ Mom」，故選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g5_q13_a.webp",
+      "/assets/exam/saa/115/options/g5_q13_b.webp",
+      "/assets/exam/saa/115/options/g5_q13_c.webp",
+      "/assets/exam/saa/115/options/g5_q13_d.webp"
+    ],
+    "optionAltTexts": [
+      "拿麥克風唱歌",
+      "畫母親節卡片 I Love Mom",
+      "頭戴運動頭巾跳舞",
+      "在書桌前看書寫字"
+    ]
   },
   {
     "id": "saa-115-g5-14",
@@ -374,17 +514,32 @@ export const SAA_115_G5_QUESTIONS = [
     "dimension": "教室生活辭句理解與回應",
     "question": "請看週一至週三的天氣表並聽對話，選出正確的天氣表：",
     "options": [
-      "天氣表 ① (週一晴天、週二下雨、週三多雲)",
-      "天氣表 ② (週一多雲、週二刮風、週三下雨)",
-      "天氣表 ③ (週一下雪、週二晴天、週三下雨)",
-      "天氣表 ④ (週一晴天、週二多雲、週三下雪)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 1,
-    "image": "/assets/exam/saa/115/g5_q14.webp",
     "media": {
-      "audioText": "Girl: What is the weather like this week? Boy: It’s cloudy on Monday, windy on Tuesday, and rainy on Wednesday."
+      "audioText": "Girl: What is the weather like this week? Boy: It’s cloudy on Monday, windy on Tuesday, and rainy on Wednesday.",
+      "audioSrc": "/audio/saa/115/g5/q14.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "對話中說明天氣為「cloudy on Monday (週一多雲), windy on Tuesday (週二颳風), and rainy on Wednesday (週三下雨)」，天氣表 ② 完全吻合，故選 ②。"
+    "explanation": "對話中說明天氣為「cloudy on Monday (週一多雲), windy on Tuesday (週二颳風), and rainy on Wednesday (週三下雨)」，天氣表 ② 完全吻合，故選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g5_q14_a.webp",
+      "/assets/exam/saa/115/options/g5_q14_b.webp",
+      "/assets/exam/saa/115/options/g5_q14_c.webp",
+      "/assets/exam/saa/115/options/g5_q14_d.webp"
+    ],
+    "optionAltTexts": [
+      "週一晴天、週二下雨、週三多雲",
+      "週一多雲、週二刮風、週三下雨",
+      "週一下雪、週二晴天、週三下雨",
+      "週一晴天、週二多雲、週三下雪"
+    ]
   },
   {
     "id": "saa-115-g5-15",
@@ -409,9 +564,13 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "Girl: It is cold and rainy on Wednesday. What should I bring? Boy: You should take an umbrella and wear a jacket."
+      "audioText": "Girl: It is cold and rainy on Wednesday. What should I bring? Boy: You should take an umbrella and wear a jacket.",
+      "audioSrc": "/audio/saa/115/g5/q15.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "對話提到週三既寒冷又下雨，建議「take an umbrella and wear a jacket（帶雨傘並穿外套）」，故選 ③。"
+    "explanation": "對話提到週三既寒冷又下雨，建議「take an umbrella and wear a jacket（帶雨傘並穿外套）」，故選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-16",
@@ -436,7 +595,9 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 1,
     "image": "/assets/exam/saa/115/g5_q16.webp",
-    "explanation": "圖片中為美味牛肉漢堡，英文單字為 hamburger，故選 ②。"
+    "explanation": "圖片中為美味牛肉漢堡，英文單字為 hamburger，故選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-17",
@@ -454,14 +615,27 @@ export const SAA_115_G5_QUESTIONS = [
     "dimension": "字詞辨識",
     "question": "依文字「grape juice」選出正確的飲料圖片：",
     "options": [
-      "飲料 ① (葡萄汁)",
-      "飲料 ② (柳橙汁)",
-      "飲料 ③ (蘋果汁)",
-      "飲料 ④ (西瓜汁)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 0,
-    "image": "/assets/exam/saa/115/g5_q17.webp",
-    "explanation": "文字為「grape juice（葡萄汁）」，飲料 ① 杯旁畫有葡萄串，故選 ①。"
+    "explanation": "文字為「grape juice（葡萄汁）」，飲料 ① 杯旁畫有葡萄串，故選 ①。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g5_q17_a.webp",
+      "/assets/exam/saa/115/options/g5_q17_b.webp",
+      "/assets/exam/saa/115/options/g5_q17_c.webp",
+      "/assets/exam/saa/115/options/g5_q17_d.webp"
+    ],
+    "optionAltTexts": [
+      "葡萄汁",
+      "柳橙汁",
+      "蘋果汁",
+      "西瓜汁"
+    ]
   },
   {
     "id": "saa-115-g5-18",
@@ -486,7 +660,9 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 0,
     "image": "/assets/exam/saa/115/g5_q18.webp",
-    "explanation": "圖中刻度表顯示大象身高超過 2.5 公尺，對比旁邊的小狗，大象是高大的「tall」，故選 ①。"
+    "explanation": "圖中刻度表顯示大象身高超過 2.5 公尺，對比旁邊的小狗，大象是高大的「tall」，故選 ①。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-19",
@@ -504,14 +680,27 @@ export const SAA_115_G5_QUESTIONS = [
     "dimension": "字詞辨識",
     "question": "依單字「swimming」選出相符的運動圖片：",
     "options": [
-      "運動 ① (游泳)",
-      "運動 ② (打籃球)",
-      "運動 ③ (踢足球)",
-      "運動 ④ (慢跑)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 0,
-    "image": "/assets/exam/saa/115/g5_q19.webp",
-    "explanation": "單字「swimming」意為游泳，運動 ① 為在泳池中戴蛙鏡游泳的人物，故選 ①。"
+    "explanation": "單字「swimming」意為游泳，運動 ① 為在泳池中戴蛙鏡游泳的人物，故選 ①。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g5_q19_a.webp",
+      "/assets/exam/saa/115/options/g5_q19_b.webp",
+      "/assets/exam/saa/115/options/g5_q19_c.webp",
+      "/assets/exam/saa/115/options/g5_q19_d.webp"
+    ],
+    "optionAltTexts": [
+      "游泳",
+      "打籃球",
+      "踢足球",
+      "慢跑"
+    ]
   },
   {
     "id": "saa-115-g5-20",
@@ -536,7 +725,9 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 3,
     "image": "/assets/exam/saa/115/g5_q20.webp",
-    "explanation": "圖中文具為 5 塊小橡皮擦（five small erasers）與 4 支長鉛筆（four big pencils），正確敘述為 ④。"
+    "explanation": "圖中文具為 5 塊小橡皮擦（five small erasers）與 4 支長鉛筆（four big pencils），正確敘述為 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-21",
@@ -561,7 +752,9 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 0,
     "image": "/assets/exam/saa/115/g5_q21.webp",
-    "explanation": "圖片中水豚頭頂與背上頂著柳橙，正確介系詞為 on（在...上面），故選 ①「The oranges are on the capybara.」。"
+    "explanation": "圖片中水豚頭頂與背上頂著柳橙，正確介系詞為 on（在...上面），故選 ①「The oranges are on the capybara.」。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-22",
@@ -586,7 +779,9 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 3,
     "image": "/assets/exam/saa/115/g5_q22.webp",
-    "explanation": "黑板圖示標示發言前應先舉手，故男孩應該「Raise his hand to speak.（舉手發言）」，故選 ④。"
+    "explanation": "黑板圖示標示發言前應先舉手，故男孩應該「Raise his hand to speak.（舉手發言）」，故選 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-23",
@@ -611,7 +806,9 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 1,
     "image": "/assets/exam/saa/115/g5_q23.webp",
-    "explanation": "日曆中 12 月 25 日聖誕節向上對應之星期為 Thursday（週四），故選 ②。"
+    "explanation": "日曆中 12 月 25 日聖誕節向上對應之星期為 Thursday（週四），故選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-24",
@@ -636,7 +833,9 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 2,
     "image": "/assets/exam/saa/115/g5_q24.webp",
-    "explanation": "萬聖節變裝討糖經典口號與祝福為「Trick or Treat! Happy Halloween!」，故選 ③。"
+    "explanation": "萬聖節變裝討糖經典口號與祝福為「Trick or Treat! Happy Halloween!」，故選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-25",
@@ -660,7 +859,9 @@ export const SAA_115_G5_QUESTIONS = [
       "I’m going to sing."
     ],
     "answer": 2,
-    "explanation": "問句「Where are you going?（你要去哪裡？）」詢問目的地，回答場所「I’m going to my bedroom.（我要去我的臥室）」，故選 ③。"
+    "explanation": "問句「Where are you going?（你要去哪裡？）」詢問目的地，回答場所「I’m going to my bedroom.（我要去我的臥室）」，故選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-26",
@@ -678,14 +879,27 @@ export const SAA_115_G5_QUESTIONS = [
     "dimension": "句子理解",
     "question": "This is Ruby’s bag. What are on her shopping list (購物清單)?",
     "options": [
-      "清單 ① (2 apples, 2 bottles of milk, 1 bag of rice, 3 cakes)",
-      "清單 ② (2 apples, 2 bottles of water, 1 bag of bread, 4 eggs)",
-      "清單 ③ (2 apples, 2 bottles of milk, 1 bag of rice, 4 eggs)",
-      "清單 ④ (2 apples, 1 bottle of soda, 1 bag of rice, 4 cakes)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 2,
-    "image": "/assets/exam/saa/115/g5_q26.webp",
-    "explanation": "購物袋中裝有 2 顆蘋果、2 瓶牛奶、1 袋米與 4 顆雞蛋，清單 ③ 項目與數量完全吻合，故選 ③。"
+    "explanation": "購物袋中裝有 2 顆蘋果、2 瓶牛奶、1 袋米與 4 顆雞蛋，清單 ③ 項目與數量完全吻合，故選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g5_q26_a.webp",
+      "/assets/exam/saa/115/options/g5_q26_b.webp",
+      "/assets/exam/saa/115/options/g5_q26_c.webp",
+      "/assets/exam/saa/115/options/g5_q26_d.webp"
+    ],
+    "optionAltTexts": [
+      "2 apples, 2 bottles of milk, 1 bag of rice, 3 cakes",
+      "2 apples, 2 bottles of water, 1 bag of bread, 4 eggs",
+      "2 apples, 2 bottles of milk, 1 bag of rice, 4 eggs",
+      "2 apples, 1 bottle of soda, 1 bag of rice, 4 cakes"
+    ]
   },
   {
     "id": "saa-115-g5-27",
@@ -710,7 +924,9 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 2,
     "image": "/assets/exam/saa/115/g5_q27.webp",
-    "explanation": "海報上標記活動時間為週六「Saturday」，故選 ③「It’s on Saturday.」。"
+    "explanation": "海報上標記活動時間為週六「Saturday」，故選 ③「It’s on Saturday.」。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-28",
@@ -735,7 +951,9 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 2,
     "image": "/assets/exam/saa/115/g5_q28.webp",
-    "explanation": "對話中 Will 所在地的時間是 11 點，比台北的 10 點快 1 個小時（GMT+9），對照世界時區地圖為 Tokyo（東京），故選 ③。"
+    "explanation": "對話中 Will 所在地的時間是 11 點，比台北的 10 點快 1 個小時（GMT+9），對照世界時區地圖為 Tokyo（東京），故選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-29",
@@ -760,7 +978,9 @@ export const SAA_115_G5_QUESTIONS = [
     ],
     "answer": 3,
     "image": "/assets/exam/saa/115/g5_q29.webp",
-    "explanation": "技能表中 Teresa 在 swim（游泳）欄位標示叉號，代表「Teresa can’t swim.（Teresa 不會游泳）」，故選 ④。"
+    "explanation": "技能表中 Teresa 在 swim（游泳）欄位標示叉號，代表「Teresa can’t swim.（Teresa 不會游泳）」，故選 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-30",
@@ -790,7 +1010,9 @@ export const SAA_115_G5_QUESTIONS = [
       "Thirsty"
     ],
     "answer": 2,
-    "explanation": "★ 欄位對應的心情符號為大笑臉且統計人數最多，代表「Happy（開心的）」，故選 ③。"
+    "explanation": "★ 欄位對應的心情符號為大笑臉且統計人數最多，代表「Happy（開心的）」，故選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-31",
@@ -820,7 +1042,9 @@ export const SAA_115_G5_QUESTIONS = [
       "He feels scared."
     ],
     "answer": 1,
-    "explanation": "在圖表中尋找名字 Chris，其位於哭泣難過臉的 Sad 欄位，故「He feels sad.」，選 ②。"
+    "explanation": "在圖表中尋找名字 Chris，其位於哭泣難過臉的 Sad 欄位，故「He feels sad.」，選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-32",
@@ -850,7 +1074,9 @@ export const SAA_115_G5_QUESTIONS = [
       "There are twenty students."
     ],
     "answer": 0,
-    "explanation": "統計各心情欄位上的學生大頭貼總數，全班共有 7 位學生（There are seven students），故選 ①。"
+    "explanation": "統計各心情欄位上的學生大頭貼總數，全班共有 7 位學生（There are seven students），故選 ①。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-33",
@@ -879,7 +1105,9 @@ export const SAA_115_G5_QUESTIONS = [
       "Dragon Boat Festival"
     ],
     "answer": 3,
-    "explanation": "日記中描述了包粽子（zongzi）、看電視划龍舟（boat racing）與正午立蛋（stand eggs），皆為端午節（Dragon Boat Festival）的傳統習俗，故選 ④。"
+    "explanation": "日記中描述了包粽子（zongzi）、看電視划龍舟（boat racing）與正午立蛋（stand eggs），皆為端午節（Dragon Boat Festival）的傳統習俗，故選 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-34",
@@ -909,7 +1137,9 @@ export const SAA_115_G5_QUESTIONS = [
       "They are in Yilan."
     ],
     "answer": 2,
-    "explanation": "地圖插圖中家庭位置的圖釘標記在台灣南部的台南（Tainan），故「They are in Tainan.」，選 ③。"
+    "explanation": "地圖插圖中家庭位置的圖釘標記在台灣南部的台南（Tainan），故「They are in Tainan.」，選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g5-35",
@@ -926,19 +1156,32 @@ export const SAA_115_G5_QUESTIONS = [
     "taskType": "R-COMP",
     "dimension": "短文與對話理解",
     "groupId": "saa-115-g5-diary",
-    "image": "/assets/exam/saa/115/g5_q35.webp",
     "passage": {
       "title": "【生活日記】Dear diary",
       "text": "Dear diary:\nToday is a hot and sunny day. I don’t have to go to school. At 9:00, my mom and I go to get some rice to make zongzi (rice dumpling) in the supermarket. When we come back home, my dad and I watch boat racing on TV. It’s twelve o’clock. We stand eggs. What a happy day!"
     },
     "question": "Look at the boy. What time is it?",
     "options": [
-      "時鐘 ① (12:00 立蛋)",
-      "時鐘 ② (9:00 買米)",
-      "時鐘 ③ (10:00 看電視)",
-      "時鐘 ④ (3:00 吃粽子)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 0,
-    "explanation": "圖片中男孩正在地上立蛋，日記中說明「It’s twelve o’clock. We stand eggs.」，時鐘 ① 顯示 12:00 整，故選 ①。"
+    "explanation": "圖片中男孩正在地上立蛋，日記中說明「It’s twelve o’clock. We stand eggs.」，時鐘 ① 顯示 12:00 整，故選 ①。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g5_q35_a.webp",
+      "/assets/exam/saa/115/options/g5_q35_b.webp",
+      "/assets/exam/saa/115/options/g5_q35_c.webp",
+      "/assets/exam/saa/115/options/g5_q35_d.webp"
+    ],
+    "optionAltTexts": [
+      "12:00 立蛋",
+      "9:00 買米",
+      "10:00 看電視",
+      "3:00 吃粽子"
+    ]
   }
 ];

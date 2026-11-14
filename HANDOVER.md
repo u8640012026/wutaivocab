@@ -120,7 +120,7 @@
 | **SAA 113 年官方卷** | ✅ **105 題 + 45 音檔上線** | `scripts/test_saa_113_contract.mjs` 全過 |
 | **SAA 114 年官方卷 — P0 圖片與契約鎖定** | ✅ **已上線 (`c44e60d`)** | 144 張選項圖依獨立座標裁切完成、`optionAltTexts` 與 G4 Q20 (`50/25/15/5`) 校準鎖定，105 題標準答案與 Sharp 門禁通過 `test_saa_114_contract.mjs` 與 114 E2E |
 | **SAA 114 年官方卷 — P0 實體音檔** | ✅ **已上線 (`cee0282`)** | 已依 `SAA/114/{4,5,6}` 官方英聽 MP3 完成 FFmpeg 波形時間戳校準（`TIMESTAMPS_CALIBRATED = true`），產出 45 個 `96kbps Mono` + `0.1s` fade 小檔至 `public/audio/saa/114/` 並寫入 `media.audioSrc` |
-| **SAA 115 年官方卷** | ✅ **105 題 + 70 圖上線** | 現況稽核確認：70 張仍為四合一圖片 (`image` 欄位)＋劇透文字選項，45 題聽力為 `audioText` TTS 備援；待提供 SAA 115 原始 PDF／MP3 後可依 114 SOP 進行選項圖解耦與官方音檔切音 |
+| **SAA 115 年官方卷** | ✅ **105 題 + 148 選項圖 + 45 音檔上線** | 105 題官方答案 100% 鎖定（含疑義表維護原答案）；37 題四合一圖片題已重切為 148 張無題號/無圈號獨立選項圖卡 (`optionImages` + `optionAltTexts`，含修復 `g6_q3` 邊框裁切)；45 題聽力已完成 FFmpeg 波形校準切音 (`96kbps Mono` MP3 `media.audioSrc` + `audioSourceType: 'official'`)，保留 `audioText` 作為 TTS 備援，並通過 `test_saa_115_contract.mjs` Sharp 像素門禁 |
 | **檢定館後續擴充收斂共識（教師派發 / 學扶）** | 📝 **已定案待排程** | • **學習扶助測驗**：改採官方公開 PDF＋聽力 MP3 自行依「純圖＋系統文字選項／獨立選項圖」切檔，併入 `ministry-assessment`（共用引擎、分母獨立計算），不開第 5 條主軌。<br>• **錯題與派發**：沿用現有 `mistakeReview.js` 精熟練習；未來於 `TeacherHub.jsx` 增「一鍵派發連結／QR Code」（學生掃碼直進第 0 頁說明）與結果頁重練捷徑。<br>• **組卷列印**：採瀏覽器原生 `@media print` 印／存 PDF 學習單＋純文字複製，**不做**肥大且易跑版（須 WebP→PNG 轉碼）的 `.docx` 產生器。 |
 | **全站師生使用手冊** | ⏳ **待結案整理** | 未來完成全案後以第三節模組總覽產出對外操作說明書 |
 
@@ -129,9 +129,10 @@
 ## 六、 常用驗證、工具與快速入口
 
 ```bash
-# 1. SAA 113 / 114 契約、檢定與語意測試
+# 1. SAA 113 / 114 / 115 契約、檢定與語意測試
 node scripts/test_saa_113_contract.mjs
 node scripts/test_saa_114_contract.mjs
+node scripts/test_saa_115_contract.mjs
 node scripts/audit_semantic_gates.mjs
 node scripts/test_exam_audit_fixes.mjs
 node scripts/test_exam_setup_flow.mjs

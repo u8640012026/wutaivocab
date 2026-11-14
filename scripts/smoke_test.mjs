@@ -416,8 +416,15 @@ async function run() {
       output: (saa114Audit.stderr || saa114Audit.stdout || '').slice(-800)
     });
   }
+  const saa115Audit = spawnSync(process.execPath, ['scripts/test_saa_115_contract.mjs'], { encoding: 'utf8' });
+  if (saa115Audit.status !== 0) {
+    failures.push({
+      target: 'Static Contract: SAA 115 Contract & Sharp Pixel Gate',
+      output: (saa115Audit.stderr || saa115Audit.stdout || '').slice(-800)
+    });
+  }
   if (failures.length === 0) {
-    console.log(`  ✓ Static Contract Gate passed (soundEngine, lifecycle hooks, ${HERE_WE_GO_MCQ_BANK.length} MCQs & SAA 113–115 [315 official questions, 114 Sharp-verified] verified)`);
+    console.log(`  ✓ Static Contract Gate passed (soundEngine, lifecycle hooks, ${HERE_WE_GO_MCQ_BANK.length} MCQs & SAA 113–115 [315 official questions, 114 & 115 Sharp-verified] verified)`);
   }
 
   const waitForAppReady = async (maxAttempts = 40) => {
@@ -1281,6 +1288,114 @@ async function run() {
     failures.push({ target: 'SAA 114 G4 Q20/Q35 & G5 Q15 Option Cards & Zoom E2E', details: { saa114G4Check, saa114G5Check }, exceptions: client.exceptions });
   } else {
     console.log('  ✓ SAA 114 G4 Q20, G4 Q35 & G5 Q15: pure 4-card option images, optionAltTexts & zoom modal verified');
+  }
+
+  // 5D-7. 115 年 SAA G4 Q1 (官方音檔 + 4圖選項 + 放大視窗) & G6 Q3 (獨立圖卡 + 放大視窗) E2E
+  client.exceptions = [];
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=mcq-exam` });
+  await new Promise(r => setTimeout(r, 800));
+  const saa115G4Check = await client.evaluate(`
+    (async () => {
+      const buttons = () => Array.from(document.querySelectorAll('button'));
+      const byText = (label) => buttons().find(b => (b.innerText || '').includes(label));
+      const click = async (label, wait = 180) => {
+        const button = byText(label);
+        if (!button) return false;
+        button.click();
+        await new Promise(r => setTimeout(r, wait));
+        return true;
+      };
+      const waitImagesLoaded = async (prefix) => {
+        for (let attempt = 0; attempt < 20; attempt++) {
+          const imgs = Array.from(document.querySelectorAll('img[src*="' + prefix + '"]'));
+          if (imgs.length === 4 && imgs.every(img => img.complete && img.naturalWidth > 0)) {
+            return imgs;
+          }
+          await new Promise(r => setTimeout(r, 120));
+        }
+        return Array.from(document.querySelectorAll('img[src*="' + prefix + '"]'));
+      };
+
+      if (!await click('學力檢測練習')) return { ok: false, reason: 'missing SAA entry' };
+      await click('四年級');
+      await click('官方考古題');
+      await click('115 年');
+      if (!await click('開始115 年官方卷', 450)) return { ok: false, reason: 'missing 115 G4 start' };
+      await click('開始作答', 450);
+
+      const audioBtn = buttons().find(b => (b.innerText || '').includes('播放') || (b.getAttribute('aria-label') || '').includes('播放'));
+      if (audioBtn) audioBtn.click();
+      await new Promise(r => setTimeout(r, 120));
+
+      const q6Btn = buttons().find(b => (b.innerText || '').trim() === '6');
+      if (!q6Btn) return { ok: false, reason: 'missing G4 Q6 nav' };
+      q6Btn.click();
+      await new Promise(r => setTimeout(r, 250));
+
+      const q6Imgs = await waitImagesLoaded('g4_q6_');
+      const q6Loaded = q6Imgs.length === 4 && q6Imgs.every(img => img.complete && img.naturalWidth > 0);
+      const q6AltOk = q6Imgs.length === 4 && q6Imgs.every(img => (img.getAttribute('alt') || '').trim().length >= 2);
+      const q6ZoomBtns = Array.from(document.querySelectorAll('[data-testid="option-image-zoom"]'));
+      q6ZoomBtns[0]?.click();
+      await new Promise(r => setTimeout(r, 160));
+      const q6ZoomOk = !!document.querySelector('[data-testid="exam-image-zoom"] img[src*="g4_q6_a.webp"]');
+      document.querySelector('[data-testid="exam-image-zoom"] button[aria-label="關閉放大圖片"]')?.click();
+
+      return { ok: q6Loaded && q6AltOk && !!audioBtn && q6ZoomOk, q6Loaded, q6AltOk, hasAudioBtn: !!audioBtn, q6ZoomOk };
+    })()
+  `);
+
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=mcq-exam` });
+  await new Promise(r => setTimeout(r, 800));
+  const saa115G6Check = await client.evaluate(`
+    (async () => {
+      const buttons = () => Array.from(document.querySelectorAll('button'));
+      const byText = (label) => buttons().find(b => (b.innerText || '').includes(label));
+      const click = async (label, wait = 180) => {
+        const button = byText(label);
+        if (!button) return false;
+        button.click();
+        await new Promise(r => setTimeout(r, wait));
+        return true;
+      };
+      const waitImagesLoaded = async (prefix) => {
+        for (let attempt = 0; attempt < 20; attempt++) {
+          const imgs = Array.from(document.querySelectorAll('img[src*="' + prefix + '"]'));
+          if (imgs.length === 4 && imgs.every(img => img.complete && img.naturalWidth > 0)) {
+            return imgs;
+          }
+          await new Promise(r => setTimeout(r, 120));
+        }
+        return Array.from(document.querySelectorAll('img[src*="' + prefix + '"]'));
+      };
+
+      if (!await click('學力檢測練習')) return { ok: false, reason: 'missing SAA entry' };
+      await click('六年級');
+      await click('官方考古題');
+      await click('115 年');
+      if (!await click('開始115 年官方卷', 450)) return { ok: false, reason: 'missing 115 G6 start' };
+      await click('開始作答', 450);
+
+      const q3Btn = buttons().find(b => (b.innerText || '').trim() === '3');
+      if (!q3Btn) return { ok: false, reason: 'missing G6 Q3 nav' };
+      q3Btn.click();
+      await new Promise(r => setTimeout(r, 250));
+      const q3Imgs = await waitImagesLoaded('g6_q3_');
+      const q3Loaded = q3Imgs.length === 4 && q3Imgs.every(img => img.complete && img.naturalWidth > 0);
+      const q3AltOk = q3Imgs.length === 4 && q3Imgs.every(img => (img.getAttribute('alt') || '').trim().length > 2);
+      const q3ZoomBtns = Array.from(document.querySelectorAll('[data-testid="option-image-zoom"]'));
+      q3ZoomBtns[3]?.click();
+      await new Promise(r => setTimeout(r, 160));
+      const q3ZoomOk = !!document.querySelector('[data-testid="exam-image-zoom"] img[src*="g6_q3_d.webp"]');
+      document.querySelector('[data-testid="exam-image-zoom"] button[aria-label="關閉放大圖片"]')?.click();
+
+      return { ok: q3Loaded && q3AltOk && q3ZoomOk, q3Loaded, q3AltOk, q3ZoomOk };
+    })()
+  `);
+  if (!saa115G4Check?.ok || !saa115G6Check?.ok || client.exceptions.length > 0) {
+    failures.push({ target: 'SAA 115 G4 Q1 & G6 Q3 Option Cards, Audio & Zoom E2E', details: { saa115G4Check, saa115G6Check }, exceptions: client.exceptions });
+  } else {
+    console.log('  ✓ SAA 115 G4 Q1 & G6 Q3: pure 4-card option images, audio button, optionAltTexts & zoom modal verified');
   }
 
   // 5E. 課本題庫檢定館 (mcq-exam) 一頁式免捲動選範圍 -> 開始檢定 -> 選答案 -> 下一題 深度驗證

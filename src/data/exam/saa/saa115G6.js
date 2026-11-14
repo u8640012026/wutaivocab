@@ -22,9 +22,13 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "beat"
+      "audioText": "beat",
+      "audioSrc": "/audio/saa/115/g6/q01.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力語音為「beat」，母音發長母音 /i/。"
+    "explanation": "聽力語音為「beat」，母音發長母音 /i/。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-02",
@@ -49,9 +53,13 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "sore"
+      "audioText": "sore",
+      "audioSrc": "/audio/saa/115/g6/q02.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力單字為「sore（疼痛的）」，母音發音為 /ɔ/。"
+    "explanation": "聽力單字為「sore（疼痛的）」，母音發音為 /ɔ/。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-03",
@@ -69,17 +77,32 @@ export const SAA_115_G6_QUESTIONS = [
     "dimension": "辭彙聽辨",
     "question": "請看高鐵車票並聽語音，選出正確的車次車票：",
     "options": [
-      "車票 ① (Train 0137)",
-      "車票 ② (Train 0657)",
-      "車票 ③ (Train 0837)",
-      "車票 ④ (Train 0817)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 3,
-    "image": "/assets/exam/saa/115/g6_q3.webp",
     "media": {
-      "audioText": "Train zero-eight-one-seven is ready to go."
+      "audioText": "Train zero-eight-one-seven is ready to go.",
+      "audioSrc": "/audio/saa/115/g6/q03.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力內容「Train zero-eight-one-seven (0817) is ready to go.」，車票 ④ 標註 Train 0817，故選 ④。"
+    "explanation": "聽力內容「Train zero-eight-one-seven (0817) is ready to go.」，車票 ④ 標註 Train 0817，故選 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g6_q3_a.webp",
+      "/assets/exam/saa/115/options/g6_q3_b.webp",
+      "/assets/exam/saa/115/options/g6_q3_c.webp",
+      "/assets/exam/saa/115/options/g6_q3_d.webp"
+    ],
+    "optionAltTexts": [
+      "Train 0137",
+      "Train 0657",
+      "Train 0837",
+      "Train 0817"
+    ]
   },
   {
     "id": "saa-115-g6-04",
@@ -97,17 +120,32 @@ export const SAA_115_G6_QUESTIONS = [
     "dimension": "辭彙聽辨",
     "question": "請看指示代名詞手勢並聽語音，選出相符的圖片：",
     "options": [
-      "圖片 ① (That sock)",
-      "圖片 ② (Those socks)",
-      "圖片 ③ (These socks)",
-      "圖片 ④ (This sock)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 2,
-    "image": "/assets/exam/saa/115/g6_q4.webp",
     "media": {
-      "audioText": "these socks"
+      "audioText": "these socks",
+      "audioSrc": "/audio/saa/115/g6/q04.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力內容「these socks」，these 代表近距離且為複數（兩隻襪子），圖片 ③ 近距離指著兩隻襪子，故選 ③。"
+    "explanation": "聽力內容「these socks」，these 代表近距離且為複數（兩隻襪子），圖片 ③ 近距離指著兩隻襪子，故選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g6_q4_a.webp",
+      "/assets/exam/saa/115/options/g6_q4_b.webp",
+      "/assets/exam/saa/115/options/g6_q4_c.webp",
+      "/assets/exam/saa/115/options/g6_q4_d.webp"
+    ],
+    "optionAltTexts": [
+      "That sock",
+      "Those socks",
+      "These socks",
+      "This sock"
+    ]
   },
   {
     "id": "saa-115-g6-05",
@@ -125,17 +163,32 @@ export const SAA_115_G6_QUESTIONS = [
     "dimension": "辭彙聽辨",
     "question": "請看生病症狀並聽語音，選出相符的圖片：",
     "options": [
-      "症狀 ① (喉嚨痛)",
-      "症狀 ② (牙痛)",
-      "症狀 ③ (打噴嚏丟垃圾桶)",
-      "症狀 ④ (流鼻水擤鼻涕)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 3,
-    "image": "/assets/exam/saa/115/g6_q5.webp",
     "media": {
-      "audioText": "He has a runny nose."
+      "audioText": "He has a runny nose.",
+      "audioSrc": "/audio/saa/115/g6/q05.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力內容「He has a runny nose.（他流鼻水）」，症狀 ④ 小男孩拿著衛生紙擦鼻水，故選 ④。"
+    "explanation": "聽力內容「He has a runny nose.（他流鼻水）」，症狀 ④ 小男孩拿著衛生紙擦鼻水，故選 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g6_q5_a.webp",
+      "/assets/exam/saa/115/options/g6_q5_b.webp",
+      "/assets/exam/saa/115/options/g6_q5_c.webp",
+      "/assets/exam/saa/115/options/g6_q5_d.webp"
+    ],
+    "optionAltTexts": [
+      "喉嚨痛",
+      "牙痛",
+      "打噴嚏丟垃圾桶",
+      "流鼻水擤鼻涕"
+    ]
   },
   {
     "id": "saa-115-g6-06",
@@ -160,9 +213,13 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 3,
     "media": {
-      "audioText": "It is sunny and windy outside."
+      "audioText": "It is sunny and windy outside.",
+      "audioSrc": "/audio/saa/115/g6/q06.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力內容「It is sunny and windy outside.（外面晴朗且有風）」，選項 ④ 相符。"
+    "explanation": "聽力內容「It is sunny and windy outside.（外面晴朗且有風）」，選項 ④ 相符。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-07",
@@ -180,17 +237,32 @@ export const SAA_115_G6_QUESTIONS = [
     "dimension": "教室生活辭句理解與回應",
     "question": "請看症狀與交通工具並聽語音，選出相符的圖片：",
     "options": [
-      "圖片 ① (流鼻水 + 搭公車)",
-      "圖片 ② (牙痛 + 騎腳踏車)",
-      "圖片 ③ (牙痛 + 搭公車)",
-      "圖片 ④ (流鼻水 + 騎腳踏車)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 2,
-    "image": "/assets/exam/saa/115/g6_q7.webp",
     "media": {
-      "audioText": "I have a toothache today. I go to the dentist by bus."
+      "audioText": "I have a toothache today. I go to the dentist by bus.",
+      "audioSrc": "/audio/saa/115/g6/q07.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力內容「I have a toothache today. I go to the dentist by bus.（我今天牙痛，我搭公車去看牙醫）」，圖片 ③ 男士捂臉牙痛且旁邊為公車，故選 ③。"
+    "explanation": "聽力內容「I have a toothache today. I go to the dentist by bus.（我今天牙痛，我搭公車去看牙醫）」，圖片 ③ 男士捂臉牙痛且旁邊為公車，故選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g6_q7_a.webp",
+      "/assets/exam/saa/115/options/g6_q7_b.webp",
+      "/assets/exam/saa/115/options/g6_q7_c.webp",
+      "/assets/exam/saa/115/options/g6_q7_d.webp"
+    ],
+    "optionAltTexts": [
+      "流鼻水 + 搭公車",
+      "牙痛 + 騎腳踏車",
+      "牙痛 + 搭公車",
+      "流鼻水 + 騎腳踏車"
+    ]
   },
   {
     "id": "saa-115-g6-08",
@@ -208,17 +280,32 @@ export const SAA_115_G6_QUESTIONS = [
     "dimension": "教室生活辭句理解與回應",
     "question": "請看手錶指針並聽語音，選出正確的手錶：",
     "options": [
-      "手錶 ① (3:55)",
-      "手錶 ② (9:50)",
-      "手錶 ③ (4:40)",
-      "手錶 ④ (8:15)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 3,
-    "image": "/assets/exam/saa/115/g6_q8.webp",
     "media": {
-      "audioText": "Look at my watch. It is eight fifteen."
+      "audioText": "Look at my watch. It is eight fifteen.",
+      "audioSrc": "/audio/saa/115/g6/q08.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力內容「Look at my watch. It is eight fifteen.（看我的手錶，現在八點十五分）」，手錶 ④ 時針指在 8、分針指在 3（15分），故選 ④。"
+    "explanation": "聽力內容「Look at my watch. It is eight fifteen.（看我的手錶，現在八點十五分）」，手錶 ④ 時針指在 8、分針指在 3（15分），故選 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g6_q8_a.webp",
+      "/assets/exam/saa/115/options/g6_q8_b.webp",
+      "/assets/exam/saa/115/options/g6_q8_c.webp",
+      "/assets/exam/saa/115/options/g6_q8_d.webp"
+    ],
+    "optionAltTexts": [
+      "3:55",
+      "9:50",
+      "4:40",
+      "8:15"
+    ]
   },
   {
     "id": "saa-115-g6-09",
@@ -243,9 +330,13 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "Could you please give me a hand?"
+      "audioText": "Could you please give me a hand?",
+      "audioSrc": "/audio/saa/115/g6/q09.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "問句「Could you please give me a hand?（你能幫我一個忙嗎？）」，禮貌答應「Sure. Let me help you.（當然，讓我幫你）」，故選 ①。"
+    "explanation": "問句「Could you please give me a hand?（你能幫我一個忙嗎？）」，禮貌答應「Sure. Let me help you.（當然，讓我幫你）」，故選 ①。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-10",
@@ -270,9 +361,13 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 3,
     "media": {
-      "audioText": "How many monkeys are there in the tree?"
+      "audioText": "How many monkeys are there in the tree?",
+      "audioSrc": "/audio/saa/115/g6/q10.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "問句詢問數量「How many monkeys are there in the tree?（樹上有幾隻猴子？）」，回應「There are five monkeys.（有五隻猴子）」，故選 ④。"
+    "explanation": "問句詢問數量「How many monkeys are there in the tree?（樹上有幾隻猴子？）」，回應「There are five monkeys.（有五隻猴子）」，故選 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-11",
@@ -290,17 +385,32 @@ export const SAA_115_G6_QUESTIONS = [
     "dimension": "教室生活辭句理解與回應",
     "question": "請看建築街景並聽語音，選出正確的女孩去處：",
     "options": [
-      "街景 ① (學校旁書店)",
-      "街景 ② (麵包店旁書店)",
-      "街景 ③ (學校旁郵局)",
-      "街景 ④ (麵包店旁郵局)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 1,
-    "image": "/assets/exam/saa/115/g6_q11.webp",
     "media": {
-      "audioText": "The girl is going to the bookstore next to the bakery."
+      "audioText": "The girl is going to the bookstore next to the bakery.",
+      "audioSrc": "/audio/saa/115/g6/q11.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力內容「The girl is going to the bookstore next to the bakery.（女孩要去麵包店旁邊的書店）」，街景 ② 正確標示麵包店（麵包圖示）旁的書店，女孩思考著書本，故選 ②。"
+    "explanation": "聽力內容「The girl is going to the bookstore next to the bakery.（女孩要去麵包店旁邊的書店）」，街景 ② 正確標示麵包店（麵包圖示）旁的書店，女孩思考著書本，故選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g6_q11_a.webp",
+      "/assets/exam/saa/115/options/g6_q11_b.webp",
+      "/assets/exam/saa/115/options/g6_q11_c.webp",
+      "/assets/exam/saa/115/options/g6_q11_d.webp"
+    ],
+    "optionAltTexts": [
+      "學校旁書店",
+      "麵包店旁書店",
+      "學校旁郵局",
+      "麵包店旁郵局"
+    ]
   },
   {
     "id": "saa-115-g6-12",
@@ -325,9 +435,13 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "Children are wearing costumes and saying Trick or Treat!"
+      "audioText": "Children are wearing costumes and saying Trick or Treat!",
+      "audioSrc": "/audio/saa/115/g6/q12.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "描述提到小朋友變裝並喊不給糖就搗蛋「Trick or Treat!」，代表萬聖節「It’s Halloween.」，故選 ①。"
+    "explanation": "描述提到小朋友變裝並喊不給糖就搗蛋「Trick or Treat!」，代表萬聖節「It’s Halloween.」，故選 ①。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-13",
@@ -345,17 +459,32 @@ export const SAA_115_G6_QUESTIONS = [
     "dimension": "文化節慶理解",
     "question": "請看節慶裝飾並聽語音，選出正確的裝飾組合：",
     "options": [
-      "組合 ① (聖誕樹與兩個禮物)",
-      "組合 ② (星星與兩個禮物)",
-      "組合 ③ (星星與兩隻聖誕襪)",
-      "組合 ④ (聖誕樹與兩隻聖誕襪)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 2,
-    "image": "/assets/exam/saa/115/g6_q13.webp",
     "media": {
-      "audioText": "Look at the decorations. There are two stockings and a star."
+      "audioText": "Look at the decorations. There are two stockings and a star.",
+      "audioSrc": "/audio/saa/115/g6/q13.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "聽力內容「There are two stockings and a star.（有兩隻聖誕襪和一顆星星）」，裝飾組合 ③ 為大星星與兩隻聖誕襪，故選 ③。"
+    "explanation": "聽力內容「There are two stockings and a star.（有兩隻聖誕襪和一顆星星）」，裝飾組合 ③ 為大星星與兩隻聖誕襪，故選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g6_q13_a.webp",
+      "/assets/exam/saa/115/options/g6_q13_b.webp",
+      "/assets/exam/saa/115/options/g6_q13_c.webp",
+      "/assets/exam/saa/115/options/g6_q13_d.webp"
+    ],
+    "optionAltTexts": [
+      "聖誕樹與兩個禮物",
+      "星星與兩個禮物",
+      "星星與兩隻聖誕襪",
+      "聖誕樹與兩隻聖誕襪"
+    ]
   },
   {
     "id": "saa-115-g6-14",
@@ -380,9 +509,13 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "Girl: What do you do after school? Boy: I do my homework in my room."
+      "audioText": "Girl: What do you do after school? Boy: I do my homework in my room.",
+      "audioSrc": "/audio/saa/115/g6/q14.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "對話中女孩詢問放學後活動，男孩回答「I do my homework in my room.（我在房間寫作業）」，故選 ①。"
+    "explanation": "對話中女孩詢問放學後活動，男孩回答「I do my homework in my room.（我在房間寫作業）」，故選 ①。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-15",
@@ -407,9 +540,13 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "Girl: What do you and your brother do in the evening? Boy: We watch TV at home together."
+      "audioText": "Girl: What do you and your brother do in the evening? Boy: We watch TV at home together.",
+      "audioSrc": "/audio/saa/115/g6/q15.mp3",
+      "audioSourceType": "official"
     },
-    "explanation": "對話中男孩回答「We watch TV at home together.（我們晚上一起在家看電視）」，故選 ②。"
+    "explanation": "對話中男孩回答「We watch TV at home together.（我們晚上一起在家看電視）」，故選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-16",
@@ -434,7 +571,9 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 0,
     "image": "/assets/exam/saa/115/g6_q16.webp",
-    "explanation": "圖片中的水果是芭樂（guavas）且飲料為木瓜牛奶（papaya milk），相符句子為 ①。"
+    "explanation": "圖片中的水果是芭樂（guavas）且飲料為木瓜牛奶（papaya milk），相符句子為 ①。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-17",
@@ -459,7 +598,9 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 2,
     "image": "/assets/exam/saa/115/g6_q17.webp",
-    "explanation": "日程表中，週四（Thu.）上午（Morning）為超市圖示，下午（Afternoon）為博物館圖示，故「It’s Thursday.」，選 ③。"
+    "explanation": "日程表中，週四（Thu.）上午（Morning）為超市圖示，下午（Afternoon）為博物館圖示，故「It’s Thursday.」，選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-18",
@@ -484,7 +625,9 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 3,
     "image": "/assets/exam/saa/115/g6_q18.webp",
-    "explanation": "剖面圖右側院子裡小狗正在奔跑玩耍「The dog is playing in the yard.」，其他選項房間與動作皆不符，故選 ④。"
+    "explanation": "剖面圖右側院子裡小狗正在奔跑玩耍「The dog is playing in the yard.」，其他選項房間與動作皆不符，故選 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-19",
@@ -509,7 +652,9 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 2,
     "image": "/assets/exam/saa/115/g6_q19.webp",
-    "explanation": "兄妹兩人只有 400 元預算，青蛙風箏一隻 200 元，買兩隻剛好 200 × 2 = 400 元「Two frog kites.」，故選 ③。"
+    "explanation": "兄妹兩人只有 400 元預算，青蛙風箏一隻 200 元，買兩隻剛好 200 × 2 = 400 元「Two frog kites.」，故選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-20",
@@ -533,7 +678,9 @@ export const SAA_115_G6_QUESTIONS = [
       "They are Nancy’s."
     ],
     "answer": 3,
-    "explanation": "問句「Whose glasses are those?（那是誰的眼鏡？）」詢問所有權，回答所有格「They are Nancy’s.（那是南西的）」，故選 ④。"
+    "explanation": "問句「Whose glasses are those?（那是誰的眼鏡？）」詢問所有權，回答所有格「They are Nancy’s.（那是南西的）」，故選 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-21",
@@ -558,7 +705,9 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 1,
     "image": "/assets/exam/saa/115/g6_q21.webp",
-    "explanation": "圖片中柵欄裡有多匹馬正在吃草，正確敘述為「There are some horses.（有一些馬）」，故選 ②。"
+    "explanation": "圖片中柵欄裡有多匹馬正在吃草，正確敘述為「There are some horses.（有一些馬）」，故選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-22",
@@ -583,7 +732,9 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 0,
     "image": "/assets/exam/saa/115/g6_q22.webp",
-    "explanation": "圓餅圖數據顯示放學後游泳（swimming）的學生人數為 3 人，故選項 ①「Three students go swimming after school.」相符。"
+    "explanation": "圓餅圖數據顯示放學後游泳（swimming）的學生人數為 3 人，故選項 ①「Three students go swimming after school.」相符。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-23",
@@ -608,7 +759,9 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 0,
     "image": "/assets/exam/saa/115/g6_q23.webp",
-    "explanation": "漫畫對話中確認眼鏡的主人是 Mike，回答「They’re Mike’s.」，故選 ①。"
+    "explanation": "漫畫對話中確認眼鏡的主人是 Mike，回答「They’re Mike’s.」，故選 ①。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-24",
@@ -633,7 +786,9 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 1,
     "image": "/assets/exam/saa/115/g6_q24.webp",
-    "explanation": "台灣天氣預報圖中台南（Tainan）標示雨天雲朵下雨圖案，故出門需要雨傘「An umbrella.」，故選 ②。"
+    "explanation": "台灣天氣預報圖中台南（Tainan）標示雨天雲朵下雨圖案，故出門需要雨傘「An umbrella.」，故選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-25",
@@ -658,7 +813,9 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 1,
     "image": "/assets/exam/saa/115/g6_q25.webp",
-    "explanation": "商品價格：T-shirt $200、socks $100、dress $600、shoes $500。一雙襪子 $100 加兩件 T 恤 $400 合計 $500 <= $600，故選 ②。"
+    "explanation": "商品價格：T-shirt $200、socks $100、dress $600、shoes $500。一雙襪子 $100 加兩件 T 恤 $400 合計 $500 <= $600，故選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-26",
@@ -683,7 +840,9 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 0,
     "image": "/assets/exam/saa/115/g6_q26.webp",
-    "explanation": "從火車站到派對地點距離 9:30 只有 10 分鐘，交通耗時表中騎自行車（by bike）只要 8 分鐘，能在 9:30 前抵達，故選 ①。"
+    "explanation": "從火車站到派對地點距離 9:30 只有 10 分鐘，交通耗時表中騎自行車（by bike）只要 8 分鐘，能在 9:30 前抵達，故選 ①。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-27",
@@ -708,7 +867,9 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 2,
     "image": "/assets/exam/saa/115/g6_q27.webp",
-    "explanation": "女孩在結帳櫃台遞鈔票給店員，付款時的禮貌英語為「Here you are.（這給您）」，故選 ③。"
+    "explanation": "女孩在結帳櫃台遞鈔票給店員，付款時的禮貌英語為「Here you are.（這給您）」，故選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-28",
@@ -733,7 +894,9 @@ export const SAA_115_G6_QUESTIONS = [
     ],
     "answer": 3,
     "image": "/assets/exam/saa/115/g6_q28.webp",
-    "explanation": "圖書館與博物館皆為靜音場所，標誌要求「We should be quiet in the library and the museum.（在圖書館與博物館應保持安靜）」，故選 ④。"
+    "explanation": "圖書館與博物館皆為靜音場所，標誌要求「We should be quiet in the library and the museum.（在圖書館與博物館應保持安靜）」，故選 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-29",
@@ -757,7 +920,9 @@ export const SAA_115_G6_QUESTIONS = [
       "We can decorate (裝飾) the Christmas tree on New Year’s Eve (前夕)."
     ],
     "answer": 1,
-    "explanation": "萬聖節的傳統習俗為變裝打扮成吸血鬼、幽靈等角色「dress up as a vampire on Halloween」，故選 ②。"
+    "explanation": "萬聖節的傳統習俗為變裝打扮成吸血鬼、幽靈等角色「dress up as a vampire on Halloween」，故選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-30",
@@ -775,14 +940,27 @@ export const SAA_115_G6_QUESTIONS = [
     "dimension": "文化節慶理解",
     "question": "What can you see on Dragon Boat Festival?",
     "options": [
-      "圖片 ① (吃月餅賞月)",
-      "圖片 ② (划龍舟吃粽子)",
-      "圖片 ③ (萬聖節討糖)",
-      "圖片 ④ (聖誕老人與雪人)"
+      "(A)",
+      "(B)",
+      "(C)",
+      "(D)"
     ],
     "answer": 1,
-    "image": "/assets/exam/saa/115/g6_q30.webp",
-    "explanation": "端午節（Dragon Boat Festival）的代表景觀與習俗為划龍舟與包粽子，對應圖片 ②，故選 ②。"
+    "explanation": "端午節（Dragon Boat Festival）的代表景觀與習俗為划龍舟與包粽子，對應圖片 ②，故選 ②。",
+    "sourceType": "official",
+    "sourceStatus": "published",
+    "optionImages": [
+      "/assets/exam/saa/115/options/g6_q30_a.webp",
+      "/assets/exam/saa/115/options/g6_q30_b.webp",
+      "/assets/exam/saa/115/options/g6_q30_c.webp",
+      "/assets/exam/saa/115/options/g6_q30_d.webp"
+    ],
+    "optionAltTexts": [
+      "吃月餅賞月",
+      "划龍舟吃粽子",
+      "萬聖節討糖",
+      "聖誕老人與雪人"
+    ]
   },
   {
     "id": "saa-115-g6-31",
@@ -806,7 +984,9 @@ export const SAA_115_G6_QUESTIONS = [
       "He is on time."
     ],
     "answer": 2,
-    "explanation": "英文慣用語「early bird」意指早起的人，對話中 Jason 每天清晨五點起床（I get up at five），故因為他起得很早「He gets up early.」，選 ③。"
+    "explanation": "英文慣用語「early bird」意指早起的人，對話中 Jason 每天清晨五點起床（I get up at five），故因為他起得很早「He gets up early.」，選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-32",
@@ -836,7 +1016,9 @@ export const SAA_115_G6_QUESTIONS = [
       "Kyle’s toys are at the lost and found (失物招領)."
     ],
     "answer": 1,
-    "explanation": "文中 Winnie 留言「I’m going to your house by bus.（我搭公車去你家）」，故選項 ② 相符。"
+    "explanation": "文中 Winnie 留言「I’m going to your house by bus.（我搭公車去你家）」，故選項 ② 相符。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-33",
@@ -866,7 +1048,9 @@ export const SAA_115_G6_QUESTIONS = [
       "He needs to clean the house."
     ],
     "answer": 2,
-    "explanation": "Ryan 問他需不需要看醫生去醫院，Kyle 回答「No, thank you. I’m fine.」，代表他不需要去醫院，故選 ③。"
+    "explanation": "Ryan 問他需不需要看醫生去醫院，Kyle 回答「No, thank you. I’m fine.」，代表他不需要去醫院，故選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-34",
@@ -896,7 +1080,9 @@ export const SAA_115_G6_QUESTIONS = [
       "Betty’s Dad"
     ],
     "answer": 3,
-    "explanation": "Betty 在陳述中表示「I visited my dad. He had a stomachache yesterday.」，胃痛的是 Betty 的父親（Betty’s Dad），故選 ④。"
+    "explanation": "Betty 在陳述中表示「I visited my dad. He had a stomachache yesterday.」，胃痛的是 Betty 的父親（Betty’s Dad），故選 ④。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   },
   {
     "id": "saa-115-g6-35",
@@ -926,6 +1112,8 @@ export const SAA_115_G6_QUESTIONS = [
       "Diana"
     ],
     "answer": 2,
-    "explanation": "警方報告中指稱「Den’s Restaurant was not open yesterday.（該餐廳昨天根本沒開門）」，Chris 謊稱昨晚在該餐廳吃晚餐，是在說謊的嫌疑犯，故 Chris 是小偷，選 ③。"
+    "explanation": "警方報告中指稱「Den’s Restaurant was not open yesterday.（該餐廳昨天根本沒開門）」，Chris 謊稱昨晚在該餐廳吃晚餐，是在說謊的嫌疑犯，故 Chris 是小偷，選 ③。",
+    "sourceType": "official",
+    "sourceStatus": "published"
   }
 ];
