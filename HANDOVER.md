@@ -1,6 +1,6 @@
 # 霧臺國小英語自主學習宇宙 (WutaiVocab 2.0) — 單一現況交接總手冊
 
-> **最後整理**：2026-11-13（對齊 `d07d91e`／`7fcdc27` ＋ SAA 114 圖片/實體音檔上線 ＋ 課本題庫 Batch D 擴充至 **1,989 題**）  
+> **最後整理**：2026-11-13（SAA 113–115 正式結案：`9b425e2` ＋ 課本 1,989 題 ＋ 學習扶助篩選測驗 `PRIORI` 交接規格導入）  
 > **正式環境**：[https://wutaivocab.pages.dev](https://wutaivocab.pages.dev)（Cloudflare Pages 綁定 `origin/main`）  
 > **Supabase**：帳號 `liguyt@wutps.ptc.edu.tw`｜Project ID `fqkdkmcqjswufzbvkram`｜[後台](https://supabase.com/dashboard/project/fqkdkmcqjswufzbvkram)
 
@@ -97,8 +97,8 @@
    - `W-SCRAMBLE`（60 題，對應十大基礎句型積木架）與 `S-READ`（36 題）只供專題特訓，正式 30 題卷（35 分鐘、及格 70%）嚴格配置 15 聽力 + 15 閱讀/字彙；超綱字需降級為國小核心詞或於文末加註 `*` 中文；6 個誘答必須語意互斥（如 `playground` 不可配 `park` / `school`）。
 3. **教育部 SAA 官方考古題標準截取 SOP（`src/data/exam/saa/`）**：
    - **不變規則**：`track: 'ministry-assessment'`, `sourceType: 'official'`, `sourceStatus: 'published'`, `preserveOptionOrder: true`, `reviewed: true`；每卷 35 題（Q1–15 聽力、Q16–35 閱讀）；同 `groupId` 每題必須持有 100% 相同 `passage` 物件 (SSOT)；四選一答案精確對照官方答案表；圖片型選項拆為獨立 4 張 WebP `_a.._d.webp` 並配 `options: ['(A)','(B)','(C)','(D)']` 與 `optionAltTexts`。
-   - **圖片與 Pixel Gate**：Poppler (`pdftoppm -jpeg -r 110`) 依真實頁面尺寸動態縮放座標 → Sharp 裁切 WebP q92（不規則版型採獨立四座標、產出 Contact Sheet 目視驗收）；契約門禁檢查 `width/height >= 80`、非白像素 `>= 2%`、Entropy `>= 0.8`、SHA-256 唯一且成對差異 `>= 1%`。
-   - **音訊切檔**：FFmpeg 加入 `0.1s` 淡入淡出與 `96k` Mono 輸出：
+   - **圖片與 Pixel Gate**：Poppler (`pdftoppm -jpeg -r 110`) 依真實頁面尺寸動態縮放座標 → Sharp 裁切 WebP q92（不規則版型採獨立四座標、產出 Contact Sheet 目視驗收）；契約門禁檢查 `width/height >= 80`、非白像素 `>= 2%`、Entropy `>= 0.8`、SHA-256 唯一且全局成對差異維持 `>= 1%`（若遇極相似電子數字選項如 `saa-115-g4-24` 之 `11:14` vs `11:40` 差異 `0.76%`，應於腳本採**明確例外清單**控管，嚴禁全局降門檻）。
+   - **音訊切檔與人工抽聽**：FFmpeg 加入 `0.1s` 淡入淡出與 `96k` Mono 輸出，並保留至少一次人工抽聽紀錄確認語意切點正確（自動化測試僅驗證存在性與解碼可播性）：
      ```bash
      ffmpeg -y -ss {start} -to {end} -i full.mp3 \
        -af "afade=t=in:ss=0:d=0.1,afade=t=out:st={dur-0.1}:d=0.1" \
@@ -120,8 +120,9 @@
 | **SAA 113 年官方卷** | ✅ **105 題 + 45 音檔上線** | `scripts/test_saa_113_contract.mjs` 全過 |
 | **SAA 114 年官方卷 — P0 圖片與契約鎖定** | ✅ **已上線 (`c44e60d`)** | 144 張選項圖依獨立座標裁切完成、`optionAltTexts` 與 G4 Q20 (`50/25/15/5`) 校準鎖定，105 題標準答案與 Sharp 門禁通過 `test_saa_114_contract.mjs` 與 114 E2E |
 | **SAA 114 年官方卷 — P0 實體音檔** | ✅ **已上線 (`cee0282`)** | 已依 `SAA/114/{4,5,6}` 官方英聽 MP3 完成 FFmpeg 波形時間戳校準（`TIMESTAMPS_CALIBRATED = true`），產出 45 個 `96kbps Mono` + `0.1s` fade 小檔至 `public/audio/saa/114/` 並寫入 `media.audioSrc` |
-| **SAA 115 年官方卷** | ✅ **105 題 + 148 選項圖 + 45 音檔上線** | 105 題官方答案 100% 鎖定（含疑義表維護原答案）；37 題四合一圖片題已重切為 148 張無題號/無圈號獨立選項圖卡 (`optionImages` + `optionAltTexts`，含修復 `g6_q3` 邊框裁切)；45 題聽力已完成 FFmpeg 波形校準切音 (`96kbps Mono` MP3 `media.audioSrc` + `audioSourceType: 'official'`)，保留 `audioText` 作為 TTS 備援，並通過 `test_saa_115_contract.mjs` Sharp 像素門禁 |
-| **檢定館後續擴充收斂共識（教師派發 / 學扶）** | 📝 **已定案待排程** | • **學習扶助測驗**：改採官方公開 PDF＋聽力 MP3 自行依「純圖＋系統文字選項／獨立選項圖」切檔，併入 `ministry-assessment`（共用引擎、分母獨立計算），不開第 5 條主軌。<br>• **錯題與派發**：沿用現有 `mistakeReview.js` 精熟練習；未來於 `TeacherHub.jsx` 增「一鍵派發連結／QR Code」（學生掃碼直進第 0 頁說明）與結果頁重練捷徑。<br>• **組卷列印**：採瀏覽器原生 `@media print` 印／存 PDF 學習單＋純文字複製，**不做**肥大且易跑版（須 WebP→PNG 轉碼）的 `.docx` 產生器。 |
+| **SAA 115 年官方卷** | ✅ **105 題 + 148 選項圖 + 45 音檔結案 (`9b425e2`)** | 已通過 GPT 複檢結案（暫停 SAA 開發）。兩項非阻擋 P2 待日後順手優化：`G6 Q3 (C)/(D)` 下緣略緊、將 `0.5%` 相似度門禁改回「全局 `1%`＋明確數字題例外清單」＋保留官方音檔人工抽聽紀錄 |
+| **學習扶助篩選測驗 (`PRIORI` — 獨立「學習扶助練習館」)** | 🚀 **下一階段開發啟動** | Stage 0 已盤點完畢（詳細交接見第七節）；改由**本機桌面板 Antigravity 新對話**接手本機 `PRIORI/115篩選測驗/`，首波推進 **115 三年級數學單卷 MVP**（先補齊官方答案來源與公開授權核實） |
+| **檢定館教師派發與列印** | 📝 **已定案待排程** | 未來於 `TeacherHub.jsx` 增「一鍵派發連結／QR Code」（學生掃碼直進第 0 頁說明）、結果頁重練捷徑與瀏覽器原生 `@media print` 學習單（不做 `.docx` 產生器） |
 | **全站師生使用手冊** | ⏳ **待結案整理** | 未來完成全案後以第三節模組總覽產出對外操作說明書 |
 
 ---
@@ -150,3 +151,36 @@ npm run build && node scripts/smoke_test.mjs
 
 - **管理者快捷通道**：鍵盤 `Ctrl+Shift+A`／`Ctrl+Alt+T`，或 ErrorBoundary ⚠️ 圖示連點 5 下，教師密碼 `wt7902230`。
 - **隱藏測試頁路由**：`?view=spotter-test`（放大鏡連按 5 下）、`?view=preloader-showcase`、`?view=zoom-showcase`。
+
+---
+
+## 七、 學習扶助篩選測驗 (`PRIORI`) Stage 0 盤點與新對話交接規格
+
+> **工作區交接指引**：`PRIORI/115篩選測驗/`（亦位於本機 `C:\Users\user\Documents\chatgpt\PRIORI\115篩選測驗\`）原始 PDF 與 MP3 **僅存於 Windows 本機（已列於 `.gitignore` `/PRIORI/`）**，由**本機桌面板 Antigravity 開新對話**接手開發。開工前請先確認 Git 遠端對齊最新 `u8640012026/wutaivocab` `main`（避免主工作區停在舊 commit 或另有隔離 worktree 衝突），且全程不可覆蓋本機未追蹤原始資料。
+
+### 1. Stage 0 本機素材盤點現況（不得擅自推入 Git）
+- **試卷 PDF（16 卷）**：國語 G1–G6、數學 G1–G6、英語 G3–G6；已核對檔案數與頁數，除三年級數學外尚未逐卷完整目視審核題型與卷內是否含答案。
+- **官方答案與評分規準**：目前另有國語 G1–G2、數學 G1–G2、英語 G3 獨立答案卷及國語手寫／英語字母評分規準；**三年級數學尚未找到獨立官方答案卷**（未見官方答案前，嚴禁自行推算並標記為官方答案）。
+- **英語音檔（4 檔）**：英語 G3–G6 各 1 個 MP3（G4–G6 檔長相同但 SHA-256 不同），尚未逐題試聽或與試卷對應校對。
+- **公開授權核實（上線前阻塞檢查）**：[官方 115 年篩選測驗公告](https://exam.tcte.edu.tw/tbt_html/index.php?mod=news%2Findex%2Fnews_id%2F686) 與 [官方問答集](https://exam.k12ea.gov.tw/tbt_html/index.php?mod=faq) 僅說明學校施測期間下載與紙本取得方式，尚未構成公開網站重製題圖與音檔之明確授權；正式對外開放前需向主管單位確認授權範圍。
+
+### 2. 三學科題型陷阱與「三層資料架構」鐵律
+瀏覽器無法直接朗讀圖片，且 OCR 抽取會破壞分數／注音排版，**嚴禁未人工校對即啟用 OCR 朗讀**：
+1. **`questionImage`**（視覺真本）：官方題圖與 4 張獨立選項圖卡（維持原選項順序，題圖與選項圖皆支援放大；圖形與分數免設圖片座標熱區）。
+2. **`questionText`**（人工核對文字）：供搜尋、無障礙與教師檢閱；OCR 僅供產生初稿。
+3. **`ttsText`**（專屬自然朗讀稿）：為 TTS 重新編寫口語自然文字，例如：
+   - `2043 + 1958` →「二千零四十三加上一千九百五十八」；分數 `3/8` →「八分之三」。
+   - **國語**：含注音、破音字與特殊空格，必須保留原題圖與人工校對朗讀稿。
+   - **數學**：計算、單位、分數與幾何圖形須另寫自然朗讀文字。
+   - **英語**：如 G3 前段為「聽音寫大小寫字母」，非四選一不得強行硬轉為選擇題；英語閱讀採 `en-US`，官方聽力作答前嚴禁以 TTS 洩漏逐字稿。
+- 資料模型應同時預留 **題組 (`groupId`/`passage`)、官方聽力音檔 (`audioSrc`)、非選擇題（手寫／輸入）** 之擴充欄位。
+
+### 3. 獨立練習館、雙模式與首波 G3 數學 MVP 範圍
+- **獨立入口與資料完全隔離**：於首頁 `Portal.jsx` 另設獨立入口 **「學習扶助練習館」**（不混入檢定館既有課本 1,989 題、Pre-A1 300 題、SAA 315 題；題號、作答紀錄、錯題庫與精熟分母均獨立計算，**沿用登入身分但不改動現有金幣與積分**）。
+- **雙模式切換**：
+  - **原卷模擬**：國語、數學及英語閱讀題不開放朗讀，僅播放原本即有之官方聽力音檔。
+  - **輔助練習（明確標示「輔助朗讀」）**：僅對**已完成人工核對 `ttsText` 之題目**啟用題幹與選項喇叭按鈕（未核對前不得顯示或啟用）。
+- **Stage 1 首波目標 — 115 年三年級數學單卷 MVP**：
+  - 共 25 題四選一（每題 4 分），涵蓋計算、單位、分數與圖形題（MVP 不需英語音檔）。
+  - **上線前紅線**：在確認官方答案來源及公開授權前，**不得公開啟用自動計分或宣稱官方答案**；通過後再決定作答紀錄儲存機制與靜態媒體是否使用 Cloudflare R2。
+  - **驗收門檻**：逐題對照原卷 PDF 與官方答案、實測圖片縮放／手機版操作／朗讀精確度／資料與金幣隔離，並 100% 通過 `npm run build` 與 6 階段 `smoke_test.mjs`。
