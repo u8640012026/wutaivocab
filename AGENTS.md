@@ -26,6 +26,10 @@
 5. **高階繪圖 API 額度透明化與詢問機制（嚴禁擅自降級隱瞞）**：
    - 當呼叫高階繪圖生成工具（`image-generator` / `gemini-3.1-flash-image`）遇到配額上限（HTTP 429 `RESOURCE_EXHAUSTED`）時，**必須第一時間主動回報 Mark**。
    - 回報內容必須明確包含發生時間、預計重置時間，且**嚴禁在未獲授權前擅自退回使用低階/程序化 SVG 向量圖取代**。
+6. **本機 ↔ 雲端無縫交接規範（`origin/main` 唯一交棒站）**：
+   - **開工必拉**：無論在本機（Windows 桌面工作區）或雲端（Cloud Agent）啟動工作，動手前一律先執行 `git pull origin main`（勿覆蓋本機 `SAA/` / `tmp/`），對齊最新 [`HANDOVER.md`](HANDOVER.md)。
+   - **大檔留本機**：`SAA/`、`tmp/`、`textbook_docx/` 等原始大檔列於 `.gitignore` 僅留本機（或聊天附件上傳），只提交壓縮切好的 `public/assets/`、`public/audio/` 小檔與程式碼。
+   - **收工必推**：完成驗證並更新 [`HANDOVER.md`](HANDOVER.md) 第五節進度表後再 `git push origin main`，確保跨環境切換零斷層。
 
 ---
 

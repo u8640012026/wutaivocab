@@ -33,6 +33,10 @@
      - `wutpsdata`：校務管理系統（`https://wutpsdata.pages.dev`）；其 LINE LIFF Webhook 與日曆 API 運行於 Vercel Serverless（`api/line_webhook.js`, `api/calendar.js`），**絕不可更改或刪除該 Webhook 指向**。
 5. **高階繪圖 API 429 額度透明化鐵律**：
    - 呼叫高階生圖工具遇 HTTP 429 `RESOURCE_EXHAUSTED` 時，必須第一時間回報發生時間與預計重置時間，**未獲 Mark 明確同意前嚴禁擅自退回低階／程序化 SVG 取代**。
+6. **本機 ↔ 雲端無縫交接規範（`origin/main` 唯一交棒站）**：
+   - **開工必拉**：無論於本機或雲端啟動作業，動手前必先執行 `git pull origin main`（保留本機 `SAA/` 與 `tmp/`），對齊最新狀態。
+   - **大檔留本機**：`SAA/`、`tmp/`、`textbook_docx/` 等原始大檔列於 `.gitignore` 僅留本機，只提交裁切壓縮後之 `public/assets/`、`public/audio/` 與程式碼。
+   - **收工必推**：通過 `build` + `smoke_test.mjs` 後更新第五節進度表並 `git push origin main`，確保下次換邊無縫接軌。
 
 ---
 
@@ -114,8 +118,8 @@
 | **課本題庫 Canonical 擴充 (Batches A～C)** | ✅ **1,889 題在線** | Book 1～6 已各有 +50 題高規擴充；**⏳ 待啟動 Batch D (Book 7 & Book 8 +100 題 → 目標 1,989 題)** |
 | **Pre-A1 官方模擬題庫** | ✅ **300 題在線** | 含 30 題正式卷藍圖與專項特訓 |
 | **SAA 113 年官方卷** | ✅ **105 題 + 45 音檔上線** | `scripts/test_saa_113_contract.mjs` 全過 |
-| **SAA 114 年官方卷 — P0 圖片與契約鎖定** | 🟡 **本地已完成待推** | 144 張選項圖已依獨立座標重切並產出 `tmp/saa114/contact_sheets/`、`optionAltTexts` 完成、G4 Q20 修正為 `50/25/15/5`、105 題標準答案與 Sharp 門禁鎖定於 `test_saa_114_contract.mjs`、114 E2E 加入 `smoke_test.mjs` |
-| **SAA 114 年官方卷 — P0 實體音檔** | ⏳ **待實體 MP3 與校準** | `scripts/build_114_saa_audio.mjs` 已修復（`SAA/114/{4,5,6}` 搜尋、嚴格 `exit 1`、96k Mono + 0.1s fade、寫入 `media.audioSrc`），待提供官方 MP3 後實測校準 `OFFICIAL_AUDIO_CLIPS_114` 並將 `TIMESTAMPS_CALIBRATED = true` |
+| **SAA 114 年官方卷 — P0 圖片與契約鎖定** | ✅ **已上線 (`c44e60d`)** | 144 張選項圖已依獨立座標重切並產出 `tmp/saa114/contact_sheets/`、`optionAltTexts` 完成、G4 Q20 修正為 `50/25/15/5`、105 題標準答案與 Sharp 門禁鎖定於 `test_saa_114_contract.mjs`、114 E2E 加入 `smoke_test.mjs` |
+| **SAA 114 年官方卷 — P0 實體音檔** | ⏳ **待本機 MP3 切音校準** | `scripts/build_114_saa_audio.mjs` 已備妥（`SAA/114/{4,5,6}` 搜尋、嚴格 `exit 1`、96k Mono + 0.1s fade、寫入 `media.audioSrc`）；本機執行切音校準與 `TIMESTAMPS_CALIBRATED = true` 後推回 `origin/main` |
 | **SAA 115 年官方卷** | ✅ **105 題 + 70 圖上線** | 聽力目前走 TTS 備援；後續可依 114 SOP 評估選項解耦與官方音檔 |
 | **檢定館後續擴充收斂共識（教師派發 / 學扶）** | 📝 **已定案待排程** | • **學習扶助測驗**：改採官方公開 PDF＋聽力 MP3 自行依「純圖＋系統文字選項／獨立選項圖」切檔，併入 `ministry-assessment`（共用引擎、分母獨立計算），不開第 5 條主軌。<br>• **錯題與派發**：沿用現有 `mistakeReview.js` 精熟練習；未來於 `TeacherHub.jsx` 增「一鍵派發連結／QR Code」（學生掃碼直進第 0 頁說明）與結果頁重練捷徑。<br>• **組卷列印**：採瀏覽器原生 `@media print` 印／存 PDF 學習單＋純文字複製，**不做**肥大且易跑版（須 WebP→PNG 轉碼）的 `.docx` 產生器。 |
 | **全站師生使用手冊** | ⏳ **待結案整理** | 未來完成全案後以第三節模組總覽產出對外操作說明書 |
