@@ -24,7 +24,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "copper"
+      "audioText": "copper",
+      "audioSrc": "/audio/saa/114/g4/q01.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力語音為「copper（銅、銅幣）」，發音為短母音 /ɑ/，以字母 c 開頭。"
   },
@@ -53,7 +55,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "xylophone"
+      "audioText": "xylophone",
+      "audioSrc": "/audio/saa/114/g4/q02.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力語音為木琴「xylophone」，正確英文拼字為 x-y-l-o-p-h-o-n-e。"
   },
@@ -82,7 +86,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "pikachu"
+      "audioText": "pikachu",
+      "audioSrc": "/audio/saa/114/g4/q03.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力語音為寶可夢經典角色皮卡丘「pikachu」，正確音節拼字為 p-i-k-a-c-h-u。"
   },
@@ -111,7 +117,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "made"
+      "audioText": "made",
+      "audioSrc": "/audio/saa/114/g4/q04.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力語音為「made」，長母音 a_e 發音為 /eɪ/，代表過去式製造。"
   },
@@ -140,7 +148,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "weather"
+      "audioText": "weather",
+      "audioSrc": "/audio/saa/114/g4/q05.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力語音為「weather（天氣）」，發音以 /w/ 開頭，中間母音為 /ɛ/。"
   },
@@ -169,7 +179,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 3,
     "media": {
-      "audioText": "brown"
+      "audioText": "brown",
+      "audioSrc": "/audio/saa/114/g4/q06.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力語音為顏色單字「brown（褐色、棕色）」，以子音群 br- 開頭。"
   },
@@ -198,7 +210,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "Woman: Ted, where are you?\nTed: I'm in the kitchen.\nWoman: What are you doing?\nTed: I'm cooking.\nWoman: Oh, let me see.\nNarrator: What is Ted doing?"
+      "audioText": "Woman: Ted, where are you?\nTed: I'm in the kitchen.\nWoman: What are you doing?\nTed: I'm cooking.\nWoman: Oh, let me see.\nNarrator: What is Ted doing?",
+      "audioSrc": "/audio/saa/114/g4/q07.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "對話中 Ted 明確回答「I'm cooking.（我正在煮飯做菜）」，故正確答案為選項 ③。"
   },
@@ -239,7 +253,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "Boy: Can I have a banana and an orange, please?\nClerk: No problem. That's twenty-three dollars, please.\nBoy: Here you go."
+      "audioText": "Boy: Can I have a banana and an orange, please?\nClerk: No problem. That's twenty-three dollars, please.\nBoy: Here you go.",
+      "audioSrc": "/audio/saa/114/g4/q08.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力中男孩購買香蕉（banana）與橘子（orange），店員告知總價「That's twenty-three dollars, please.（23 元）」，選項 ② 完全相符。"
   },
@@ -280,7 +296,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "Teacher: Speak louder, please."
+      "audioText": "Teacher: Speak louder, please.",
+      "audioSrc": "/audio/saa/114/g4/q09.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力句子為「Speak louder, please.（請說大聲一點）」，選項 ③ 拿著擴音器示意大聲說話，故選 ③。"
   },
@@ -321,7 +339,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "Girl: Kevin, is this your pen?\nKevin: Yes, I couldn't find it.\nGirl: It is under the desk."
+      "audioText": "Girl: Kevin, is this your pen?\nKevin: Yes, I couldn't find it.\nGirl: It is under the desk.",
+      "audioSrc": "/audio/saa/114/g4/q10.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "對話中女孩指明原子筆「It is under the desk.（它在書桌底下）」，選項 ② 插圖相符。"
   },
@@ -362,7 +382,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 3,
     "media": {
-      "audioText": "Mom: Where is your bag?\nBoy: My bag is in the green box.\nMom: Where is the green box?\nBoy: It's in the living room."
+      "audioText": "Mom: Where is your bag?\nBoy: My bag is in the green box.\nMom: Where is the green box?\nBoy: It's in the living room.",
+      "audioSrc": "/audio/saa/114/g4/q11.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "對話指明書包在綠色箱子裡（green box），且箱子位於客廳（living room），選項 ④ 完全相符。"
   },
@@ -403,7 +425,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 3,
     "media": {
-      "audioText": "Girl: How old is your brother?\nBoy: He is twenty-two.\nGirl: Is your brother a cook?\nBoy: Yes, he is. He is a driver, too.\nGirl: Wow, cool."
+      "audioText": "Girl: How old is your brother?\nBoy: He is twenty-two.\nGirl: Is your brother a cook?\nBoy: Yes, he is. He is a driver, too.\nGirl: Wow, cool.",
+      "audioSrc": "/audio/saa/114/g4/q12.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "對話提及哥哥 22 歲（twenty-two），且「He is a cook. He is a driver, too.（既是廚師也是司機）」，選項 ④ 相符。"
   },
@@ -444,7 +468,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "Girl: What's this?\nBoy: It's my robot.\nGirl: What's that?\nBoy: It's a kite."
+      "audioText": "Girl: What's this?\nBoy: It's my robot.\nGirl: What's that?\nBoy: It's a kite.",
+      "audioSrc": "/audio/saa/114/g4/q13.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "近處 this 為機器人（robot），遠處 that 為風箏（kite），選項 ② 正確。"
   },
@@ -485,7 +511,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "Narrator: Bob is shopping for Moon Festival. He wants some pommelos and mooncakes."
+      "audioText": "Narrator: Bob is shopping for Moon Festival. He wants some pommelos and mooncakes.",
+      "audioSrc": "/audio/saa/114/g4/q14.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力內容為 Bob 正在採買中秋節（Moon Festival）應景食物柚子（pommelos）與月餅（mooncakes），選項 ③ 正確。"
   },
@@ -526,7 +554,9 @@ export const SAA_114_G4_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "Boy: Can we go trick-or-treating?\nMom: Of course.\nBoy: Thank you, Mom. I'll be back at nine o'clock.\nMom: Take an umbrella. It's rainy."
+      "audioText": "Boy: Can we go trick-or-treating?\nMom: Of course.\nBoy: Thank you, Mom. I'll be back at nine o'clock.\nMom: Take an umbrella. It's rainy.",
+      "audioSrc": "/audio/saa/114/g4/q15.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "對話中提及出門不給糖就搗蛋（trick-or-treating）、預計九點回家（nine o'clock），且外面下雨要帶雨傘（Take an umbrella. It's rainy.），選項 ① 相符。"
   },

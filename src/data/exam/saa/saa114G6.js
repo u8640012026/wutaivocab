@@ -24,7 +24,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "feel"
+      "audioText": "feel",
+      "audioSrc": "/audio/saa/114/g6/q01.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力語音為「feel」，發音為長母音 /iː/，以 f- 開頭。"
   },
@@ -53,7 +55,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "flame"
+      "audioText": "flame",
+      "audioSrc": "/audio/saa/114/g6/q02.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力語音為「flame（火焰）」，以子音群 fl- 開頭，母音 a_e 發音為 /eɪ/。"
   },
@@ -94,7 +98,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "Narrator: The bridge is five hundred and seventy-nine meters long."
+      "audioText": "Narrator: The bridge is five hundred and seventy-nine meters long.",
+      "audioSrc": "/audio/saa/114/g6/q03.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力句子為「The bridge is five hundred and seventy-nine meters long.（這座橋長 579 公尺）」，選項 ③ 相符。"
   },
@@ -135,7 +141,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 3,
     "media": {
-      "audioText": "Narrator: The sailor sails the sea."
+      "audioText": "Narrator: The sailor sails the sea.",
+      "audioSrc": "/audio/saa/114/g6/q04.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力句子為繞口令趣味句「The sailor sails the sea.（水手在海上航行）」，選項 ④ 插圖相符。"
   },
@@ -176,7 +184,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "Boy: He's my father. He's short."
+      "audioText": "Boy: He's my father. He's short.",
+      "audioSrc": "/audio/saa/114/g6/q05.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力敘述為「He's my father. He's short.（他是我爸爸，他身材矮小）」，選項 ③ 人物矮小相符。"
   },
@@ -217,7 +227,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 3,
     "media": {
-      "audioText": "Narrator: Calm down. I can help you."
+      "audioText": "Narrator: Calm down. I can help you.",
+      "audioSrc": "/audio/saa/114/g6/q06.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力句子安撫對方說「Calm down. I can help you.（冷靜點，我可以幫你）」，選項 ④ 表情友善示意幫助相符。"
   },
@@ -258,7 +270,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "Narrator: Be careful. There are big bears in the mountains."
+      "audioText": "Narrator: Be careful. There are big bears in the mountains.",
+      "audioSrc": "/audio/saa/114/g6/q07.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力提醒「Be careful. There are big bears in the mountains.（小心，山上有大熊）」，選項 ① 登山與大熊警示牌相符。"
   },
@@ -299,7 +313,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "Boy: How's the weather?\nGirl: It's sunny and windy today. Let's buy a kite."
+      "audioText": "Boy: How's the weather?\nGirl: It's sunny and windy today. Let's buy a kite.",
+      "audioSrc": "/audio/saa/114/g6/q08.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "對話指明天氣晴朗且有風（sunny and windy），提議買風箏去放（Let's buy a kite），選項 ② 相符。"
   },
@@ -340,7 +356,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "Narrator: Malina goes to the USA for summer vacation. She likes it there very much."
+      "audioText": "Narrator: Malina goes to the USA for summer vacation. She likes it there very much.",
+      "audioSrc": "/audio/saa/114/g6/q09.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力內容為「Malina goes to the USA for summer vacation.（Malina 去美國放暑假）」，選項 ② 美國地標與自由女神相符。"
   },
@@ -381,7 +399,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "Girl: What's wrong?\nBoy: My leg hurts."
+      "audioText": "Girl: What's wrong?\nBoy: My leg hurts.",
+      "audioSrc": "/audio/saa/114/g6/q10.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "男孩回答「My leg hurts.（我的腿好痛）」，選項 ① 摸著受傷的腿部相符。"
   },
@@ -410,7 +430,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "Narrator: This is my rabbit. It is so cute. What can it do?"
+      "audioText": "Narrator: This is my rabbit. It is so cute. What can it do?",
+      "audioSrc": "/audio/saa/114/g6/q11.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "問句「What can it do?（兔子會做什麼能力？）」詢問能力，回答「It can jump.（牠會跳躍）」符合兔子天性與文法，故選 ②。"
   },
@@ -439,7 +461,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "Narrator: You look tired. May I help you?"
+      "audioText": "Narrator: You look tired. May I help you?",
+      "audioSrc": "/audio/saa/114/g6/q12.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "對方好心提議「May I help you?（我能幫忙你嗎？）」，合適回應為「Thank you! The box is heavy.（謝謝你！這個箱子好重）」，故選 ③。"
   },
@@ -468,7 +492,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "Girl: Whose cap is this, Jim?\nJim: It's Pam's cap. She wears it when she plays soccer.\nGirl: Where is she now?\nJim: Oh no! Pam is playing soccer now, and she doesn't have her cap.\nNarrator: Which is true?"
+      "audioText": "Girl: Whose cap is this, Jim?\nJim: It's Pam's cap. She wears it when she plays soccer.\nGirl: Where is she now?\nJim: Oh no! Pam is playing soccer now, and she doesn't have her cap.\nNarrator: Which is true?",
+      "audioSrc": "/audio/saa/114/g6/q13.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "對話中 Jim 說明「Pam is playing soccer now, and she doesn't have her cap.（Pam 現在正在踢足球，而且她沒戴帽子）」，選項 ③「Pam is playing soccer now.」敘述正確。"
   },
@@ -497,7 +523,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 3,
     "media": {
-      "audioText": "Angela: Michael, do we have art class today?\nMichael: Yes, Angela. It's Monday. We need crayons for art class.\nAngela: How about the markers?\nMichael: I am not sure. Let's ask our classmate Kevin.\nNarrator: Who has art class on Monday?"
+      "audioText": "Angela: Michael, do we have art class today?\nMichael: Yes, Angela. It's Monday. We need crayons for art class.\nAngela: How about the markers?\nMichael: I am not sure. Let's ask our classmate Kevin.\nNarrator: Who has art class on Monday?",
+      "audioSrc": "/audio/saa/114/g6/q14.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "對話由 Angela 與 Michael 對談，提及同班同學 Kevin，三人均在週一上美術課，故選 ④「Angela, Kevin, and Michael.」。"
   },
@@ -526,7 +554,9 @@ export const SAA_114_G6_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "Man: Wendy, it's Christmas! Stop sleeping under the Christmas tree. Please give me a hand. Help me carry these heavy presents to our living room.\nNarrator: What should Wendy do now?"
+      "audioText": "Man: Wendy, it's Christmas! Stop sleeping under the Christmas tree. Please give me a hand. Help me carry these heavy presents to our living room.\nNarrator: What should Wendy do now?",
+      "audioSrc": "/audio/saa/114/g6/q15.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "說話者要求 Wendy「Please give me a hand. Help me carry these heavy presents to our living room.（幫我把這些沉重的禮物搬到客廳）」，故選 ③。"
   },

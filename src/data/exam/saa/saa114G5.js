@@ -24,7 +24,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "cheer"
+      "audioText": "cheer",
+      "audioSrc": "/audio/saa/114/g5/q01.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力語音為「cheer」，以子音 /tʃ/ 開頭，發音為 /tʃɪr/。"
   },
@@ -53,7 +55,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "trick"
+      "audioText": "trick",
+      "audioSrc": "/audio/saa/114/g5/q02.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力語音為「trick」，以子音群 tr- 開頭，母音為短母音 /ɪ/。"
   },
@@ -94,7 +98,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 3,
     "media": {
-      "audioText": "Narrator: bubble tea"
+      "audioText": "Narrator: bubble tea",
+      "audioSrc": "/audio/saa/114/g5/q03.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力單字為經典臺灣代表飲品「bubble tea（珍珠奶茶）」，選項 ④ 相符。"
   },
@@ -135,7 +141,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "Narrator: sunglasses"
+      "audioText": "Narrator: sunglasses",
+      "audioSrc": "/audio/saa/114/g5/q04.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力單字為「sunglasses（太陽眼鏡）」，選項 ① 插圖相符。"
   },
@@ -164,7 +172,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "Narrator: National Math High School"
+      "audioText": "Narrator: National Math High School",
+      "audioSrc": "/audio/saa/114/g5/q05.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力播音學校名稱為「National Math High School」，選項 ③ 完全相符。"
   },
@@ -205,7 +215,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "Narrator: It was rainy this Thursday."
+      "audioText": "Narrator: It was rainy this Thursday.",
+      "audioSrc": "/audio/saa/114/g5/q06.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力句子為「It was rainy this Thursday.（這星期四下雨）」，選項 ③ 週四下雨相符。"
   },
@@ -246,7 +258,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "Narrator: Turn on the light, please."
+      "audioText": "Narrator: Turn on the light, please.",
+      "audioSrc": "/audio/saa/114/g5/q07.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力句子為祈使句「Turn on the light, please.（請開燈）」，選項 ③ 伸手打開電燈開關相符。"
   },
@@ -275,7 +289,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "Woman: We are going to be late. What's he doing?"
+      "audioText": "Woman: We are going to be late. What's he doing?",
+      "audioSrc": "/audio/saa/114/g5/q08.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "問句「What's he doing?（他正在做什麼？）」詢問進行中動作，回答「He's reading a book.（他正在看書）」最合時態邏輯，故選 ②。"
   },
@@ -316,7 +332,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "Girl: What do you do on Easter?\nBoy: I go egg hunting with my friends. I go to church with my family."
+      "audioText": "Girl: What do you do on Easter?\nBoy: I go egg hunting with my friends. I go to church with my family.",
+      "audioSrc": "/audio/saa/114/g5/q09.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "對話討論復活節（Easter），男孩回答進行尋找彩蛋活動（go egg hunting）並上教堂（go to church），選項 ③ 相符。"
   },
@@ -357,7 +375,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "Narrator: She gets up at 6:30."
+      "audioText": "Narrator: She gets up at 6:30.",
+      "audioSrc": "/audio/saa/114/g5/q10.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力句子為「She gets up at 6:30.（她六點半起床）」，選項 ① 時鐘顯示 6:30 且人物正在起床，完全吻合。"
   },
@@ -398,7 +418,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 3,
     "media": {
-      "audioText": "Narrator: My pet is green. He is 2 years old."
+      "audioText": "Narrator: My pet is green. He is 2 years old.",
+      "audioSrc": "/audio/saa/114/g5/q11.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "聽力指出「My pet is green. He is 2 years old.（我的寵物是綠色的，牠兩歲）」，選項 ④ 綠色寵物兩歲相符。"
   },
@@ -427,7 +449,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "Narrator: Tina's brother can cook. He makes a hamburger for Tina. It's very yummy. What can Tina say to her brother?"
+      "audioText": "Narrator: Tina's brother can cook. He makes a hamburger for Tina. It's very yummy. What can Tina say to her brother?",
+      "audioSrc": "/audio/saa/114/g5/q12.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "哥哥為 Tina 做了美味可口的漢堡，Tina 應表達感謝說「Thank you very much.（非常謝謝你）」，故選 ①。"
   },
@@ -468,7 +492,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 0,
     "media": {
-      "audioText": "Narrator: You can buy ten oranges with one hundred dollars, and eight apples with fifty dollars. We also have fish and rice cakes. Welcome to the 101 Shop now! What is 101 Shop?"
+      "audioText": "Narrator: You can buy ten oranges with one hundred dollars, and eight apples with fifty dollars. We also have fish and rice cakes. Welcome to the 101 Shop now! What is 101 Shop?",
+      "audioSrc": "/audio/saa/114/g5/q13.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "廣播內容介紹 101 商店販售柳丁、蘋果、魚與米糕，為生鮮超市（supermarket），故選 ①。"
   },
@@ -514,7 +540,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 1,
     "media": {
-      "audioText": "Conductor: This is train number 5678 from Kaohsiung to Taipei. We will stop in Taichung at 3:30, Banqiao at 4:20, and Taipei at 4:30. The weather in Taichung is windy. The weather in Taipei is rainy.\nQuestion 14: Andy's train is going to Taipei. Which is Andy's ticket?"
+      "audioText": "Conductor: This is train number 5678 from Kaohsiung to Taipei. We will stop in Taichung at 3:30, Banqiao at 4:20, and Taipei at 4:30. The weather in Taichung is windy. The weather in Taipei is rainy.\nQuestion 14: Andy's train is going to Taipei. Which is Andy's ticket?",
+      "audioSrc": "/audio/saa/114/g5/q14.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "廣播中車次為 5678、路線為從高雄出發前往台北（Kaohsiung to Taipei），車票 ② 資訊完全相符。"
   },
@@ -560,7 +588,9 @@ export const SAA_114_G5_QUESTIONS = [
     ],
     "answer": 2,
     "media": {
-      "audioText": "Conductor: The weather in Taichung is windy. The weather in Taipei is rainy.\nQuestion 15: It's 4:40. Andy is in Taipei now. What does Andy see?"
+      "audioText": "Conductor: The weather in Taichung is windy. The weather in Taipei is rainy.\nQuestion 15: It's 4:40. Andy is in Taipei now. What does Andy see?",
+      "audioSrc": "/audio/saa/114/g5/q15.mp3",
+      "audioSourceType": "official"
     },
     "explanation": "廣播告知台北現在下雨（The weather in Taipei is rainy.），4:40 Andy 抵達台北看到下雨撐傘景象，圖 ③ 相符。"
   },
