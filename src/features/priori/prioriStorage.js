@@ -239,6 +239,14 @@ export function getSubjectRemedialPool(savedRecords = {}, subjectId, yearFilter 
   };
 }
 
+export {
+  PRIORI_DRILL_LIMIT_OPTIONS,
+  PRIORI_DRILL_DEFAULT_LIMIT,
+  normalizePrioriDrillLimit,
+  buildPrioriDrillCohort,
+  stepPrioriDrillQueue,
+} from './prioriDrill';
+
 /**
  * 記錄單次篩選測驗作答（支援整卷、沉底錯題重練、連續答對 2 次精熟判定與分題計算紙保存）
  * 完全獨立於單字館金幣／探索積分與 mcq-exam 檢定統計。
@@ -251,6 +259,7 @@ export function recordPrioriAttempt({
   answers = {},
   strokesByQuestion = {},
   firstTryWrongIds = [],
+  streakOverrides = null,
   isMistakeRetry = false,
   elapsedSeconds = 0,
   onCloudSyncResult = null,
@@ -288,7 +297,16 @@ export function recordPrioriAttempt({
     const prevStreak = Number(prevStreaks[q.id]) || 0;
     const isCorrect = isPrioriAnswerCorrect(q, rawAns);
 
-    if (isCorrect) {
+    if (
+      streakOverrides &&
+      Object.prototype.hasOwnProperty.call(streakOverrides, q.id)
+    ) {
+      const updated = Math.max(0, Number(streakOverrides[q.id]) || 0);
+      nextStreaks[q.id] = updated;
+      if (prevStreak < 2 && updated >= 2) {
+        newlyMasteredIds.push(q.id);
+      }
+    } else if (isCorrect) {
       if (firstWrongSet.has(q.id)) {
         // 沉底模式中第一輪答錯、最後才答對：重設連對為 1（必須下次一次就對才升為 2 精熟）
         nextStreaks[q.id] = 1;
@@ -416,6 +434,7 @@ export function recordPrioriSubjectDrillAttempt({
   answers = {},
   strokesByQuestion = {},
   firstTryWrongIds = [],
+  streakOverrides = null,
   elapsedSeconds = 0,
   onCloudSyncResult = null,
 }) {
@@ -441,6 +460,7 @@ export function recordPrioriSubjectDrillAttempt({
       answers,
       strokesByQuestion,
       firstTryWrongIds,
+      streakOverrides,
       isMistakeRetry: true,
       elapsedSeconds,
       onCloudSyncResult,

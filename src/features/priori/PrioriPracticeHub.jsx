@@ -36,9 +36,14 @@ import { PrioriScratchpad, PrioriScratchpadPreview } from './PrioriScratchpad';
 import { PrioriAlphabetPad } from './PrioriAlphabetPad';
 import { PrioriTeacherDashboard } from './PrioriTeacherDashboard';
 import {
+  PRIORI_DRILL_DEFAULT_LIMIT,
+  PRIORI_DRILL_LIMIT_OPTIONS,
+  buildPrioriDrillCohort,
   loadPrioriRecords,
+  normalizePrioriDrillLimit,
   recordPrioriAttempt,
   recordPrioriSubjectDrillAttempt,
+  stepPrioriDrillQueue,
   getSubjectRemedialPool,
   hasPrioriAnswer,
   isPrioriAnswerCorrect,
@@ -145,10 +150,23 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
   const [strokesByQuestion, setStrokesByQuestion] = useState({});
   const [firstTryWrongIds, setFirstTryWrongIds] = useState([]);
   const [slotFeedback, setSlotFeedback] = useState(null); // { correct: boolean, sunk?: boolean, headline: string, detail?: string }
+  const [drillLimit, setDrillLimit] = useState(PRIORI_DRILL_DEFAULT_LIMIT); // 10 | 20
+  const [drillMeta, setDrillMeta] = useState({
+    maxAttempts: PRIORI_DRILL_DEFAULT_LIMIT,
+    totalAvailableCount: 0,
+    overflowCount: 0,
+    cohortIds: [],
+    finishReason: null, // 'all_mastered' | 'cap_reached' | 'exited_early' | 'completed' | null
+  });
+  const [drillStreaksById, setDrillStreaksById] = useState({});
+  const [checkedAnswersMap, setCheckedAnswersMap] = useState({});
+  const [checkedIdsOrder, setCheckedIdsOrder] = useState([]);
+  const [checkedStepsCount, setCheckedStepsCount] = useState(0);
   const [lastSubmissionByPaper, setLastSubmissionByPaper] = useState({});
   const [cloudSyncNotice, setCloudSyncNotice] = useState(null);
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
 
   // 官方英語聽力 MP3 播放器狀態
   const audioRef = useRef(null);
@@ -283,12 +301,51 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
   );
 
   const startQuiz = useCallback(
-    (paper, subsetQuestions = null, retryFlag = false, subjectDrillFlag = false) => {
+    (
+      paper,
+      subsetQuestions = null,
+      retryFlag = false,
+      subjectDrillFlag = false,
+      limitOverride = null
+    ) => {
       const basePaper = paper || subjectPapers[0] || PRIORI_PAPERS[0];
-      const rawQueue =
-        Array.isArray(subsetQuestions) && subsetQuestions.length > 0
-          ? subsetQuestions
-          : basePaper.questions;
+      const latestRecords = loadPrioriRecords(studentKey);
+      let rawQueue = [];
+      let nextDrillMeta = {
+        maxAttempts: normalizePrioriDrillLimit(limitOverride ?? drillLimit),
+        totalAvailableCount: 0,
+        overflowCount: 0,
+        cohortIds: [],
+        finishReason: null,
+      };
+      let nextInitialStreaks = {};
+
+      if (retryFlag && Array.isArray(subsetQuestions) && subsetQuestions.length > 0) {
+        const normalizedPool = subsetQuestions.map((q) => ({
+          ...q,
+          paperId: q.paperId || basePaper.paperId,
+        }));
+        const packed = buildPrioriDrillCohort(
+          normalizedPool,
+          latestRecords,
+          limitOverride ?? drillLimit
+        );
+        rawQueue = packed.cohort;
+        nextInitialStreaks = packed.initialStreaks;
+        nextDrillMeta = {
+          maxAttempts: packed.maxAttempts,
+          totalAvailableCount: packed.totalAvailableCount,
+          overflowCount: packed.overflowCount,
+          cohortIds: packed.cohort.map((q) => q.id),
+          finishReason: null,
+        };
+      } else {
+        rawQueue =
+          Array.isArray(subsetQuestions) && subsetQuestions.length > 0
+            ? subsetQuestions
+            : basePaper.questions;
+      }
+
       const queue = rawQueue.map((q, idx) => ({
         ...q,
         paperId: q.paperId || basePaper.paperId,
@@ -296,11 +353,18 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
       }));
 
       stopSpeech();
+      setSavedRecords(latestRecords);
       setActiveSubject(basePaper.subject);
       setActivePaperId(basePaper.paperId);
       setActiveQueue(queue);
       setIsMistakeRetry(retryFlag);
       setIsSubjectDrill(subjectDrillFlag);
+      setDrillMeta(nextDrillMeta);
+      setDrillStreaksById(nextInitialStreaks);
+      setCheckedAnswersMap({});
+      setCheckedIdsOrder([]);
+      setCheckedStepsCount(0);
+      setIsExitConfirmOpen(false);
       setShowScratchpad(
         basePaper.subject === 'math' &&
           (typeof window !== 'undefined' ? window.innerWidth >= 1024 : false)
@@ -317,7 +381,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
       setElapsedSeconds(0);
       setViewMode('quiz');
     },
-    [stopSpeech, subjectPapers]
+    [stopSpeech, subjectPapers, studentKey, drillLimit]
   );
 
   const handleSelectOption = (qId, value) => {
@@ -341,138 +405,212 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
     return list;
   }, [activeQueue]);
 
-  // 沉底模式即時批改邏輯
+  // 沉底模式即時批改邏輯（嚴格限定單輪 10/20 題上限，全精熟即立即結束）
   const handleCheckSinkingQuestion = () => {
     if (!currentQuestion) return;
     const rawAns = answers[currentQuestion.id];
     const ok = isPrioriAnswerCorrect(currentQuestion, rawAns);
-    const targetPaperId = currentQuestion.paperId || activePaper.paperId;
-    const prevStreak = Number(savedRecords?.[targetPaperId]?.streaks?.[currentQuestion.id]) || 0;
+    const nextCheckedCount = checkedStepsCount + 1;
 
-    if (ok) {
-      const wasWrongEarlierInSession = firstTryWrongIds.includes(currentQuestion.id);
-      const nextStreakEstimate = wasWrongEarlierInSession ? 1 : prevStreak + 1;
+    setCheckedAnswersMap((prev) => ({ ...prev, [currentQuestion.id]: rawAns }));
+    setCheckedIdsOrder((prev) =>
+      prev.includes(currentQuestion.id) ? prev : [...prev, currentQuestion.id]
+    );
+    setCheckedStepsCount(nextCheckedCount);
+
+    const stepResult = stepPrioriDrillQueue({
+      queue: activeQueue,
+      cohortIds: drillMeta.cohortIds,
+      currentIdx,
+      streaksById: drillStreaksById,
+      isCorrect: ok,
+      maxAttempts: drillMeta.maxAttempts,
+    });
+
+    setActiveQueue(stepResult.nextQueue);
+    setDrillStreaksById(stepResult.nextStreaks);
+
+    if (!ok) {
+      setFirstTryWrongIds((prev) =>
+        prev.includes(currentQuestion.id) ? prev : [...prev, currentQuestion.id]
+      );
+    }
+
+    if (stepResult.allCohortMastered) {
       setSlotFeedback({
         correct: true,
         sunk: false,
+        finishReason: 'all_mastered',
+        headline: `🎉 太棒了！本輪錯題已全數達成連對 2 次精熟（共作答 ${nextCheckedCount} 題），立即結束精熟測驗！`,
+        detail: currentQuestion.explanationSteps?.[currentQuestion.explanationSteps.length - 1] || '',
+      });
+      return;
+    }
+
+    if (stepResult.reachedCap) {
+      setSlotFeedback({
+        correct: ok,
+        sunk: false,
+        finishReason: 'cap_reached',
+        headline: ok
+          ? `🏁 答對了！目前已達本輪 ${drillMeta.maxAttempts} 題練習上限，即將結算本次進度。`
+          : `🏁 答錯囉！已達本輪 ${drillMeta.maxAttempts} 題練習上限（不無限重考），請先看過提示後結算，若要繼續精熟可再開新一輪！`,
+        detail:
+          currentQuestion.explanationSteps?.[
+            ok ? Math.max(0, (currentQuestion.explanationSteps?.length || 1) - 1) : 0
+          ] || '',
+      });
+      return;
+    }
+
+    if (ok) {
+      setSlotFeedback({
+        correct: true,
+        sunk: false,
+        finishReason: stepResult.shouldAutoFinish ? 'completed' : null,
         headline:
-          nextStreakEstimate >= 2
-            ? '🌟 答對了！這題連續答對達 2 次，交卷後自動升級為「已精熟」！'
-            : wasWrongEarlierInSession
-            ? '✅ 沉底訂正過關！再成功複習 1 次就能達成「🌟 已精熟」！'
+          stepResult.nextStreakForCurrent >= 2
+            ? '🌟 答對了！這題連續答對達 2 次，達成「已精熟」！'
+            : stepResult.needsRepeat
+            ? '✅ 答對了！還差 1 次複習就精熟，已排到本輪隊尾再確認一次。'
             : '✅ 答對了！再穩穩累積答對 1 次即可達成精熟。',
         detail: currentQuestion.explanationSteps?.[currentQuestion.explanationSteps.length - 1] || '',
       });
     } else {
-      setFirstTryWrongIds((prev) =>
-        prev.includes(currentQuestion.id) ? prev : [...prev, currentQuestion.id]
-      );
-      const sunkItem = {
-        ...currentQuestion,
-        _isSunkRetry: true,
-        _instanceKey: `${currentQuestion.id}__sunk_${activeQueue.length}_${Date.now()}`,
-      };
-      setActiveQueue((prev) => [...prev, sunkItem]);
       setSlotFeedback({
         correct: false,
-        sunk: true,
-        headline: '❌ 答錯了！這題已自動「沉底」排到最後面再練一次，先把關鍵提示看清楚喔！',
+        sunk: stepResult.needsRepeat,
+        finishReason: stepResult.shouldAutoFinish ? 'completed' : null,
+        headline: stepResult.needsRepeat
+          ? `❌ 答錯了！這題已自動「沉底」排到最後面再練一次（單輪上限 ${drillMeta.maxAttempts} 題），先把關鍵提示看清楚喔！`
+          : `❌ 答錯了！本題將保留為待補強，繼續完成剩餘題目後可再開一輪精熟。`,
         detail: currentQuestion.explanationSteps?.[0] || '',
       });
     }
   };
 
+  const finalizeQuiz = useCallback(
+    (overrideOptions = {}) => {
+      stopSpeech();
+      setIsSubmitConfirmOpen(false);
+      setIsExitConfirmOpen(false);
+      const pendingFinishReason = overrideOptions.finishReason || slotFeedback?.finishReason || null;
+      setSlotFeedback(null);
+      const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+      setElapsedSeconds(seconds);
+
+      const partialCheckedOnly = Boolean(overrideOptions.partialCheckedOnly);
+      const commitAnswers = isMistakeRetry ? checkedAnswersMap : answers;
+      let queueToCommit = activeQueue;
+
+      if (isMistakeRetry && partialCheckedOnly) {
+        const checkedSet = new Set(checkedIdsOrder);
+        queueToCommit = activeQueue.filter((q) => checkedSet.has(q.id));
+        setActiveQueue(queueToCommit);
+      }
+
+      if (isMistakeRetry) {
+        setAnswers(commitAnswers);
+        setDrillMeta((prev) => ({
+          ...prev,
+          finishReason: pendingFinishReason || prev.finishReason || 'completed',
+        }));
+      }
+
+      if (activePaper && queueToCommit.length > 0) {
+        const displayName = isLoggedIn
+          ? formatStudentDisplayName(currentStudent)
+          : '訪客學生';
+
+        const handleCloudSyncResult = (syncRes) => {
+          if (syncRes && !syncRes.ok) {
+            setCloudSyncNotice({ type: 'error', message: syncRes.error || '雲端同步失敗' });
+          } else if (syncRes?.ok) {
+            setCloudSyncNotice((prev) => (prev?.type === 'error' ? prev : { type: 'ok' }));
+          }
+        };
+
+        if (isSubjectDrill) {
+          const res = recordPrioriSubjectDrillAttempt({
+            student: currentStudent,
+            displayName,
+            fallbackPaper: activePaper,
+            activeQueue: queueToCommit,
+            answers: commitAnswers,
+            strokesByQuestion,
+            firstTryWrongIds,
+            streakOverrides: isMistakeRetry ? drillStreaksById : null,
+            elapsedSeconds: seconds,
+            onCloudSyncResult: handleCloudSyncResult,
+          });
+          setLastSubmissionByPaper(res.updatedByPaper || {});
+          setSavedRecords(loadPrioriRecords(studentKey));
+        } else {
+          const updatedRecord = recordPrioriAttempt({
+            student: currentStudent,
+            displayName,
+            paper: activePaper,
+            activeQueue: queueToCommit,
+            answers: commitAnswers,
+            strokesByQuestion,
+            firstTryWrongIds,
+            streakOverrides: isMistakeRetry ? drillStreaksById : null,
+            isMistakeRetry,
+            elapsedSeconds: seconds,
+            onCloudSyncResult: handleCloudSyncResult,
+          });
+          if (updatedRecord) {
+            setLastSubmissionByPaper({ [activePaper.paperId]: updatedRecord });
+            setSavedRecords(loadPrioriRecords(studentKey));
+          }
+        }
+      }
+      setViewMode('result');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    [
+      activePaper,
+      activeQueue,
+      answers,
+      checkedAnswersMap,
+      checkedIdsOrder,
+      currentStudent,
+      drillStreaksById,
+      firstTryWrongIds,
+      isLoggedIn,
+      isMistakeRetry,
+      isSubjectDrill,
+      slotFeedback?.finishReason,
+      startedAt,
+      stopSpeech,
+      strokesByQuestion,
+      studentKey,
+    ]
+  );
+
   const handleAdvanceAfterFeedback = (shouldFinish) => {
     if (!currentQuestion) return;
-    const wasSunk = slotFeedback?.sunk;
-    const prevQId = currentQuestion.id;
+    const finishReason = slotFeedback?.finishReason || null;
     setSlotFeedback(null);
 
-    if (wasSunk) {
-      // 清空剛剛錯誤的選項，讓題目沉底回來時學生可以真正重新思考作答
+    if (shouldFinish || currentIdx >= activeQueue.length - 1) {
+      finalizeQuiz({ finishReason: finishReason || 'completed' });
+      return;
+    }
+
+    const nextIdx = Math.min(activeQueue.length - 1, currentIdx + 1);
+    const nextSlotQ = activeQueue[nextIdx];
+    if (nextSlotQ?.id) {
+      // 當進入複習／沉底重練的下一題時清空該題的 UI 選答狀態，讓學生重新思考作答（已批改答案保留於 checkedAnswersMap）
       setAnswers((prev) => {
+        if (!Object.prototype.hasOwnProperty.call(prev, nextSlotQ.id)) return prev;
         const next = { ...prev };
-        delete next[prevQId];
+        delete next[nextSlotQ.id];
         return next;
       });
     }
-
-    if (shouldFinish) {
-      finalizeQuiz();
-    } else {
-      setCurrentIdx((i) => Math.min(activeQueue.length, i + 1));
-    }
+    setCurrentIdx(nextIdx);
   };
-
-  const finalizeQuiz = useCallback(() => {
-    stopSpeech();
-    setIsSubmitConfirmOpen(false);
-    setSlotFeedback(null);
-    const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
-    setElapsedSeconds(seconds);
-
-    if (activePaper) {
-      const displayName = isLoggedIn
-        ? formatStudentDisplayName(currentStudent)
-        : '訪客學生';
-
-      const handleCloudSyncResult = (syncRes) => {
-        if (syncRes && !syncRes.ok) {
-          setCloudSyncNotice({ type: 'error', message: syncRes.error || '雲端同步失敗' });
-        } else if (syncRes?.ok) {
-          setCloudSyncNotice((prev) => (prev?.type === 'error' ? prev : { type: 'ok' }));
-        }
-      };
-
-      if (isSubjectDrill) {
-        const res = recordPrioriSubjectDrillAttempt({
-          student: currentStudent,
-          displayName,
-          fallbackPaper: activePaper,
-          activeQueue,
-          answers,
-          strokesByQuestion,
-          firstTryWrongIds,
-          elapsedSeconds: seconds,
-          onCloudSyncResult: handleCloudSyncResult,
-        });
-        setLastSubmissionByPaper(res.updatedByPaper || {});
-        setSavedRecords(loadPrioriRecords(studentKey));
-      } else {
-        const updatedRecord = recordPrioriAttempt({
-          student: currentStudent,
-          displayName,
-          paper: activePaper,
-          activeQueue,
-          answers,
-          strokesByQuestion,
-          firstTryWrongIds,
-          isMistakeRetry,
-          elapsedSeconds: seconds,
-          onCloudSyncResult: handleCloudSyncResult,
-        });
-        if (updatedRecord) {
-          setLastSubmissionByPaper({ [activePaper.paperId]: updatedRecord });
-          setSavedRecords(loadPrioriRecords(studentKey));
-        }
-      }
-    }
-    setViewMode('result');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [
-    activePaper,
-    activeQueue,
-    answers,
-    currentStudent,
-    firstTryWrongIds,
-    isLoggedIn,
-    isMistakeRetry,
-    isSubjectDrill,
-    startedAt,
-    stopSpeech,
-    strokesByQuestion,
-    studentKey,
-  ]);
 
   const handleRequestSubmit = () => {
     const unanswered = uniqueActiveQuestions.filter(
@@ -485,19 +623,45 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
     }
   };
 
+  const handleRequestExitQuiz = () => {
+    if (isMistakeRetry) {
+      if (checkedStepsCount === 0) {
+        stopSpeech();
+        setViewMode('hub');
+        return;
+      }
+      setIsExitConfirmOpen(true);
+      return;
+    }
+    if (answeredCount === 0) {
+      stopSpeech();
+      setViewMode('hub');
+      return;
+    }
+    setIsExitConfirmOpen(true);
+  };
+
   const answeredCount = useMemo(
     () => uniqueActiveQuestions.filter((q) => hasPrioriAnswer(q, answers[q.id])).length,
     [uniqueActiveQuestions, answers]
   );
 
+  const displayAnswers = isMistakeRetry && viewMode === 'result' ? checkedAnswersMap : answers;
+
   const resultStats = useMemo(() => {
+    const evalAnswers = isMistakeRetry ? checkedAnswersMap : answers;
     const wrongList = uniqueActiveQuestions.filter(
-      (q) => !isPrioriAnswerCorrect(q, answers[q.id])
+      (q) => !isPrioriAnswerCorrect(q, evalAnswers[q.id])
     );
+    const unmasteredList = uniqueActiveQuestions.filter((q) => {
+      const qPaperId = q.paperId || activePaper?.paperId;
+      const rec = lastSubmissionByPaper[qPaperId] || savedRecords[qPaperId];
+      return (Number(rec?.streaks?.[q.id]) || 0) < 2;
+    });
     const correctCount = uniqueActiveQuestions.length - wrongList.length;
     const score = Math.round((correctCount / Math.max(1, uniqueActiveQuestions.length)) * 100);
-    return { wrongList, correctCount, score };
-  }, [uniqueActiveQuestions, answers]);
+    return { wrongList, unmasteredList, correctCount, score };
+  }, [uniqueActiveQuestions, isMistakeRetry, checkedAnswersMap, answers, activePaper?.paperId, lastSubmissionByPaper, savedRecords]);
 
   const baseOrigin = useMemo(() => {
     return typeof window !== 'undefined' &&
@@ -738,7 +902,32 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* 10 題短測 / 20 題長測 */}
+                  <div
+                    role="group"
+                    aria-label="選擇特訓回合題數上限"
+                    className="inline-flex items-center rounded-xl bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-800 p-0.5 text-[11px] font-black"
+                  >
+                    {PRIORI_DRILL_LIMIT_OPTIONS.map((opt) => {
+                      const active = drillLimit === opt.count;
+                      return (
+                        <button
+                          key={opt.count}
+                          type="button"
+                          onClick={() => setDrillLimit(opt.count)}
+                          className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                            active
+                              ? 'bg-rose-600 text-white shadow-xs'
+                              : 'text-rose-700 dark:text-rose-200 hover:bg-rose-50 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
                   {subjectRemedialPool.wrongQuestions.length > 0 &&
                     subjectRemedialPool.progressQuestions.length > 0 && (
                       <button
@@ -749,7 +938,8 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                               subjectPapers[0],
                             subjectRemedialPool.wrongQuestions,
                             true,
-                            true
+                            true,
+                            drillLimit
                           )
                         }
                         className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-200 font-black text-xs flex items-center gap-1 cursor-pointer"
@@ -767,14 +957,15 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                           subjectPapers[0],
                         subjectRemedialPool.allRemedialQuestions,
                         true,
-                        true
+                        true,
+                        drillLimit
                       )
                     }
                     className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                   >
                     <Flame className="w-3.5 h-3.5" />
                     <span>
-                      開始特訓（{subjectRemedialPool.allRemedialQuestions.length} 題）
+                      開始特訓（{subjectRemedialPool.allRemedialQuestions.length} 題｜上限 {drillLimit}）
                     </span>
                   </button>
                 </div>
@@ -941,14 +1132,11 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
             <div className="flex items-center gap-2 min-w-0">
               <button
                 type="button"
-                onClick={() => {
-                  stopSpeech();
-                  setViewMode('hub');
-                }}
+                onClick={handleRequestExitQuiz}
                 className="px-2.5 py-1.5 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs flex items-center gap-1 transition shrink-0 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>選卷</span>
+                <span>中途離開</span>
               </button>
               <div className="min-w-0">
                 <div className="text-xs sm:text-sm font-black text-teal-900 dark:text-teal-100 truncate">
@@ -960,7 +1148,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                 </div>
                 <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 tabular-nums">
                   {isMistakeRetry
-                    ? `沉底特訓佇列：第 ${currentIdx + 1} / ${activeQueue.length} 題（答錯會排到隊尾再練）`
+                    ? `沉底特訓進度：${currentIdx + 1} / ${activeQueue.length} 題（單輪上限 ${drillMeta.maxAttempts} 題・全精熟立即結束）`
                     : `已作答 ${answeredCount} / ${uniqueActiveQuestions.length} 題`}
                 </div>
               </div>
@@ -1425,8 +1613,8 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                 {/* 底部 上一題 / 沉底批改 / 下一題 / 交卷列 */}
                 <div className="pt-3 border-t border-stone-100 dark:border-slate-800 flex items-center justify-between gap-3">
                   {isMistakeRetry ? (
-                    <span className="text-xs font-black text-rose-700 dark:text-rose-300">
-                      🔥 沉底特訓中（第 {currentIdx + 1} / {activeQueue.length} 題）
+                    <span className="text-xs font-black text-rose-700 dark:text-rose-300 tabular-nums">
+                      🔥 沉底特訓中（第 {currentIdx + 1} / {activeQueue.length} 題｜上限 {drillMeta.maxAttempts} 題）
                     </span>
                   ) : (
                     <button
@@ -1457,7 +1645,24 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                         <CheckCircle2 className="w-4 h-4" />
                         <span>確認本題答案</span>
                       </button>
-                    ) : currentIdx < activeQueue.length - 1 ? (
+                    ) : slotFeedback.finishReason === 'all_mastered' ||
+                      slotFeedback.finishReason === 'cap_reached' ||
+                      currentIdx >= activeQueue.length - 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => handleAdvanceAfterFeedback(true)}
+                        className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>
+                          {slotFeedback.finishReason === 'all_mastered'
+                            ? '🎉 全數精熟・查看成果'
+                            : slotFeedback.finishReason === 'cap_reached'
+                            ? `🏁 達 ${drillMeta.maxAttempts} 題上限・結算成果`
+                            : '完成特訓・看精熟成績'}
+                        </span>
+                      </button>
+                    ) : (
                       <button
                         type="button"
                         onClick={() => handleAdvanceAfterFeedback(false)}
@@ -1467,15 +1672,6 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                           {slotFeedback.sunk ? '繼續下一題（已排到最後）' : '下一題'}
                         </span>
                         <ArrowRight className="w-4 h-4" />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleAdvanceAfterFeedback(true)}
-                        className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition cursor-pointer"
-                      >
-                        <Check className="w-4 h-4" />
-                        <span>完成特訓・看精熟成績</span>
                       </button>
                     )
                   ) : currentIdx < activeQueue.length - 1 ? (
@@ -1582,9 +1778,35 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
               </button>
             </div>
 
+            {isMistakeRetry && (
+              <div
+                role="status"
+                className={`rounded-2xl px-4 py-2.5 border text-xs font-black flex flex-wrap items-center justify-between gap-2 ${
+                  drillMeta.finishReason === 'all_mastered'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200'
+                    : 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200'
+                }`}
+              >
+                <span>
+                  {drillMeta.finishReason === 'all_mastered'
+                    ? `🎉 本輪範圍錯題已全數達成連對 2 次精熟（0 待補強），共作答 ${checkedStepsCount} 題提前完成！`
+                    : drillMeta.finishReason === 'cap_reached'
+                    ? `🏁 已完成本輪上限 ${drillMeta.maxAttempts} 題練習並結束結算；若要繼續把剩下錯題練熟，點下方「錯題沉底再練」再開一輪即可！`
+                    : drillMeta.finishReason === 'exited_early'
+                    ? `💾 已保存中途批改完成的 ${checkedStepsCount} 題紀錄，其餘題目維持原精熟狀態。`
+                    : `已完成本輪沉底特訓（共批改 ${checkedStepsCount} 題／上限 ${drillMeta.maxAttempts} 題）。`}
+                </span>
+                {drillMeta.overflowCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-lg bg-white/80 dark:bg-slate-900/60 border border-current/20">
+                    還有 {drillMeta.overflowCount} 題可於下一輪接續
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-1.5 pt-1">
               {uniqueActiveQuestions.map((q) => {
-                const ok = isPrioriAnswerCorrect(q, answers[q.id]);
+                const ok = isPrioriAnswerCorrect(q, displayAnswers[q.id]);
                 const wasSunk = firstTryWrongIds.includes(q.id);
                 return (
                   <a
@@ -1605,21 +1827,32 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-stone-100 dark:border-slate-800">
-              {resultStats.wrongList.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => startQuiz(activePaper, resultStats.wrongList, true, false)}
-                  className="px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition cursor-pointer"
-                >
-                  <Flame className="w-4 h-4" />
-                  <span>錯題沉底再練（{resultStats.wrongList.length} 題）</span>
-                </button>
-              ) : (
-                <span className="px-4 py-2 rounded-2xl bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 font-black text-xs sm:text-sm flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>本輪題目全部過關！太棒了！</span>
-                </span>
-              )}
+              {(() => {
+                const nextRetryPool = isMistakeRetry
+                  ? resultStats.unmasteredList.length > 0
+                    ? resultStats.unmasteredList
+                    : resultStats.wrongList
+                  : resultStats.wrongList;
+                return nextRetryPool.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      startQuiz(activePaper, nextRetryPool, true, isSubjectDrill, drillLimit)
+                    }
+                    className="px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                  >
+                    <Flame className="w-4 h-4" />
+                    <span>
+                      錯題沉底再練（{nextRetryPool.length} 題｜上限 {drillLimit}）
+                    </span>
+                  </button>
+                ) : (
+                  <span className="px-4 py-2 rounded-2xl bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 font-black text-xs sm:text-sm flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>本輪題目全部精熟過關！太棒了！</span>
+                  </span>
+                );
+              })()}
 
               <button
                 type="button"
@@ -1646,7 +1879,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
           {/* 逐題檢討與逐步引導詳解 */}
           <div className="space-y-3">
             {uniqueActiveQuestions.map((q) => {
-              const userChoice = answers[q.id];
+              const userChoice = displayAnswers[q.id];
               const isCorrect = isPrioriAnswerCorrect(q, userChoice);
               const wasSunk = firstTryWrongIds.includes(q.id);
               const steps = q.explanationSteps || [];
@@ -1849,8 +2082,61 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
           uniqueActiveQuestions.filter((q) => !hasPrioriAnswer(q, answers[q.id])).length
         }
         onContinue={() => setIsSubmitConfirmOpen(false)}
-        onConfirm={finalizeQuiz}
+        onConfirm={() => finalizeQuiz()}
       />
+
+      {isExitConfirmOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="中途離開確認"
+          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-stone-200 dark:border-slate-700">
+            <h3 className="text-base font-black text-slate-900 dark:text-white">
+              {isMistakeRetry ? '要中途離開錯題特訓嗎？' : '要中途離開測驗嗎？'}
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              {isMistakeRetry
+                ? `目前已批改完成 ${checkedStepsCount} 題（本輪上限 ${drillMeta.maxAttempts} 題）。您可以保存已練進度後結束，或直接放棄回大廳。`
+                : `目前已填答 ${answeredCount} / ${uniqueActiveQuestions.length} 題，尚未交卷直接離開將不會計入本次分數。`}
+            </p>
+            <div className="flex flex-col gap-2 pt-1">
+              {isMistakeRetry && checkedStepsCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    finalizeQuiz({ finishReason: 'exited_early', partialCheckedOnly: true })
+                  }
+                  className="w-full py-2.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-black transition cursor-pointer"
+                >
+                  保存已練 {checkedStepsCount} 題進度並看成果
+                </button>
+              )}
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsExitConfirmOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-black cursor-pointer"
+                >
+                  繼續作答
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExitConfirmOpen(false);
+                    stopSpeech();
+                    setViewMode('hub');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black cursor-pointer"
+                >
+                  不保存直接回大廳
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 瀏覽器原生列印視圖（外部一律隱藏正解，教師含正解卷於教師後台提供） */}
       {viewMode !== 'teacher' && (

@@ -1326,17 +1326,14 @@ export function PureMcqExamView({ settings, onBack, onComplete }) {
       const pendingQuestions = questions
         .slice(currentIndex + 1)
         .filter((question) => !isMistakeSourceCleared(simulatedMap, [question]));
-      const replenishedQuestions = pendingQuestions.length === 0 && mistakeAttemptLimit === 'all'
-        ? filteredMistakeQuestions.filter((question) => !isMistakeSourceCleared(simulatedMap, [question]))
-        : pendingQuestions;
-      setQuestions([...completedQuestions, ...replenishedQuestions]);
-      if (replenishedQuestions.length > 0) {
+      setQuestions([...completedQuestions, ...pendingQuestions]);
+      if (pendingQuestions.length > 0) {
         setCurrentIndex(currentIndex + 1);
         return;
       }
     }
     setCurrentIndex((index) => Math.min(questions.length - 1, index + 1));
-  }, [scopeMode, answers, currentIndex, mistakeMap, questions, filteredMistakeQuestions, elapsedSec, mistakeAttemptLimit]);
+  }, [scopeMode, answers, currentIndex, mistakeMap, questions, filteredMistakeQuestions, elapsedSec]);
 
   const handleRequestSubmit = () => {
     const answeredCount = Object.keys(answers).length;
@@ -1801,7 +1798,9 @@ export function PureMcqExamView({ settings, onBack, onComplete }) {
                     if (savedSession.selectedBook) setSelectedBook(savedSession.selectedBook);
                     if (savedSession.questionCountOpt) setQuestionCountOpt(savedSession.questionCountOpt);
                     if (savedSession.mistakeSource) setMistakeSource(savedSession.mistakeSource);
-                    if (savedSession.mistakeAttemptLimit) setMistakeAttemptLimit(savedSession.mistakeAttemptLimit);
+                    if (savedSession.mistakeAttemptLimit) {
+                      setMistakeAttemptLimit(savedSession.mistakeAttemptLimit === 10 ? 10 : 20);
+                    }
                     if (savedSession.scopeMode) setScopeMode(savedSession.scopeMode);
                     if (savedSession.selectedPreA1Format) setSelectedPreA1Format(savedSession.selectedPreA1Format);
                     if (savedSession.selectedSaaFormat) setSelectedSaaFormat(savedSession.selectedSaaFormat);
@@ -2907,12 +2906,10 @@ export function PureMcqExamView({ settings, onBack, onComplete }) {
                     設定最多作答次數
                   </span>
                 </div>
-                <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+                <div className="grid grid-cols-2 gap-2.5">
                   {[
-                    { count: 10, label: '10 次' },
-                    { count: 20, label: '20 次' },
-                    { count: 30, label: '30 次' },
-                    { count: 'all', label: '全部清空' }
+                    { count: 10, label: '10 題短測', desc: '最多 10 次・全精熟提早結束' },
+                    { count: 20, label: '20 題長測', desc: '最多 20 次・全精熟提早結束' }
                   ].map((opt) => {
                     const active = mistakeAttemptLimit === opt.count;
                     return (
@@ -2920,7 +2917,7 @@ export function PureMcqExamView({ settings, onBack, onComplete }) {
                         key={opt.count}
                         type="button"
                         onClick={() => setMistakeAttemptLimit(opt.count)}
-                        className={`py-2.5 px-1 rounded-xl border-2 text-center transition flex flex-col items-center justify-center cursor-pointer ${
+                        className={`py-2.5 px-2 rounded-xl border-2 text-center transition flex flex-col items-center justify-center cursor-pointer ${
                           active
                             ? 'border-rose-600 bg-rose-600 text-white shadow-sm'
                             : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-rose-300'
@@ -2932,14 +2929,14 @@ export function PureMcqExamView({ settings, onBack, onComplete }) {
                             active ? 'text-rose-100' : 'text-rose-600 dark:text-rose-400'
                           }`}
                         >
-                          {opt.count === 'all' ? '直到題庫歸零' : '可提前結束'}
+                          {opt.desc}
                         </span>
                       </button>
                     );
                   })}
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  「次數」是上限，不是保證題數；目前選定來源有 {filteredMistakeQuestions.length} 題待複習。
+                  只出目前選定來源的錯題（{filteredMistakeQuestions.length} 題），絕不抓他科或湊題；達「連對 2 次全數精熟」立刻結束，未精熟最多作答 {mistakeAttemptLimit} 題即結算。
                 </p>
               </div>
             </div>
@@ -3029,7 +3026,7 @@ export function PureMcqExamView({ settings, onBack, onComplete }) {
                   <span>•</span>
                   <span>{filteredMistakeQuestions.length} 題待複習</span>
                   <span>•</span>
-                  <span>{mistakeAttemptLimit === 'all' ? '直到清空' : `最多 ${effectiveMistakeAttemptLimit} 次`}</span>
+                  <span>最多 {effectiveMistakeAttemptLimit} 次（全對提早結束）</span>
                 </div>
               )}
 
@@ -3056,7 +3053,7 @@ export function PureMcqExamView({ settings, onBack, onComplete }) {
                     ? (saaPool.length > 0 ? `開始${selectedSaaSource === 'official' ? `${selectedSaaYear} 年官方卷 (35 題)` : `原創類題 (${selectedSaaFormat === 'standard' ? 35 : 20} 題)`}` : '🚧 原創類題審核建置中（官方卷可先練習）')
                     : scopeMode === 'mistakes'
                     ? (filteredMistakeQuestions.length > 0
-                        ? (mistakeAttemptLimit === 'all' ? '開始複習（直到清空）' : `開始複習（最多 ${effectiveMistakeAttemptLimit} 次）`)
+                        ? `開始複習（上限 ${effectiveMistakeAttemptLimit} 題）`
                         : '目前沒有這個來源的易錯題')
                     : `開始檢定 (${questionCountOpt} 題)`}
                 </span>
@@ -3270,7 +3267,7 @@ export function PureMcqExamView({ settings, onBack, onComplete }) {
             >
               <span>
                 {scopeMode === 'mistakes'
-                  ? (mistakeAttemptLimit === 'all' ? '準備好了，開始複習（直到清空）' : `準備好了，開始複習（最多 ${questions.length} 次）`)
+                  ? `準備好了，開始複習（上限 ${questions.length} 題・全精熟即結束）`
                   : `準備好了，開始作答 (${questions.length} 題)`}
               </span>
               <ArrowRight size={18} />
@@ -3423,7 +3420,9 @@ export function PureMcqExamView({ settings, onBack, onComplete }) {
               <span className="hidden sm:inline">{isFlagged ? '已標記' : '標記'}</span>
             </button>
             <span className="px-3 py-1 rounded-lg bg-slate-900 dark:bg-indigo-600 text-white font-black text-xs sm:text-sm">
-              {currentIndex + 1} / {questions.length}
+              {scopeMode === 'mistakes'
+                ? `${currentIndex + 1} / 上限 ${questions.length}`
+                : `${currentIndex + 1} / ${questions.length}`}
             </span>
           </div>
         </div>
@@ -3872,14 +3871,14 @@ export function PureMcqExamView({ settings, onBack, onComplete }) {
             })}
           </div>
 
-          {currentIndex < questions.length - 1 || (scopeMode === 'mistakes' && mistakeAttemptLimit === 'all') ? (
+          {currentIndex < questions.length - 1 ? (
             <button
               type="button"
               onClick={handleAdvanceQuestion}
               disabled={scopeMode === 'mistakes' && answers[currentIndex] === undefined}
               className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shrink-0 shadow-sm transition"
             >
-              {scopeMode === 'mistakes' && mistakeAttemptLimit === 'all' && currentIndex === questions.length - 1 ? '繼續清空' : '下一題'}
+              下一題
               <ArrowRight size={16} />
             </button>
           ) : (
@@ -3937,31 +3936,59 @@ export function PureMcqExamView({ settings, onBack, onComplete }) {
           <div className="absolute inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-700">
               <h3 className="text-base font-black text-slate-900 dark:text-white">
-                確定要中止本次檢定嗎？
+                {scopeMode === 'mistakes' ? '確定要中途離開錯題複習嗎？' : '確定要中止本次檢定嗎？'}
               </h3>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                離開後本次尚未交卷的作答進度將不會計分。
+                {scopeMode === 'mistakes' && answeredCount > 0
+                  ? `目前已作答 ${answeredCount} 題；您可以先結算目前已練進度並保存精熟次數，或放棄本次進度直接離開。`
+                  : '離開後本次尚未交卷的作答進度將不會計分。'}
               </p>
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowExitConfirm(false)}
-                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold"
-                >
-                  繼續作答
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    clearInProgress(inProgressKey);
-                    setSavedSession(null);
-                    setShowExitConfirm(false);
-                    setPhase('setup');
-                  }}
-                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black"
-                >
-                  返回設定頁
-                </button>
+              <div className="flex flex-col gap-2 pt-1">
+                {scopeMode === 'mistakes' && answeredCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const answeredEntries = questions
+                        .map((q, idx) => ({ q, ans: answers[idx] }))
+                        .filter((item) => item.ans !== undefined);
+                      const completedQs = answeredEntries.map((item) => item.q);
+                      const completedAns = Object.fromEntries(
+                        answeredEntries.map((item, idx) => [idx, item.ans])
+                      );
+                      setShowExitConfirm(false);
+                      finalizeExam({
+                        questions: completedQs,
+                        answers: completedAns,
+                        scopeMode: 'mistakes',
+                        elapsedSec
+                      });
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition cursor-pointer"
+                  >
+                    保存已練 {answeredCount} 題進度並結算
+                  </button>
+                )}
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowExitConfirm(false)}
+                    className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold"
+                  >
+                    繼續作答
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearInProgress(inProgressKey);
+                      setSavedSession(null);
+                      setShowExitConfirm(false);
+                      setPhase('setup');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black"
+                  >
+                    放棄進度回設定頁
+                  </button>
+                </div>
               </div>
             </div>
           </div>
