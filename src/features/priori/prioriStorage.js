@@ -13,6 +13,11 @@ import {
   summarizePrioriPaperState,
   mergePrioriPaperRecordWithPaper,
 } from './prioriDrill';
+import {
+  getPrioriTeacherSession,
+  isPrioriSchemaPendingError,
+  isPrioriUnauthorizedError,
+} from './prioriSecurity';
 
 export {
   parseAlphabetPairAnswer,
@@ -25,8 +30,6 @@ export {
 const STORAGE_PREFIX = 'wutai_priori_v1_';
 const STUDENT_META_INDEX_KEY = 'wutai_priori_student_meta_v1';
 const LAST_IPAD_SEAT_KEY = 'wutai_priori_last_seat_on_ipad_v1';
-export const PRIORI_CLOUD_MODE = 'priori-record';
-export const PRIORI_CLOUD_WEEK = 0;
 
 export function getPrioriStorageKey(studentId) {
   return `${STORAGE_PREFIX}${studentId || 'guest'}`;
@@ -530,7 +533,7 @@ export function recordPrioriSubjectDrillAttempt({
 
 function serializeRecordForCloud(identity, record) {
   const compactPayload = {
-    v: 2,
+    v: 3,
     paperId: record.paperId,
     studentKey: identity.studentKey,
     grade: identity.grade,
@@ -555,51 +558,51 @@ function serializeRecordForCloud(identity, record) {
     updatedAt: record.updatedAt,
   };
 
-  let serialized = JSON.stringify(compactPayload);
-  // 防禦過大筆跡 payload：若超過 40KB 則每筆畫再降採樣，但確保不遺失作答與初測欄位
-  if (serialized.length > 40000) {
+  // 防禦過大筆跡 payload：若超過 40KB 則每筆畫再降採樣，確保不遺失作答與初測欄位
+  if (JSON.stringify(compactPayload).length > 40000) {
     const trimmedPad = {};
     for (const [qId, strokes] of Object.entries(record.scratchpad || {})) {
       trimmedPad[qId] = compressStrokes(strokes, 12, 28);
     }
-    serialized = JSON.stringify({ ...compactPayload, scratchpad: trimmedPad });
+    return { ...compactPayload, scratchpad: trimmedPad };
   }
-  return serialized;
+  return compactPayload;
 }
 
 function hydrateCloudPayload(row) {
-  if (!row?.book) return null;
+  const rawPayload = row?.payload || row?.book;
+  if (!rawPayload) return null;
   try {
-    const payload = JSON.parse(row.book);
-    const pid = payload?.paperId;
+    const payload = typeof rawPayload === 'string' ? JSON.parse(rawPayload) : rawPayload;
+    const pid = payload?.paperId || row?.paper_id;
     if (!pid) return null;
-    const sk = payload.studentKey || 'guest';
+    const sk = payload.studentKey || row?.student_key || 'guest';
     if (sk === 'guest' || sk === '999999') return null;
     return {
       paperId: pid,
       studentKey: sk,
-      studentGrade: payload.grade || '03',
-      studentClass: payload.classNum || '1',
-      studentSeat: payload.seat || '01',
-      displayName: payload.displayName || row.name || sk,
+      studentGrade: payload.grade || row?.grade || '03',
+      studentClass: payload.classNum || row?.class_num || '1',
+      studentSeat: payload.seat || row?.seat || '01',
+      displayName: payload.displayName || row?.name || sk,
       lastDeviceId: payload.lastDeviceId || '',
-      firstScore: payload.firstScore ?? row.score ?? 0,
+      firstScore: payload.firstScore ?? row?.score ?? 0,
       firstAnswers: payload.firstAnswers || null,
       firstCorrectCount: payload.firstCorrectCount,
       firstSubmittedAt: payload.firstSubmittedAt,
-      latestScore: payload.latestScore ?? row.score ?? 0,
-      score: payload.latestScore ?? row.score ?? 0,
+      latestScore: payload.latestScore ?? row?.score ?? 0,
+      score: payload.latestScore ?? row?.score ?? 0,
       correctCount: payload.correctCount ?? 0,
       totalCount:
         payload.totalCount ?? (PRIORI_PAPER_MAP[pid]?.totalQuestions || 25),
-      masteredCount: payload.masteredCount ?? row.time ?? 0,
+      masteredCount: payload.masteredCount ?? row?.time ?? 0,
       attemptsCount: payload.attemptsCount ?? 1,
       drillAttemptsCount: payload.drillAttemptsCount ?? 0,
       streaks: payload.streaks || {},
       latestAnswers: payload.latestAnswers || {},
       questionAttemptCounts: payload.questionAttemptCounts || {},
       scratchpad: payload.scratchpad || {},
-      updatedAt: payload.updatedAt || row.created_at,
+      updatedAt: payload.updatedAt || row?.updated_at || row?.created_at,
       source: 'cloud',
     };
   } catch {
@@ -608,7 +611,7 @@ function hydrateCloudPayload(row) {
 }
 
 /**
- * 學生切換裝置或登入座號時，讀取雲端同帳號最新進度並與本機端聯集合併（避免換 iPad/手機遺失或互蓋）
+ * 學生切換裝置或登入座號時，透過獨立隔離表 RPC (`priori_student_get_records`) 僅讀取自己座號的跨裝置進度（無法撈取他生紀錄）
  */
 export async function fetchAndMergeStudentCloudRecords(student, displayName = '') {
   const identity = buildStudentIdentity(student, displayName);
@@ -624,14 +627,21 @@ export async function fetchAndMergeStudentCloudRecords(student, displayName = ''
   }
 
   try {
-    const { data, error } = await supabase
-      .from('leaderboard')
-      .select('id, device_id, name, book, score, time, created_at')
-      .eq('mode', PRIORI_CLOUD_MODE)
-      .eq('week', PRIORI_CLOUD_WEEK)
-      .like('device_id', `priori_${identity.studentKey}_%`);
+    const { data, error } = await supabase.rpc('priori_student_get_records', {
+      p_student_key: identity.studentKey,
+    });
 
     if (error) {
+      if (isPrioriSchemaPendingError(error)) {
+        return {
+          records: localAll,
+          syncedCount: 0,
+          cloudLastDeviceId: '',
+          schemaPending: true,
+          cloudError:
+            '尚未於 Supabase 執行 supabase_priori_security.sql 權限隔離腳本，目前僅保留本機作答（絕不寫入公開表）。',
+        };
+      }
       return {
         records: localAll,
         syncedCount: 0,
@@ -640,25 +650,24 @@ export async function fetchAndMergeStudentCloudRecords(student, displayName = ''
       };
     }
 
+    const rows = Array.isArray(data) ? data : [];
     const mergedAll = { ...localAll };
     let syncedCount = 0;
     let cloudLastDeviceId = '';
     let latestCloudTs = -1;
 
-    if (Array.isArray(data)) {
-      for (const row of data) {
-        const cloudRec = hydrateCloudPayload(row);
-        if (!cloudRec) continue;
-        syncedCount += 1;
-        mergedAll[cloudRec.paperId] = mergePrioriPaperRecord(
-          mergedAll[cloudRec.paperId],
-          cloudRec
-        );
-        const ts = new Date(cloudRec.updatedAt || 0).getTime();
-        if (cloudRec.lastDeviceId && ts >= latestCloudTs) {
-          latestCloudTs = ts;
-          cloudLastDeviceId = cloudRec.lastDeviceId;
-        }
+    for (const row of rows) {
+      const cloudRec = hydrateCloudPayload(row);
+      if (!cloudRec) continue;
+      syncedCount += 1;
+      mergedAll[cloudRec.paperId] = mergePrioriPaperRecord(
+        mergedAll[cloudRec.paperId],
+        cloudRec
+      );
+      const ts = new Date(cloudRec.updatedAt || 0).getTime();
+      if (cloudRec.lastDeviceId && ts >= latestCloudTs) {
+        latestCloudTs = ts;
+        cloudLastDeviceId = cloudRec.lastDeviceId;
       }
     }
 
@@ -692,23 +701,30 @@ async function syncPrioriRecordToCloud(identity, record) {
     return { ok: true, localOnly: true };
   }
   try {
-    const cloudDeviceId = `priori_${identity.studentKey}_${record.paperId}`;
-
-    const { data: existing, error: selectError } = await supabase
-      .from('leaderboard')
-      .select('id, book, created_at')
-      .eq('device_id', cloudDeviceId)
-      .eq('mode', PRIORI_CLOUD_MODE)
-      .eq('week', PRIORI_CLOUD_WEEK)
-      .maybeSingle();
+    const { data: existingRows, error: selectError } = await supabase.rpc(
+      'priori_student_get_records',
+      { p_student_key: identity.studentKey }
+    );
 
     if (selectError) {
+      if (isPrioriSchemaPendingError(selectError)) {
+        return {
+          ok: false,
+          schemaPending: true,
+          error:
+            '尚未於 Supabase 執行 supabase_priori_security.sql 權限隔離腳本，作答已安全存於本機（未寫入公開資料表）。',
+        };
+      }
       console.warn('學習扶助紀錄雲端查詢失敗（已保存本機）:', selectError.message);
       return { ok: false, error: selectError.message };
     }
 
+    const existing = Array.isArray(existingRows)
+      ? existingRows.find((r) => (r.paper_id || r.payload?.paperId) === record.paperId)
+      : null;
+
     let finalRecord = record;
-    if (existing?.book) {
+    if (existing) {
       const existingHydrated = hydrateCloudPayload(existing);
       if (existingHydrated) {
         finalRecord = mergePrioriPaperRecord(existingHydrated, record);
@@ -723,39 +739,21 @@ async function syncPrioriRecordToCloud(identity, record) {
       }
     }
 
-    const serialized = serializeRecordForCloud(identity, finalRecord);
+    const cloudPayload = serializeRecordForCloud(identity, finalRecord);
+    const { error: upsertError } = await supabase.rpc('priori_student_upsert_record', {
+      p_student_key: identity.studentKey,
+      p_paper_id: finalRecord.paperId,
+      p_grade: identity.grade,
+      p_class_num: identity.classNum,
+      p_seat: identity.seat,
+      p_score: Math.min(100, Math.max(0, Number(finalRecord.latestScore) || 0)),
+      p_elapsed: Math.min(7200, Math.max(0, Number(finalRecord.elapsedSeconds) || 0)),
+      p_payload: cloudPayload,
+    });
 
-    if (existing?.id) {
-      const { error: updateError } = await supabase
-        .from('leaderboard')
-        .update({
-          name: identity.displayName,
-          book: serialized,
-          score: finalRecord.latestScore,
-          time: finalRecord.masteredCount,
-          created_at: finalRecord.updatedAt,
-        })
-        .eq('id', existing.id);
-      if (updateError) {
-        console.warn('學習扶助紀錄雲端更新失敗（已保存本機）:', updateError.message);
-        return { ok: false, error: updateError.message };
-      }
-    } else {
-      const { error: insertError } = await supabase.from('leaderboard').insert([
-        {
-          device_id: cloudDeviceId,
-          name: identity.displayName,
-          mode: PRIORI_CLOUD_MODE,
-          book: serialized,
-          score: finalRecord.latestScore,
-          time: finalRecord.masteredCount,
-          week: PRIORI_CLOUD_WEEK,
-        },
-      ]);
-      if (insertError) {
-        console.warn('學習扶助紀錄雲端寫入失敗（已保存本機）:', insertError.message);
-        return { ok: false, error: insertError.message };
-      }
+    if (upsertError) {
+      console.warn('學習扶助紀錄雲端寫入失敗（已保存本機）:', upsertError.message);
+      return { ok: false, error: upsertError.message };
     }
     return { ok: true };
   } catch (err) {
@@ -784,14 +782,35 @@ function sortTeacherRecords(list) {
 }
 
 /**
- * 一次讀取全試卷的教師診斷紀錄（供班級成績矩陣跨科／跨年總覽與單卷分析共用）
+ * 一次讀取全試卷的教師診斷紀錄（僅透過伺服器驗證 token 之 `priori_teacher_list_records` RPC 讀取授權班級紀錄）
  */
-export async function fetchAllPrioriTeacherRecordsWithMeta(filterPaperId = null) {
+export async function fetchAllPrioriTeacherRecordsWithMeta(
+  filterPaperId = null,
+  options = {}
+) {
   const bucketByPaper = new Map();
   const metaIndex = loadStudentMetaIndex();
   let cloudError = '';
+  let unauthorized = false;
+  let schemaPending = false;
 
-  // 1. 收集所有本機端紀錄
+  const teacherSession = getPrioriTeacherSession();
+  const teacherToken = options.teacherToken || teacherSession?.token || '';
+  const allowedClasses = Array.isArray(options.allowedClasses)
+    ? options.allowedClasses
+    : teacherSession?.allowedClasses || ['*'];
+
+  const isClassAllowed = (gradeStr, classStr) => {
+    if (allowedClasses.includes('*')) return true;
+    const gNorm = String(parseInt(String(gradeStr || '').replace(/\D/g, ''), 10) || gradeStr);
+    const cNorm = String(parseInt(String(classStr || '').replace(/\D/g, ''), 10) || classStr);
+    return (
+      allowedClasses.includes(`${gNorm}-${cNorm}`) ||
+      allowedClasses.includes(`${gradeStr}-${classStr}`)
+    );
+  };
+
+  // 1. 收集同裝置本機端測試紀錄（需符合授權班級範圍）
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -807,16 +826,20 @@ export async function fetchAllPrioriTeacherRecordsWithMeta(filterPaperId = null)
 
       for (const [paperId, rec] of Object.entries(parsedMap)) {
         if (!rec || (filterPaperId && paperId !== filterPaperId)) continue;
+        const g = rec.studentGrade || meta.grade || parsedId.grade || '03';
+        const c =
+          rec.studentClass ||
+          meta.classNum ||
+          parsedId.classNum ||
+          (studentKey === 'guest' ? 'guest' : '1');
+        if (c !== 'guest' && !isClassAllowed(g, c)) continue;
+
         mergeStudentRecord(bucketByPaper, paperId, studentKey, {
           ...rec,
           paperId,
           studentKey,
-          studentGrade: rec.studentGrade || meta.grade || parsedId.grade || '03',
-          studentClass:
-            rec.studentClass ||
-            meta.classNum ||
-            parsedId.classNum ||
-            (studentKey === 'guest' ? 'guest' : '1'),
+          studentGrade: g,
+          studentClass: c,
           studentSeat: rec.studentSeat || meta.seat || parsedId.seat || '00',
           displayName:
             rec.displayName ||
@@ -828,28 +851,42 @@ export async function fetchAllPrioriTeacherRecordsWithMeta(filterPaperId = null)
     }
   } catch {}
 
-  // 2. 從 Supabase 讀取跨裝置紀錄（mode='priori-record', week=0）
+  // 2. 透過伺服器授權 RPC 從 `priori_records` 隔離資料表讀取授權班級跨裝置紀錄
   if (typeof window === 'undefined' || !window.__CI__) {
-    try {
-      const { data, error } = await supabase
-        .from('leaderboard')
-        .select('id, device_id, name, book, score, time, created_at')
-        .eq('mode', PRIORI_CLOUD_MODE)
-        .eq('week', PRIORI_CLOUD_WEEK)
-        .order('created_at', { ascending: false })
-        .limit(500);
+    if (teacherToken) {
+      try {
+        const { data, error } = await supabase.rpc('priori_teacher_list_records', {
+          p_token: teacherToken,
+          p_paper_id: filterPaperId || null,
+          p_grade: options.grade || null,
+          p_class_num: options.classNum || null,
+        });
 
-      if (error) {
-        cloudError = error.message || '雲端紀錄讀取失敗';
-      } else if (Array.isArray(data)) {
-        for (const row of data) {
-          const cloudRec = hydrateCloudPayload(row);
-          if (!cloudRec || (filterPaperId && cloudRec.paperId !== filterPaperId)) continue;
-          mergeStudentRecord(bucketByPaper, cloudRec.paperId, cloudRec.studentKey, cloudRec);
+        if (error) {
+          if (isPrioriSchemaPendingError(error)) {
+            schemaPending = true;
+            cloudError =
+              '尚未於 Supabase 執行 supabase_priori_security.sql 權限隔離腳本，目前僅顯示本機與示範班資料。';
+          } else if (isPrioriUnauthorizedError(error)) {
+            unauthorized = true;
+            cloudError = '教師伺服器憑證已失效或過期，請重新登入。';
+          } else {
+            cloudError = error.message || '雲端紀錄讀取失敗';
+          }
+        } else if (Array.isArray(data)) {
+          for (const row of data) {
+            const cloudRec = hydrateCloudPayload(row);
+            if (!cloudRec || (filterPaperId && cloudRec.paperId !== filterPaperId)) continue;
+            mergeStudentRecord(bucketByPaper, cloudRec.paperId, cloudRec.studentKey, cloudRec);
+          }
         }
+      } catch (err) {
+        cloudError = err?.message || '雲端連線異常';
       }
-    } catch (err) {
-      cloudError = err?.message || '雲端連線異常';
+    } else if (teacherSession?.schemaPendingOnly) {
+      schemaPending = true;
+      cloudError =
+        '尚未於 Supabase 執行 supabase_priori_security.sql 權限隔離腳本，目前僅顯示本機與示範班資料。';
     }
   }
 
@@ -857,7 +894,7 @@ export async function fetchAllPrioriTeacherRecordsWithMeta(filterPaperId = null)
   for (const [pid, byStudent] of bucketByPaper.entries()) {
     recordsByPaperId[pid] = sortTeacherRecords(byStudent.values());
   }
-  return { recordsByPaperId, cloudError };
+  return { recordsByPaperId, cloudError, unauthorized, schemaPending };
 }
 
 /**

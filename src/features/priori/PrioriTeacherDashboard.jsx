@@ -33,11 +33,13 @@ import {
   saveLocalSeatNames,
 } from './prioriStorage';
 import {
-  verifyPrioriTeacherPassword,
+  getPrioriTeacherSession,
+  clearPrioriTeacherSession,
+  loginPrioriTeacherServer,
+  logoutPrioriTeacherServer,
   loadEncryptedRosterEnvelope,
 } from './prioriSecurity';
 
-const AUTH_SESSION_KEY = 'wutai_priori_teacher_authed';
 const ALL_YEARS_DESC = ['115', '114', '113', '112', '111', '110', '109', '108'];
 const GRADE_TABS = ['1', '2', '3', '4', '5', '6'];
 const PAPER_GRADE_OPTIONS = ['3', '4', '5', '6'];
@@ -147,15 +149,11 @@ function summarizeQuestionText(q, maxLen = 24) {
 }
 
 export function PrioriTeacherDashboard({ onBack }) {
-  const [isAuthed, setIsAuthed] = useState(() => {
-    try {
-      return sessionStorage.getItem(AUTH_SESSION_KEY) === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const [teacherSession, setTeacherSession] = useState(() => getPrioriTeacherSession());
+  const isAuthed = Boolean(teacherSession);
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // 主分頁：班級成績矩陣（預設） vs 各題診斷分析
   const [activeTab, setActiveTab] = useState('matrix'); // 'matrix' | 'questions'
@@ -223,21 +221,31 @@ export function PrioriTeacherDashboard({ onBack }) {
   );
 
   const loadAllData = useCallback(async () => {
+    if (!teacherSession) return;
     setIsLoading(true);
     try {
-      const [{ recordsByPaperId, cloudError: recErr }, { envelope, cloudError: rosErr }] =
-        await Promise.all([
-          fetchAllPrioriTeacherRecordsWithMeta(),
-          loadEncryptedRosterEnvelope(),
-        ]);
+      const [recRes, rosRes] = await Promise.all([
+        fetchAllPrioriTeacherRecordsWithMeta(null, {
+          teacherToken: teacherSession.token,
+          allowedClasses: teacherSession.allowedClasses,
+        }),
+        loadEncryptedRosterEnvelope(teacherSession.token),
+      ]);
 
-      setRealRecordsByPaper(recordsByPaperId || {});
-      setCloudError(recErr || rosErr || '');
-      if (envelope) setRosterEnvelope(envelope);
+      if (recRes.unauthorized || rosRes.unauthorized) {
+        clearPrioriTeacherSession();
+        setTeacherSession(null);
+        setAuthError('教師伺服器憑證已失效或過期，請重新驗證登入。');
+        return;
+      }
+
+      setRealRecordsByPaper(recRes.recordsByPaperId || {});
+      setCloudError(recRes.cloudError || rosRes.cloudError || '');
+      if (rosRes.envelope) setRosterEnvelope(rosRes.envelope);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [teacherSession]);
 
   useEffect(() => {
     if (isAuthed) {
@@ -245,25 +253,37 @@ export function PrioriTeacherDashboard({ onBack }) {
     }
   }, [isAuthed, loadAllData]);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (verifyPrioriTeacherPassword(password)) {
-      try {
-        sessionStorage.setItem(AUTH_SESSION_KEY, 'true');
-      } catch {}
-      setIsAuthed(true);
-      setAuthError('');
-      setPassword('');
-    } else {
-      setAuthError('教師密碼錯誤，請再試一次。');
+    if (isLoggingIn) return;
+    setIsLoggingIn(true);
+    setAuthError('');
+    try {
+      const res = await loginPrioriTeacherServer(password);
+      if (res.ok && res.session) {
+        setTeacherSession(res.session);
+        setAuthError('');
+        setPassword('');
+        const allowed = res.session.allowedClasses || ['*'];
+        if (!allowed.includes('*') && allowed.length > 0) {
+          const [g, c] = String(allowed[0]).split('-');
+          if (g && c) {
+            setSelectedGrade(g);
+            setSelectedClass(c);
+          }
+        }
+      } else {
+        setAuthError(res.error || '教師密碼錯誤，請再試一次。');
+      }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
-  const handleLogout = () => {
-    try {
-      sessionStorage.removeItem(AUTH_SESSION_KEY);
-    } catch {}
-    setIsAuthed(false);
+  const handleLogout = async () => {
+    const token = teacherSession?.token || '';
+    await logoutPrioriTeacherServer(token);
+    setTeacherSession(null);
     setPassword('');
     setRosterEntries([]);
     setInspectedCell(null);
@@ -774,10 +794,11 @@ export function PrioriTeacherDashboard({ onBack }) {
 
             <button
               type="submit"
-              className="w-full py-3 rounded-2xl bg-teal-700 hover:bg-teal-600 text-white font-black text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+              disabled={isLoggingIn}
+              className="w-full py-3 rounded-2xl bg-teal-700 hover:bg-teal-600 disabled:opacity-60 text-white font-black text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
             >
               <Unlock className="w-4 h-4" />
-              <span>驗證進入教師診斷台</span>
+              <span>{isLoggingIn ? '伺服器驗證中…' : '驗證進入教師診斷台'}</span>
             </button>
           </form>
         </div>
@@ -2034,6 +2055,7 @@ export function PrioriTeacherDashboard({ onBack }) {
         onClose={() => setIsRosterModalOpen(false)}
         existingEnvelope={rosterEnvelope}
         decryptedCount={rosterEntries.length}
+        teacherToken={teacherSession?.token || ''}
         onRosterUnlocked={(entries, env) => {
           setRosterEntries(entries);
           if (env) setRosterEnvelope(env);

@@ -6,9 +6,60 @@ const TEACHER_PASSWORD_DIGEST =
   '4fc4bb3b6f9a9f0b9e5ebf353eb487440be0682297f853f37b674844301125ea';
 
 const ROSTER_LOCAL_KEY = 'wutai_priori_roster_enc_v1';
-const ROSTER_CLOUD_DEVICE_ID = 'priori_school_roster_v1';
-const ROSTER_CLOUD_MODE = 'priori-roster';
-const ROSTER_CLOUD_WEEK = 0;
+export const TEACHER_SESSION_STORAGE_KEY = 'wutai_priori_teacher_session_v1';
+const LEGACY_AUTH_SESSION_KEY = 'wutai_priori_teacher_authed';
+
+export function isPrioriSchemaPendingError(err) {
+  const code = String(err?.code || '');
+  const msg = String(err?.message || '').toLowerCase();
+  return (
+    code === 'PGRST202' ||
+    code === '42883' ||
+    msg.includes('could not find the function') ||
+    msg.includes('priori_teacher_') ||
+    msg.includes('priori_student_')
+  );
+}
+
+export function isPrioriUnauthorizedError(err) {
+  const code = String(err?.code || '');
+  const msg = String(err?.message || '').toLowerCase();
+  return code === '42501' || msg.includes('unauthorized') || msg.includes('forbidden');
+}
+
+export function getPrioriTeacherSession() {
+  try {
+    sessionStorage.removeItem(LEGACY_AUTH_SESSION_KEY);
+    const raw = sessionStorage.getItem(TEACHER_SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (parsed.schemaPendingOnly) return parsed;
+    if (!parsed.token || !parsed.expiresAt) return null;
+    if (new Date(parsed.expiresAt).getTime() <= Date.now()) {
+      sessionStorage.removeItem(TEACHER_SESSION_STORAGE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function savePrioriTeacherSession(session) {
+  try {
+    sessionStorage.removeItem(LEGACY_AUTH_SESSION_KEY);
+    if (session) {
+      sessionStorage.setItem(TEACHER_SESSION_STORAGE_KEY, JSON.stringify(session));
+    } else {
+      sessionStorage.removeItem(TEACHER_SESSION_STORAGE_KEY);
+    }
+  } catch {}
+}
+
+export function clearPrioriTeacherSession() {
+  savePrioriTeacherSession(null);
+}
 
 /**
  * 純 JS SHA-256（確保在非 HTTPS 區域網路或任何瀏覽器環境下皆能正常計算雜湊）
@@ -95,11 +146,71 @@ function sha256HexSync(str) {
 }
 
 /**
- * 驗證教師後台密碼（不在前端程式碼保留明文密碼）
+ * 驗證教師後台密碼（本地備援雜湊核對，僅供資料庫尚未套用隔離腳本時進入離線示範檢視；不會解鎖雲端資料）
  */
 export function verifyPrioriTeacherPassword(input) {
   if (typeof input !== 'string') return false;
   return sha256HexSync(`${TEACHER_PASSWORD_SALT}${input.trim()}`) === TEACHER_PASSWORD_DIGEST;
+}
+
+/**
+ * 透過 Supabase SECURITY DEFINER RPC 在伺服器端驗證教師身分並核發 12 小時不透明工作階段 Token
+ */
+export async function loginPrioriTeacherServer(password) {
+  const clean = typeof password === 'string' ? password.trim() : '';
+  if (!clean) {
+    return { ok: false, error: '請輸入教師密碼' };
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('priori_teacher_login', {
+      p_password: clean,
+    });
+
+    if (error) {
+      if (isPrioriSchemaPendingError(error)) {
+        if (verifyPrioriTeacherPassword(clean)) {
+          const fallbackSession = {
+            token: '',
+            teacherId: 'local-preview',
+            displayName: '離線示範預覽（尚未套用資料庫權限腳本）',
+            allowedClasses: ['*'],
+            schemaPendingOnly: true,
+            expiresAt: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
+          };
+          savePrioriTeacherSession(fallbackSession);
+          return { ok: true, session: fallbackSession, schemaPending: true };
+        }
+        return { ok: false, error: '教師密碼錯誤，請再試一次。' };
+      }
+      return { ok: false, error: error.message || '伺服器驗證失敗，請稍後再試。' };
+    }
+
+    if (data?.authorized && data?.token) {
+      const session = {
+        token: data.token,
+        teacherId: data.teacher_id || 'admin',
+        displayName: data.display_name || '授權教師',
+        allowedClasses: Array.isArray(data.allowed_classes) ? data.allowed_classes : ['*'],
+        schemaPendingOnly: false,
+        expiresAt: data.expires_at || new Date(Date.now() + 12 * 3600 * 1000).toISOString(),
+      };
+      savePrioriTeacherSession(session);
+      return { ok: true, session, schemaPending: false };
+    }
+
+    return { ok: false, error: '教師密碼錯誤，請再試一次。' };
+  } catch (err) {
+    return { ok: false, error: err?.message || '教師登入連線失敗' };
+  }
+}
+
+export async function logoutPrioriTeacherServer(token) {
+  clearPrioriTeacherSession();
+  if (!token) return;
+  try {
+    await supabase.rpc('priori_teacher_logout', { p_token: token });
+  } catch {}
 }
 
 /**
@@ -314,9 +425,9 @@ export async function decryptRosterEnvelope(envelope, passphrase) {
 }
 
 /**
- * 讀取本機與雲端的加密名冊封包（僅讀取密文，不含明文個資）
+ * 讀取本機與雲端的加密名冊封包（透過伺服器驗證教師工作階段 RPC 存取 `priori_rosters` 隔離表，絕不讀取公開 leaderboard）
  */
-export async function loadEncryptedRosterEnvelope() {
+export async function loadEncryptedRosterEnvelope(teacherToken = '') {
   let localEnv = null;
   try {
     const raw = localStorage.getItem(ROSTER_LOCAL_KEY);
@@ -327,22 +438,36 @@ export async function loadEncryptedRosterEnvelope() {
     return { envelope: localEnv, cloudError: '' };
   }
 
+  const activeToken = teacherToken || getPrioriTeacherSession()?.token || '';
+  if (!activeToken) {
+    return { envelope: localEnv, cloudError: '' };
+  }
+
   try {
-    const { data, error } = await supabase
-      .from('leaderboard')
-      .select('book, created_at')
-      .eq('device_id', ROSTER_CLOUD_DEVICE_ID)
-      .eq('mode', ROSTER_CLOUD_MODE)
-      .eq('week', ROSTER_CLOUD_WEEK)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc('priori_teacher_get_roster', {
+      p_token: activeToken,
+    });
 
     if (error) {
-      return { envelope: localEnv, cloudError: error.message };
+      if (isPrioriSchemaPendingError(error)) {
+        return {
+          envelope: localEnv,
+          cloudError:
+            '尚未於 Supabase 執行 supabase_priori_security.sql 權限隔離腳本，目前僅讀取本機名冊密文。',
+          schemaPending: true,
+        };
+      }
+      return {
+        envelope: localEnv,
+        cloudError: error.message,
+        unauthorized: isPrioriUnauthorizedError(error),
+      };
     }
-    if (data?.book) {
-      const cloudEnv = JSON.parse(data.book);
+
+    if (data?.envelope) {
+      const cloudEnv = data.envelope;
       const localTs = new Date(localEnv?.updatedAt || 0).getTime();
-      const cloudTs = new Date(cloudEnv?.updatedAt || data.created_at || 0).getTime();
+      const cloudTs = new Date(cloudEnv?.updatedAt || data.updated_at || 0).getTime();
       if (!localEnv || cloudTs >= localTs) {
         try {
           localStorage.setItem(ROSTER_LOCAL_KEY, JSON.stringify(cloudEnv));
@@ -358,9 +483,9 @@ export async function loadEncryptedRosterEnvelope() {
 }
 
 /**
- * 將加密後之名冊封包保存於本機並同步至 Supabase 隔離通道（不含任何明文）
+ * 將加密後之名冊封包保存於本機並透過授權 RPC 同步至 `priori_rosters` 隔離資料表（不含任何明文）
  */
-export async function saveEncryptedRosterEnvelope(envelope) {
+export async function saveEncryptedRosterEnvelope(envelope, teacherToken = '') {
   try {
     localStorage.setItem(ROSTER_LOCAL_KEY, JSON.stringify(envelope));
   } catch {}
@@ -369,45 +494,32 @@ export async function saveEncryptedRosterEnvelope(envelope) {
     return { ok: true };
   }
 
+  const activeToken = teacherToken || getPrioriTeacherSession()?.token || '';
+  if (!activeToken) {
+    return {
+      ok: false,
+      error: '缺乏有效教師伺服器憑證（或尚未套用 supabase_priori_security.sql），已僅加密存於本機。',
+    };
+  }
+
   try {
-    const serialized = JSON.stringify(envelope);
-    const { data: existing, error: selErr } = await supabase
-      .from('leaderboard')
-      .select('id')
-      .eq('device_id', ROSTER_CLOUD_DEVICE_ID)
-      .eq('mode', ROSTER_CLOUD_MODE)
-      .eq('week', ROSTER_CLOUD_WEEK)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc('priori_teacher_save_roster', {
+      p_token: activeToken,
+      p_envelope: envelope,
+      p_entry_count: Number(envelope.count) || 0,
+    });
 
-    if (selErr) return { ok: false, error: selErr.message };
-
-    if (existing?.id) {
-      const { error: updErr } = await supabase
-        .from('leaderboard')
-        .update({
-          name: 'PrioriRoster',
-          book: serialized,
-          score: Number(envelope.count) || 0,
-          time: 1,
-          created_at: envelope.updatedAt,
-        })
-        .eq('id', existing.id);
-      if (updErr) return { ok: false, error: updErr.message };
-    } else {
-      const { error: insErr } = await supabase.from('leaderboard').insert([
-        {
-          device_id: ROSTER_CLOUD_DEVICE_ID,
-          name: 'PrioriRoster',
-          mode: ROSTER_CLOUD_MODE,
-          book: serialized,
-          score: Number(envelope.count) || 0,
-          time: 1,
-          week: ROSTER_CLOUD_WEEK,
-        },
-      ]);
-      if (insErr) return { ok: false, error: insErr.message };
+    if (error) {
+      if (isPrioriSchemaPendingError(error)) {
+        return {
+          ok: false,
+          schemaPending: true,
+          error: '尚未於 Supabase 執行 supabase_priori_security.sql，名冊僅暫存本機加密區。',
+        };
+      }
+      return { ok: false, error: error.message };
     }
-    return { ok: true };
+    return { ok: Boolean(data?.ok ?? true) };
   } catch (err) {
     return { ok: false, error: err?.message || '雲端同步加密名冊失敗' };
   }

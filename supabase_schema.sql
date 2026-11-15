@@ -51,7 +51,7 @@ BEGIN
         ALTER TABLE public.leaderboard ADD CONSTRAINT chk_leaderboard_name CHECK (char_length(name) >= 1 AND char_length(name) <= 20);
     END IF;
     ALTER TABLE public.leaderboard DROP CONSTRAINT IF EXISTS chk_leaderboard_week;
-    -- week = 0 保留給非週期性隔離通道（如 exam-audit-note / exam-student-report / priori-record / priori-roster）
+    -- week = 0 保留給非週期性隔離通道（exam-audit-note / exam-student-report；PRIORI 已獨立遷移至 supabase_priori_security.sql 專屬 RLS 資料表）
     ALTER TABLE public.leaderboard ADD CONSTRAINT chk_leaderboard_week CHECK (week >= 0 AND week <= 53);
 END $$;
 

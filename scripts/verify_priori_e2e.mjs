@@ -67,6 +67,9 @@ class CDP {
     this.exceptions = [];
     this.consoleErrors = [];
     this.mockRows = [];
+    this.prioriRecords = [];
+    this.prioriRoster = null;
+    this.teacherSessions = new Map();
     this.mockRequests = [];
     this.nextRowSeq = 1;
     this.blockCloudReads = false;
@@ -82,6 +85,141 @@ class CDP {
     } catch {
       return { status: 200, body: wantsSingle ? 'null' : '[]' };
     }
+
+    let payload = null;
+    try {
+      payload = req.postData ? JSON.parse(req.postData) : null;
+    } catch {}
+
+    // Direct REST table access to PRIORI isolated tables MUST be blocked by RLS
+    if (
+      parsedUrl.pathname.includes('/rest/v1/priori_records') ||
+      parsedUrl.pathname.includes('/rest/v1/priori_rosters') ||
+      parsedUrl.pathname.includes('/rest/v1/priori_teacher_auth') ||
+      parsedUrl.pathname.includes('/rest/v1/priori_teacher_sessions')
+    ) {
+      return { status: 401, body: JSON.stringify({ code: '42501', message: 'permission denied by RLS' }) };
+    }
+
+    // Scoped SECURITY DEFINER RPC simulation
+    if (parsedUrl.pathname.includes('/rest/v1/rpc/')) {
+      const rpcName = parsedUrl.pathname.split('/rest/v1/rpc/')[1] || '';
+
+      if (rpcName === 'priori_teacher_login') {
+        const pw = String(payload?.p_password || '').trim();
+        if (pw === 'wt7902230') {
+          const token = `mock-teacher-token-${this.nextRowSeq++}-${'a'.repeat(32)}`;
+          const expiresAt = new Date(Date.now() + 12 * 3600 * 1000).toISOString();
+          this.teacherSessions.set(token, {
+            teacherId: 'admin',
+            allowedClasses: ['*'],
+            expiresAt,
+          });
+          return {
+            status: 200,
+            body: JSON.stringify({
+              authorized: true,
+              token,
+              teacher_id: 'admin',
+              display_name: '霧臺國小管理教師',
+              allowed_classes: ['*'],
+              expires_at: expiresAt,
+            }),
+          };
+        }
+        return { status: 200, body: JSON.stringify({ authorized: false }) };
+      }
+
+      if (rpcName === 'priori_teacher_logout') {
+        if (payload?.p_token) this.teacherSessions.delete(payload.p_token);
+        return { status: 200, body: JSON.stringify({ ok: true }) };
+      }
+
+      if (rpcName === 'priori_teacher_list_records') {
+        const sess = this.teacherSessions.get(payload?.p_token || '');
+        if (!sess) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Unauthorized teacher session' }) };
+        }
+        const hits = this.prioriRecords.filter((r) => {
+          if (payload?.p_paper_id && r.paper_id !== payload.p_paper_id) return false;
+          if (!sess.allowedClasses.includes('*')) {
+            const cKey = `${parseInt(r.grade, 10)}-${parseInt(r.class_num, 10)}`;
+            if (!sess.allowedClasses.includes(cKey)) return false;
+          }
+          return true;
+        });
+        return { status: 200, body: JSON.stringify(hits) };
+      }
+
+      if (rpcName === 'priori_teacher_get_roster') {
+        if (!this.teacherSessions.get(payload?.p_token || '')) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Unauthorized teacher session' }) };
+        }
+        return {
+          status: 200,
+          body: JSON.stringify(
+            this.prioriRoster || { envelope: null, updated_at: null }
+          ),
+        };
+      }
+
+      if (rpcName === 'priori_teacher_save_roster') {
+        const sess = this.teacherSessions.get(payload?.p_token || '');
+        if (!sess || !sess.allowedClasses.includes('*')) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Unauthorized teacher session' }) };
+        }
+        const now = new Date().toISOString();
+        this.prioriRoster = {
+          envelope: payload?.p_envelope,
+          entry_count: Number(payload?.p_entry_count) || 0,
+          updated_at: now,
+        };
+        return { status: 200, body: JSON.stringify({ ok: true, updated_at: now }) };
+      }
+
+      if (rpcName === 'priori_student_get_records') {
+        const sk = String(payload?.p_student_key || '').trim();
+        if (!/^\d{6}$/.test(sk) || sk === '999999') {
+          return { status: 400, body: JSON.stringify({ code: '22023', message: 'Invalid student key scope' }) };
+        }
+        if (this.blockCloudReads) {
+          return { status: 200, body: '[]' };
+        }
+        return {
+          status: 200,
+          body: JSON.stringify(this.prioriRecords.filter((r) => r.student_key === sk)),
+        };
+      }
+
+      if (rpcName === 'priori_student_upsert_record') {
+        const sk = String(payload?.p_student_key || '').trim();
+        const pid = String(payload?.p_paper_id || '').trim();
+        if (!/^\d{6}$/.test(sk) || sk === '999999' || !pid) {
+          return { status: 400, body: JSON.stringify({ code: '22023', message: 'Invalid student record scope' }) };
+        }
+        const now = new Date().toISOString();
+        const recordKey = `priori_${sk}_${pid}`;
+        const nextRow = {
+          record_key: recordKey,
+          student_key: sk,
+          paper_id: pid,
+          grade: String(payload?.p_grade || '03'),
+          class_num: String(payload?.p_class_num || '1'),
+          seat: String(payload?.p_seat || '01'),
+          score: Number(payload?.p_score) || 0,
+          elapsed_seconds: Number(payload?.p_elapsed) || 0,
+          payload: payload?.p_payload,
+          updated_at: now,
+        };
+        const idx = this.prioriRecords.findIndex((r) => r.record_key === recordKey);
+        if (idx >= 0) this.prioriRecords[idx] = nextRow;
+        else this.prioriRecords.push(nextRow);
+        return { status: 200, body: JSON.stringify({ ok: true, record_key: recordKey, updated_at: now }) };
+      }
+
+      return { status: 404, body: JSON.stringify({ code: 'PGRST202', message: `Unknown RPC ${rpcName}` }) };
+    }
+
     if (!parsedUrl.pathname.includes('/leaderboard')) {
       return { status: 200, body: wantsSingle ? 'null' : '[]' };
     }
@@ -110,11 +248,6 @@ class CDP {
       }
       return { status: 200, body: JSON.stringify(hits) };
     }
-
-    let payload = null;
-    try {
-      payload = req.postData ? JSON.parse(req.postData) : null;
-    } catch {}
 
     if (method === 'POST') {
       const items = Array.isArray(payload) ? payload : payload ? [payload] : [];
@@ -1090,6 +1223,8 @@ async function run() {
       source: `window.__CI__ = false;`,
     });
     client.mockRows = [];
+    client.prioriRecords = [];
+    client.mockRequests = [];
     client.blockCloudReads = false;
 
     const resetLocalPrioriForSeat = async (seatId = '030105') => {
@@ -1156,10 +1291,10 @@ async function run() {
     await start114MathAndAnswer(1, 3);
     await submitQuiz();
     for (let i = 0; i < 20; i++) {
-      if (client.mockRows.some((r) => r.device_id === 'priori_030105_114-math-g3')) break;
+      if (client.prioriRecords.some((r) => r.record_key === 'priori_030105_114-math-g3')) break;
       await sleep(100);
     }
-    const afterDev1Row = client.mockRows.find((r) => r.device_id === 'priori_030105_114-math-g3');
+    const afterDev1Row = client.prioriRecords.find((r) => r.record_key === 'priori_030105_114-math-g3');
     if (!afterDev1Row) {
       const dev1Diag = await client.eval(`({
         ci: window.__CI__,
@@ -1167,7 +1302,7 @@ async function run() {
         prioriKeys: Object.keys(localStorage).filter(k => k.includes('priori')),
         bodyHead: (document.body.innerText || '').slice(0, 500),
       })`);
-      assert.fail(`Expected Device 1 record synced to Supabase mock; dev1Diag=${JSON.stringify(dev1Diag)}; reqs=${JSON.stringify(client.mockRequests.slice(-10))}; mockRows=${JSON.stringify(client.mockRows)}`);
+      assert.fail(`Expected Device 1 record synced to priori_records RPC; dev1Diag=${JSON.stringify(dev1Diag)}; reqs=${JSON.stringify(client.mockRequests.slice(-10))}; prioriRecords=${JSON.stringify(client.prioriRecords)}`);
     }
     assert.equal(afterDev1Row.score, 4, `Expected Device 1 cloud score 4, got ${afterDev1Row.score}; row=${JSON.stringify(afterDev1Row)}`);
 
@@ -1182,14 +1317,14 @@ async function run() {
 
     let mergedRow = null;
     for (let i = 0; i < 25; i++) {
-      const row = client.mockRows.find((r) => r.device_id === 'priori_030105_114-math-g3');
+      const row = client.prioriRecords.find((r) => r.record_key === 'priori_030105_114-math-g3');
       if (row && row.score === 8) {
         mergedRow = row;
         break;
       }
       await sleep(120);
     }
-    assert.ok(mergedRow, `Expected cloud record merged to score 8; rows=${JSON.stringify(client.mockRows)}`);
+    assert.ok(mergedRow, `Expected cloud record merged to score 8; rows=${JSON.stringify(client.prioriRecords)}`);
 
     // Hub reflects recomputed 8 分 on fresh reload & hydrated record has score=8, firstScore=8, correctCount=2
     await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori` });
@@ -1212,7 +1347,8 @@ async function run() {
     `);
     assert.equal(hubMerged?.ok, true, `Expected Hub 114-math-g3 strip to show 8 分: ${JSON.stringify(hubMerged)}`);
 
-    // Teacher Dashboard 3年甲班 Seat 05 shows 8 分 in BOTH 初測成績（預設） and 精熟後成果
+    // Teacher Dashboard 3年甲班 Seat 05 shows 8 分 in BOTH 初測成績（預設） and 精熟後成果 (fresh server login!)
+    await client.eval(`sessionStorage.removeItem('wutai_priori_teacher_session_v1'); sessionStorage.removeItem('wutai_priori_teacher_authed');`);
     await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&tab=teacher` });
     await sleep(700);
     const teacherMerged = await client.eval(`
@@ -1231,7 +1367,11 @@ async function run() {
         if (pwInput) {
           setInput(pwInput, 'wt7902230');
           Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
-          await new Promise((r) => setTimeout(r, 350));
+          const deadline = Date.now() + 5000;
+          while (Date.now() < deadline) {
+            if (document.querySelector('section[aria-label="班級成績總覽矩陣"]')) break;
+            await new Promise((r) => setTimeout(r, 120));
+          }
         }
         const gradeSel = document.querySelector('select[aria-label="篩選年級"]');
         const classSel = document.querySelector('select[aria-label="篩選班級"]');
@@ -1261,7 +1401,21 @@ async function run() {
       })()
     `);
     assert.equal(teacherMerged?.ok, true, `Teacher seat 05 staggered merge failed: ${JSON.stringify(teacherMerged)}`);
-    console.log('✓ Test I (Two-device staggered cross-sync -> merged 8 分 / 2 題 -> Hub & Teacher verified) passed');
+
+    // Verify zero Priori writes or queries hit public leaderboard table
+    const leakedLeaderboardReqs = client.mockRequests.filter(
+      (r) => r.url.includes('/leaderboard') && (r.url.includes('priori') || r.method !== 'GET')
+    );
+    assert.equal(
+      leakedLeaderboardReqs.length,
+      0,
+      `PRIORI must not read/write public leaderboard: ${JSON.stringify(leakedLeaderboardReqs)}`
+    );
+    const rpcUrls = client.mockRequests.filter((r) => r.url.includes('/rpc/priori_')).map((r) => r.url.split('/rpc/')[1]);
+    assert.ok(rpcUrls.includes('priori_student_upsert_record'), `Missing student upsert RPC call: ${JSON.stringify(rpcUrls)}`);
+    assert.ok(rpcUrls.includes('priori_teacher_login'), `Missing teacher login RPC call: ${JSON.stringify(rpcUrls)}`);
+    assert.ok(rpcUrls.includes('priori_teacher_list_records'), `Missing teacher list RPC call: ${JSON.stringify(rpcUrls)}`);
+    console.log('✓ Test I (Isolated RPC cross-sync -> merged 8 分 / 2 題 -> Server Teacher auth & zero leaderboard leak verified) passed');
 
     assert.equal(client.exceptions.length, 0, `Page exceptions: ${client.exceptions.join('; ')}`);
     assert.equal(client.consoleErrors.length, 0, `Console errors: ${client.consoleErrors.join('; ')}`);
