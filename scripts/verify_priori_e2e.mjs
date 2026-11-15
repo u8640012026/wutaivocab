@@ -1,22 +1,33 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const chromeCandidates = [
-  process.env.CHROME_PATH,
-  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-  'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-  '/usr/bin/google-chrome',
-  '/usr/bin/chromium',
-  '/usr/bin/chromium-browser',
-].filter(Boolean);
-
-const CHROME_PATH = chromeCandidates.find((p) => fs.existsSync(p));
-if (!CHROME_PATH) {
-  throw new Error(`Chrome binary not found. Checked: ${chromeCandidates.join(', ')}`);
+function findChromePath() {
+  const candidates = [
+    process.env.CHROME_PATH,
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    '/usr/bin/google-chrome',
+    '/opt/google/chrome/chrome',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+  ].filter(Boolean);
+  const direct = candidates.find((p) => fs.existsSync(p));
+  if (direct) return direct;
+  if (process.platform !== 'win32') {
+    try {
+      const resolved = execSync('command -v google-chrome || command -v chromium || command -v chromium-browser || true', {
+        encoding: 'utf8',
+      }).trim();
+      if (resolved && fs.existsSync(resolved)) return resolved;
+    } catch {}
+  }
+  throw new Error(`Chrome binary not found. Checked: ${candidates.join(', ')}`);
 }
+
+const CHROME_PATH = findChromePath();
 
 const PREVIEW_PORT = 4199;
 const CDP_PORT = 9269;
@@ -68,6 +79,36 @@ class CDP {
         this.pending.delete(msg.id);
         if (msg.error) reject(new Error(msg.error.message || JSON.stringify(msg.error)));
         else resolve(msg.result);
+      } else if (msg.method === 'Fetch.requestPaused') {
+        // Isolate E2E from live Supabase so CI never mutates or depends on production cloud data
+        const hdrs = msg.params.request?.headers || {};
+        const origin = hdrs.Origin || hdrs.origin || '*';
+        const accept = hdrs.Accept || hdrs.accept || '';
+        const requestedHeaders = hdrs['Access-Control-Request-Headers'] || hdrs['access-control-request-headers'];
+        const corsHeaders = [
+          { name: 'Access-Control-Allow-Origin', value: origin },
+          { name: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, PATCH, DELETE, OPTIONS' },
+          {
+            name: 'Access-Control-Allow-Headers',
+            value: requestedHeaders || 'apikey, authorization, content-type, accept, prefer, x-client-info, x-supabase-api-version, range',
+          },
+          { name: 'Content-Type', value: 'application/json' },
+        ];
+        if (msg.params.request?.method === 'OPTIONS') {
+          this.send('Fetch.fulfillRequest', {
+            requestId: msg.params.requestId,
+            responseCode: 204,
+            responseHeaders: corsHeaders,
+          }).catch(() => {});
+        } else {
+          const emptyJson = accept.includes('vnd.pgrst.object+json') ? 'null' : '[]';
+          this.send('Fetch.fulfillRequest', {
+            requestId: msg.params.requestId,
+            responseCode: 200,
+            responseHeaders: corsHeaders,
+            body: Buffer.from(emptyJson).toString('base64'),
+          }).catch(() => {});
+        }
       } else if (msg.method === 'Runtime.exceptionThrown') {
         this.exceptions.push(JSON.stringify(msg.params?.exceptionDetails));
       } else if (msg.method === 'Console.messageAdded' && msg.params?.message?.level === 'error') {
@@ -107,17 +148,22 @@ async function run() {
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'priori-chrome-'));
 
   const server = spawn(
-    process.platform === 'win32' ? 'cmd.exe' : 'npx',
-    process.platform === 'win32'
-      ? ['/c', `npx vite preview --port ${PREVIEW_PORT} --strictPort --host 127.0.0.1`]
-      : ['vite', 'preview', '--port', String(PREVIEW_PORT), '--strictPort', '--host', '127.0.0.1'],
-    { cwd: process.cwd(), stdio: 'ignore' }
+    process.execPath,
+    ['node_modules/vite/bin/vite.js', 'preview', '--port', String(PREVIEW_PORT), '--strictPort', '--host', '127.0.0.1'],
+    { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] }
   );
+  let serverLog = '';
+  server.stderr?.on('data', (d) => { serverLog += d.toString(); });
   let chrome = null;
+  let chromeLog = '';
   let client = null;
 
   try {
-    await waitForHttp(BASE_URL);
+    try {
+      await waitForHttp(BASE_URL);
+    } catch (err) {
+      throw new Error(`${err.message}\nVite stderr: ${serverLog}`);
+    }
     const chromeFlags = [
       '--headless=new',
       `--remote-debugging-port=${CDP_PORT}`,
@@ -127,12 +173,17 @@ async function run() {
       '--disable-gpu',
     ];
     if (process.platform !== 'win32') {
-      chromeFlags.push('--no-sandbox', '--disable-setuid-sandbox');
+      chromeFlags.push('--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage');
     }
 
-    chrome = spawn(CHROME_PATH, chromeFlags, { stdio: 'ignore' });
+    chrome = spawn(CHROME_PATH, chromeFlags, { stdio: ['ignore', 'ignore', 'pipe'] });
+    chrome.stderr?.on('data', (d) => { chromeLog += d.toString(); });
 
-    await waitForHttp(`http://127.0.0.1:${CDP_PORT}/json/list`);
+    try {
+      await waitForHttp(`http://127.0.0.1:${CDP_PORT}/json/list`);
+    } catch (err) {
+      throw new Error(`${err.message}\nChrome stderr: ${chromeLog}`);
+    }
     const tabs = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json/list`)).json();
     const pageTab = tabs.find((t) => t.type === 'page') || tabs[0];
     assert.ok(pageTab?.webSocketDebuggerUrl, 'Missing CDP page tab');
@@ -142,6 +193,9 @@ async function run() {
     await client.send('Page.enable');
     await client.send('Runtime.enable');
     await client.send('Console.enable');
+    await client.send('Fetch.enable', {
+      patterns: [{ urlPattern: '*supabase.co*' }],
+    });
     await client.send('Page.addScriptToEvaluateOnNewDocument', {
       source: `
         window.__CI__ = true;
@@ -164,10 +218,20 @@ async function run() {
 
     const portalResult = await client.eval(`
       (async () => {
-        const heading = Array.from(document.querySelectorAll('h3')).find(el => (el.innerText || '').includes('學習扶助練習館'));
+        const deadline = Date.now() + 8000;
+        let heading = null;
+        while (Date.now() < deadline) {
+          heading = Array.from(document.querySelectorAll('h3')).find(el => (el.innerText || '').includes('學習扶助練習館'));
+          if (heading) break;
+          await new Promise(r => setTimeout(r, 150));
+        }
         if (!heading) return { ok: false, reason: 'Portal card missing' };
         heading.click();
-        await new Promise(r => setTimeout(r, 400));
+        const hubDeadline = Date.now() + 4000;
+        while (Date.now() < hubDeadline) {
+          if ((document.body.innerText || '').includes('霧臺國小・學習扶助自主練習館')) break;
+          await new Promise(r => setTimeout(r, 120));
+        }
         return {
           ok: (document.body.innerText || '').includes('霧臺國小・學習扶助自主練習館'),
           url: window.location.search,
@@ -291,11 +355,26 @@ async function run() {
     await sleep(600);
     const seatSwitchCheck = await client.eval(`
       (async () => {
+        const deadline = Date.now() + 4000;
+        let logoutBtn = null;
+        while (Date.now() < deadline) {
+          logoutBtn = Array.from(document.querySelectorAll('header button')).find(b => (b.innerText || '').trim() === '登出');
+          if (logoutBtn && (document.body.innerText || '').includes('這台裝置上次登入的是「3年1班 01號」')) break;
+          await new Promise(r => setTimeout(r, 120));
+        }
         const txt = document.body.innerText || '';
         const hasNotice = txt.includes('這台裝置上次登入的是「3年1班 01號」');
         const hasSwitchBtn = txt.includes('點錯了？切換座號');
-        const logoutBtn = Array.from(document.querySelectorAll('header button')).find(b => (b.innerText || '').trim() === '登出');
-        if (!logoutBtn) return { ok: false, hasNotice, hasSwitchBtn, reason: 'Missing header logout button' };
+        if (!logoutBtn) {
+          return {
+            ok: false,
+            hasNotice,
+            hasSwitchBtn,
+            reason: 'Missing header logout button',
+            lastId: localStorage.getItem('wutai_last_student_id'),
+            bodyHead: txt.slice(0, 240),
+          };
+        }
         logoutBtn.click();
         await new Promise(r => setTimeout(r, 250));
         const afterLogoutGuest = (document.body.innerText || '').includes('訪客練習中');
@@ -662,7 +741,13 @@ async function run() {
           el.dispatchEvent(new Event('change', { bubbles: true }));
         };
 
-        const pwInput = document.getElementById('priori-teacher-password');
+        let pwInput = null;
+        const pwDeadline = Date.now() + 5000;
+        while (Date.now() < pwDeadline) {
+          pwInput = document.getElementById('priori-teacher-password');
+          if (pwInput) break;
+          await new Promise(r => setTimeout(r, 120));
+        }
         if (!pwInput) return { ok: false, reason: 'Missing password input' };
 
         setInput(pwInput, 'wrongpass');
@@ -672,10 +757,13 @@ async function run() {
 
         setInput(pwInput, 'wt7902230');
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
-        await new Promise(r => setTimeout(r, 400));
-
-        // Verify empty real 3年甲班 expands 01..06 from SCHOOL_CLASS_HEADCOUNTS with ZERO demo scores mixed in
-        const matrixSection = document.querySelector('section[aria-label="班級成績總覽矩陣"]');
+        let matrixSection = null;
+        const matrixDeadline = Date.now() + 5000;
+        while (Date.now() < matrixDeadline) {
+          matrixSection = document.querySelector('section[aria-label="班級成績總覽矩陣"]');
+          if (matrixSection) break;
+          await new Promise(r => setTimeout(r, 120));
+        }
         const getSeatNums = () => Array.from(matrixSection?.querySelectorAll('tbody tr td:first-child') || [])
           .map(td => parseInt((td.innerText || '').replace(/\\D+/g, ''), 10))
           .filter(n => !Number.isNaN(n));
@@ -752,9 +840,15 @@ async function run() {
           await new Promise(r => setTimeout(r, 150));
           const saveRosterBtn = Array.from(rosterDialog.querySelectorAll('button')).find(b => (b.innerText || '').includes('加密保存名冊'));
           saveRosterBtn?.click();
-          await new Promise(r => setTimeout(r, 450));
-          const modalText = rosterDialog.innerText || '';
-          rosterImportOk = modalText.includes('已加密保存') || modalText.includes('AES-256');
+          const deadline = Date.now() + 4000;
+          while (Date.now() < deadline) {
+            const modalText = rosterDialog.innerText || '';
+            if (modalText.includes('已加密保存') || modalText.includes('AES-256')) {
+              rosterImportOk = true;
+              break;
+            }
+            await new Promise(r => setTimeout(r, 150));
+          }
         }
         document.querySelector('button[aria-label="關閉名冊視窗"]')?.click();
         await new Promise(r => setTimeout(r, 200));
