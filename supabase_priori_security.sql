@@ -209,6 +209,8 @@ REVOKE ALL ON TABLE public.priori_legacy_migration_issues FROM PUBLIC, anon, aut
 -- ── 3. 保全、決定性合併遷移公開 leaderboard 舊資料並核對後再清理 ──
 DO $$
 DECLARE
+    v_source_ids UUID[] := ARRAY[]::UUID[];
+    v_verified_source_ids UUID[] := ARRAY[]::UUID[];
     v_legacy_count INT := 0;
     v_backup_count INT := 0;
     v_rec RECORD;
@@ -243,9 +245,46 @@ DECLARE
     v_actual_row RECORD;
     v_has_roster_winner BOOLEAN := FALSE;
 BEGIN
-    SELECT COUNT(*) INTO v_legacy_count
+    IF to_regclass('public.leaderboard') IS NULL THEN
+        RETURN;
+    END IF;
+
+    -- 先在同一交易內鎖定公開表並立即安裝寫入與讀取封鎖，杜絕備份快照後仍寫入的新紀錄遭到誤刪
+    LOCK TABLE public.leaderboard IN SHARE ROW EXCLUSIVE MODE;
+
+    DROP POLICY IF EXISTS "Allow public read leaderboard" ON public.leaderboard;
+    CREATE POLICY "Allow public read leaderboard" ON public.leaderboard
+        FOR SELECT
+        USING (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster');
+
+    DROP POLICY IF EXISTS "Allow public insert leaderboard" ON public.leaderboard;
+    CREATE POLICY "Allow public insert leaderboard" ON public.leaderboard
+        FOR INSERT
+        WITH CHECK (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster');
+
+    DROP POLICY IF EXISTS "Allow public update leaderboard" ON public.leaderboard;
+    CREATE POLICY "Allow public update leaderboard" ON public.leaderboard
+        FOR UPDATE
+        USING (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster')
+        WITH CHECK (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster');
+
+    DROP POLICY IF EXISTS "Allow public delete leaderboard" ON public.leaderboard;
+    CREATE POLICY "Allow public delete leaderboard" ON public.leaderboard
+        FOR DELETE
+        USING (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster');
+
+    ALTER TABLE public.leaderboard DROP CONSTRAINT IF EXISTS chk_leaderboard_no_priori;
+    ALTER TABLE public.leaderboard
+        ADD CONSTRAINT chk_leaderboard_no_priori
+        CHECK (mode NOT IN ('priori-record', 'priori-roster')) NOT VALID;
+
+    -- 鎖定後才擷取唯一待搬移來源主鍵清單（後續備份、搬移與刪除嚴格限定於此集合）
+    SELECT COALESCE(array_agg(id ORDER BY created_at ASC, id ASC), ARRAY[]::UUID[])
+    INTO v_source_ids
     FROM public.leaderboard
     WHERE mode IN ('priori-record', 'priori-roster');
+
+    v_legacy_count := COALESCE(array_length(v_source_ids, 1), 0);
 
     IF v_legacy_count > 0 THEN
         CREATE TEMP TABLE tmp_expected_priori_winners (
@@ -255,28 +294,27 @@ BEGIN
             expected_updated_at TIMESTAMPTZ NOT NULL
         ) ON COMMIT DROP;
 
-        -- 步驟 3.1：完整封存全部原始列至受 RLS 保護之備份表
+        -- 步驟 3.1：完整封存全部已鎖定來源列至受 RLS 保護之備份表
         INSERT INTO public.priori_legacy_leaderboard_backup (id, original_row, migration_status)
         SELECT l.id, to_jsonb(l), 'backed_up'
         FROM public.leaderboard l
-        WHERE l.mode IN ('priori-record', 'priori-roster')
-        ON CONFLICT (id) DO NOTHING;
+        WHERE l.id = ANY(v_source_ids)
+        ON CONFLICT (id) DO UPDATE
+            SET original_row = EXCLUDED.original_row;
 
         SELECT COUNT(*) INTO v_backup_count
         FROM public.priori_legacy_leaderboard_backup b
-        WHERE b.id IN (
-            SELECT l.id FROM public.leaderboard l WHERE l.mode IN ('priori-record', 'priori-roster')
-        );
+        WHERE b.id = ANY(v_source_ids);
 
-        IF v_backup_count < v_legacy_count THEN
-            RAISE EXCEPTION '備份筆數 (%) 少於公開表舊紀錄 (%)，已中止刪除以保全學生資料', v_backup_count, v_legacy_count;
+        IF v_backup_count <> v_legacy_count THEN
+            RAISE EXCEPTION '備份筆數 (%) 與鎖定來源紀錄數 (%) 不符，已中止刪除以保全學生資料', v_backup_count, v_legacy_count;
         END IF;
 
-        -- 步驟 3.2：逐筆讀取舊版 priori-record（安全驗證 JSON 與數值型別，分別挑選最新作答與最早有效初測基線）
+        -- 步驟 3.2：逐筆讀取鎖定快照內之舊版 priori-record（安全驗證 JSON 與數值型別，分別挑選最新作答與最早有效初測基線）
         FOR v_rec IN
             SELECT id, name, book, score, time, created_at
             FROM public.leaderboard
-            WHERE mode = 'priori-record'
+            WHERE id = ANY(v_source_ids) AND mode = 'priori-record'
             ORDER BY created_at ASC, score ASC, id ASC
         LOOP
             BEGIN
@@ -557,11 +595,11 @@ BEGIN
             END IF;
         END LOOP;
 
-        -- 步驟 3.3：決定性遷移最新有效之 priori-roster，並標記舊重複名冊
+        -- 步驟 3.3：決定性遷移鎖定快照內最新有效之 priori-roster，並標記舊重複名冊
         FOR v_rec IN
             SELECT id, book, time, created_at
             FROM public.leaderboard
-            WHERE mode = 'priori-roster'
+            WHERE id = ANY(v_source_ids) AND mode = 'priori-roster'
             ORDER BY created_at DESC, id DESC
         LOOP
             BEGIN
@@ -614,9 +652,27 @@ BEGIN
             END IF;
         END LOOP;
 
-        -- 步驟 3.4：清理公開表前強制逐筆驗證：總數吻合＋新表每組 (student_key, paper_id) 分數等於預期贏家
+        -- 步驟 3.4：清理公開表前強制逐筆驗證：總數吻合＋備份終態完整＋新表每組 (student_key, paper_id) 分數等於預期贏家
         IF (v_migrated_or_merged + v_quarantined_issues) <> v_legacy_count THEN
             RAISE EXCEPTION '遷移稽核不符 (處理=% + 異常=% != 原始=%)，已中止清理', v_migrated_or_merged, v_quarantined_issues, v_legacy_count;
+        END IF;
+
+        SELECT COALESCE(array_agg(b.id), ARRAY[]::UUID[])
+        INTO v_verified_source_ids
+        FROM public.priori_legacy_leaderboard_backup b
+        WHERE b.id = ANY(v_source_ids)
+          AND b.migration_status IN (
+              'migrated',
+              'merged_duplicate',
+              'superseded_roster',
+              'unparseable_json',
+              'invalid_key',
+              'invalid_field_type'
+          );
+
+        IF COALESCE(array_length(v_verified_source_ids, 1), 0) <> v_legacy_count THEN
+            RAISE EXCEPTION '封存狀態核對未完成 (完成=% / 鎖定來源=%)，已中止刪除公開表資料',
+                COALESCE(array_length(v_verified_source_ids, 1), 0), v_legacy_count;
         END IF;
 
         FOR v_expected_key IN SELECT * FROM tmp_expected_priori_winners LOOP
@@ -633,42 +689,13 @@ BEGIN
             END IF;
         END LOOP;
 
-        -- 核對無誤後才自公開 leaderboard 移除
+        -- 核對無誤後僅依已驗證來源主鍵清單自公開 leaderboard 移除
         DELETE FROM public.leaderboard
-        WHERE mode IN ('priori-record', 'priori-roster');
+        WHERE id = ANY(v_verified_source_ids);
     END IF;
-END $$;
 
--- 步驟 3.5：在公開 leaderboard 加上 CHECK 約束與 RLS 讀寫過濾，雙重永久封鎖 PRIORI 資料進公開表
-DO $$
-BEGIN
-    ALTER TABLE public.leaderboard DROP CONSTRAINT IF EXISTS chk_leaderboard_no_priori;
-    ALTER TABLE public.leaderboard
-        ADD CONSTRAINT chk_leaderboard_no_priori
-        CHECK (mode NOT IN ('priori-record', 'priori-roster'));
-
-    DROP POLICY IF EXISTS "Allow public read leaderboard" ON public.leaderboard;
-    CREATE POLICY "Allow public read leaderboard" ON public.leaderboard
-        FOR SELECT
-        USING (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster');
-
-    DROP POLICY IF EXISTS "Allow public insert leaderboard" ON public.leaderboard;
-    CREATE POLICY "Allow public insert leaderboard" ON public.leaderboard
-        FOR INSERT
-        WITH CHECK (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster');
-
-    DROP POLICY IF EXISTS "Allow public update leaderboard" ON public.leaderboard;
-    CREATE POLICY "Allow public update leaderboard" ON public.leaderboard
-        FOR UPDATE
-        USING (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster')
-        WITH CHECK (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster');
-
-    DROP POLICY IF EXISTS "Allow public delete leaderboard" ON public.leaderboard;
-    CREATE POLICY "Allow public delete leaderboard" ON public.leaderboard
-        FOR DELETE
-        USING (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster');
-EXCEPTION WHEN undefined_table THEN
-    NULL;
+    -- 步驟 3.5（同一交易驗證完成）：正式 VALIDATE CHECK 約束，雙重永久封鎖 PRIORI 資料進公開表
+    ALTER TABLE public.leaderboard VALIDATE CONSTRAINT chk_leaderboard_no_priori;
 END $$;
 
 -- ── 4. 清除舊前端預設雜湊，設定全新 bcrypt 教師密碼 ──────────

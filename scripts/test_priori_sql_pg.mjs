@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 
@@ -148,7 +150,31 @@ async function run() {
     `SELECT COUNT(*)::int AS cnt FROM public.leaderboard WHERE mode = 'vocab'`
   );
   assert.equal(survivingVocab.rows[0].cnt, 1, 'Non-PRIORI leaderboard rows must stay untouched');
-  console.log('✓ Legacy deterministic migration (12分 latest + 8分 earliest baseline preserved + bad JSON/field quarantined + vocab intact) passed');
+
+  const chkConstraintRes = await db.query(
+    `SELECT conname, convalidated FROM pg_constraint WHERE conrelid = 'public.leaderboard'::regclass AND conname = 'chk_leaderboard_no_priori'`
+  );
+  assert.equal(chkConstraintRes.rows.length, 1, 'chk_leaderboard_no_priori must exist on public.leaderboard');
+  assert.equal(chkConstraintRes.rows[0].convalidated, true, 'chk_leaderboard_no_priori must be fully validated inside the atomic migration block');
+
+  const lbPoliciesRes = await db.query(
+    `SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = 'leaderboard' ORDER BY policyname`
+  );
+  assert.deepEqual(
+    lbPoliciesRes.rows.map((r) => r.policyname),
+    [
+      'Allow public delete leaderboard',
+      'Allow public insert leaderboard',
+      'Allow public read leaderboard',
+      'Allow public update leaderboard',
+    ]
+  );
+
+  const pendingBackupRes = await db.query(
+    `SELECT COUNT(*)::int AS cnt FROM public.priori_legacy_leaderboard_backup WHERE migration_status = 'backed_up'`
+  );
+  assert.equal(pendingBackupRes.rows[0].cnt, 0, 'Every locked backup row must reach a terminal migration_status before deletion');
+  console.log('✓ Legacy deterministic migration (12分 latest + 8分 earliest baseline + validated constraint/policies + terminal backup states + vocab intact) passed');
 
   // 7. Create a single-class teacher (4-2) to verify strict class scoping
   await db.exec(`
@@ -446,6 +472,64 @@ async function run() {
   console.log('✓ Teacher binding list, non-destructive bulk class issuance & explicit reissue verified');
 
   await db.close();
+
+  // 14. Verify verify_priori_supabase_rls.mjs default mode issues ZERO write/login/reset/student-seat probes
+  const recordedHits = [];
+  const mockServer = http.createServer((req, res) => {
+    const reqUrl = new URL(req.url, 'http://127.0.0.1');
+    recordedHits.push({ method: req.method, pathname: reqUrl.pathname, search: reqUrl.search });
+    if (req.method === 'GET' && reqUrl.pathname === '/rest/v1/leaderboard') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('[]');
+      return;
+    }
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ code: '42501', message: 'Forbidden in read-only audit check' }));
+  });
+  await new Promise((resolve) => mockServer.listen(0, '127.0.0.1', resolve));
+  const { port } = mockServer.address();
+  const auditScriptPath = path.join(ROOT, 'scripts', 'verify_priori_supabase_rls.mjs');
+
+  const runScript = (extraEnv) =>
+    new Promise((resolve) => {
+      const child = spawn(process.execPath, [auditScriptPath], {
+        env: { ...process.env, VITE_SUPABASE_URL: `http://127.0.0.1:${port}`, ...extraEnv },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', (d) => (stdout += d));
+      child.stderr.on('data', (d) => (stderr += d));
+      child.on('close', (code) => resolve({ code, stdout, stderr }));
+    });
+
+  try {
+    const roRes = await runScript({
+      PRIORI_TEST_DB: '',
+      PRIORI_ENABLE_WRITE_PROBES: '',
+      PRIORI_TEST_STUDENT_ISOLATION: '',
+      PRIORI_TEACHER_PASSWORD: '',
+      PRIORI_CLASS_TEACHER_PASSWORD: '',
+    });
+    assert.equal(roRes.code, 0, `Strict read-only mode failed: ${roRes.stderr}\n${roRes.stdout}`);
+    assert.ok(roRes.stdout.includes('STRICT READ-ONLY AUDIT PASSED'));
+    const forbiddenPaths = recordedHits.filter(
+      (h) =>
+        (h.method === 'POST' && !h.pathname.startsWith('/rest/v1/rpc/')) ||
+        h.pathname.includes('priori_student_login_seat') ||
+        h.pathname.includes('priori_student_upsert_record') ||
+        h.pathname.includes('priori_teacher_reset_student_binding') ||
+        h.pathname.includes('priori_teacher_login')
+    );
+    assert.deepEqual(forbiddenPaths, [], `Default read-only audit MUST NOT execute write/login probes, got: ${JSON.stringify(forbiddenPaths)}`);
+
+    const unsafeGuardRes = await runScript({ PRIORI_TEST_DB: '', PRIORI_ENABLE_WRITE_PROBES: '1' });
+    assert.notEqual(unsafeGuardRes.code, 0, 'Write probes without PRIORI_TEST_DB=1 must refuse to run');
+    console.log('✓ verify_priori_supabase_rls.mjs strict read-only guard verified (0 table writes, 0 login/reset probes)');
+  } finally {
+    await new Promise((resolve) => mockServer.close(resolve));
+  }
+
   console.log('\n🎉 ALL POSTGRESQL SQL, MIGRATION & SECURITY AUDIT ASSERTIONS PASSED!');
 }
 

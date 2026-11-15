@@ -6,6 +6,18 @@ const SUPABASE_ANON_KEY =
   process.env.VITE_SUPABASE_ANON_KEY ||
   'sb_publishable_M9phUn6LH1yeVA9NbIXesg_tVABCW5z';
 
+const IS_TEST_DB = process.env.PRIORI_TEST_DB === '1';
+const ENABLE_WRITE_PROBES = process.env.PRIORI_ENABLE_WRITE_PROBES === '1';
+const ENABLE_ISOLATION_TEST = process.env.PRIORI_TEST_STUDENT_ISOLATION === '1';
+const ALLOW_TEST_DB_WRITES = IS_TEST_DB && ENABLE_WRITE_PROBES;
+
+if ((ENABLE_WRITE_PROBES || ENABLE_ISOLATION_TEST) && !IS_TEST_DB) {
+  console.error(
+    '❌ Refusing to run write/login/isolation probes without PRIORI_TEST_DB=1. Default mode against production is strictly read-only.'
+  );
+  process.exit(1);
+}
+
 async function restCall(path, { method = 'GET', body = undefined } = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     method,
@@ -63,28 +75,32 @@ async function run() {
     console.log(`✓ Direct table read blocked: ${tbl.split('?')[0]} -> HTTP ${r.status}`);
   }
 
-  // 2. Direct table insert MUST be blocked
-  const directInsert = await restCall('priori_records', {
-    method: 'POST',
-    body: {
-      record_key: 'priori_030101_tamper',
-      student_key: '030101',
-      paper_id: 'tamper',
-      grade: '03',
-      class_num: '1',
-      seat: '01',
-      score: 100,
-      elapsed_seconds: 1,
-      payload: {},
-    },
-  });
-  assert.ok(
-    isDenied(directInsert),
-    `Expected direct POST priori_records blocked, got ${directInsert.status}: ${directInsert.text}`
-  );
-  console.log(`✓ Direct anonymous INSERT priori_records blocked -> HTTP ${directInsert.status}`);
+  // 2. Direct table insert probe (TEST DB WRITE PROBE ONLY — skipped in strict read-only mode)
+  if (ALLOW_TEST_DB_WRITES) {
+    const directInsert = await restCall('priori_records', {
+      method: 'POST',
+      body: {
+        record_key: 'priori_030101_tamper',
+        student_key: '030101',
+        paper_id: 'tamper',
+        grade: '03',
+        class_num: '1',
+        seat: '01',
+        score: 100,
+        elapsed_seconds: 1,
+        payload: {},
+      },
+    });
+    assert.ok(
+      isDenied(directInsert),
+      `Expected direct POST priori_records blocked, got ${directInsert.status}: ${directInsert.text}`
+    );
+    console.log(`✓ Direct anonymous INSERT priori_records blocked -> HTTP ${directInsert.status}`);
+  } else {
+    console.log('ℹ️ Read-only mode: skipped direct POST priori_records probe (verified on test DB / PGlite).');
+  }
 
-  // 3. Unauthenticated / forged student RPC calls MUST be denied (42501)
+  // 3. Unauthenticated / forged read RPC calls MUST be denied (42501, zero mutations)
   const unauthStuGet = await restCall('rpc/priori_student_get_records', {
     method: 'POST',
     body: { p_token: 'forged-student-token-' + '0'.repeat(40), p_student_key: '030101' },
@@ -94,64 +110,73 @@ async function run() {
     `Expected forged student token read rejected, got ${unauthStuGet.status}: ${unauthStuGet.text}`
   );
 
-  const unauthStuUpsert = await restCall('rpc/priori_student_upsert_record', {
-    method: 'POST',
-    body: {
-      p_token: 'forged-student-token-' + '0'.repeat(40),
-      p_student_key: '030101',
-      p_paper_id: '114-math-g3',
-      p_grade: '03',
-      p_class_num: '1',
-      p_seat: '01',
-      p_score: 100,
-      p_elapsed: 10,
-      p_payload: {},
-    },
-  });
-  assert.ok(
-    isDenied(unauthStuUpsert),
-    `Expected forged student token upsert rejected, got ${unauthStuUpsert.status}: ${unauthStuUpsert.text}`
-  );
-
-  // 3b. Invalid student keys / wildcards / short device secret MUST be rejected by priori_student_login_seat
-  for (const badKey of ['guest', '999999', '%', '03%', '']) {
-    const res = await restCall('rpc/priori_student_login_seat', {
-      method: 'POST',
-      body: {
-        p_student_key: badKey,
-        p_device_secret: 'a'.repeat(32),
-        p_transfer_pin: '1234',
-      },
-    });
-    assert.ok(
-      res.status >= 400,
-      `Expected invalid student key "${badKey}" to fail, got ${res.status}: ${res.text}`
-    );
-  }
-  console.log('✓ Student RPC requires valid session token & rejects guest / wildcards / non-6-digit keys');
-
-  // 4. Legacy exposed password & wrong password MUST NOT issue token; invalid token MUST be denied
-  for (const badPw of ['definitely-wrong-password', 'wt7902230', '__REPLACE_WITH_ADMIN_NEW_PASSWORD__']) {
-    const badLogin = await restCall('rpc/priori_teacher_login', {
-      method: 'POST',
-      body: { p_password: badPw },
-    });
-    assert.equal(badLogin.status, 200, `Unexpected login status: ${badLogin.status} ${badLogin.text}`);
-    assert.equal(badLogin.json?.authorized, false, `Legacy/wrong password "${badPw}" must fail`);
-    assert.ok(!badLogin.json?.token, 'Failed login must never return a session token');
-  }
-
   for (const [rpc, body] of [
     ['rpc/priori_teacher_list_records', { p_token: 'forged-token-' + '0'.repeat(64) }],
     ['rpc/priori_teacher_get_roster', { p_token: 'forged-token-' + '0'.repeat(64), p_roster_key: 'priori_school_roster_v1' }],
-    ['rpc/priori_teacher_reset_student_binding', { p_token: 'forged-token-' + '0'.repeat(64), p_student_key: '030101' }],
+    ['rpc/priori_teacher_list_bindings', { p_token: 'forged-token-' + '0'.repeat(64) }],
   ]) {
     const r = await restCall(rpc, { method: 'POST', body });
     assert.ok(isDenied(r), `Expected forged teacher token rejected on ${rpc}, got ${r.status}: ${r.text}`);
   }
-  console.log('✓ Teacher RPC blocks legacy exposed password, wrong password & forged session tokens');
+  console.log('✓ Read-only RPC permission checks passed: forged student & teacher tokens denied (42501)');
 
-  // 5. Public leaderboard must contain 0 PRIORI rows and block future priori-* inserts
+  // 3b & 4. Mutating RPC probes & login probes (TEST DB ONLY — never executed in default read-only mode)
+  if (ALLOW_TEST_DB_WRITES) {
+    const unauthStuUpsert = await restCall('rpc/priori_student_upsert_record', {
+      method: 'POST',
+      body: {
+        p_token: 'forged-student-token-' + '0'.repeat(40),
+        p_student_key: '030101',
+        p_paper_id: '114-math-g3',
+        p_grade: '03',
+        p_class_num: '1',
+        p_seat: '01',
+        p_score: 100,
+        p_elapsed: 10,
+        p_payload: {},
+      },
+    });
+    assert.ok(
+      isDenied(unauthStuUpsert),
+      `Expected forged student token upsert rejected, got ${unauthStuUpsert.status}: ${unauthStuUpsert.text}`
+    );
+
+    const forgedReset = await restCall('rpc/priori_teacher_reset_student_binding', {
+      method: 'POST',
+      body: { p_token: 'forged-token-' + '0'.repeat(64), p_student_key: '000099' },
+    });
+    assert.ok(isDenied(forgedReset), `Expected forged teacher reset rejected, got ${forgedReset.status}`);
+
+    for (const badKey of ['guest', '999999', '%', '03%', '']) {
+      const res = await restCall('rpc/priori_student_login_seat', {
+        method: 'POST',
+        body: {
+          p_student_key: badKey,
+          p_device_secret: 'a'.repeat(32),
+          p_transfer_pin: '1234',
+        },
+      });
+      assert.ok(
+        res.status >= 400,
+        `Expected invalid student key "${badKey}" to fail, got ${res.status}: ${res.text}`
+      );
+    }
+
+    for (const badPw of ['definitely-wrong-password', 'wt7902230', '__REPLACE_WITH_ADMIN_NEW_PASSWORD__']) {
+      const badLogin = await restCall('rpc/priori_teacher_login', {
+        method: 'POST',
+        body: { p_password: badPw },
+      });
+      assert.equal(badLogin.status, 200, `Unexpected login status: ${badLogin.status} ${badLogin.text}`);
+      assert.equal(badLogin.json?.authorized, false, `Legacy/wrong password "${badPw}" must fail`);
+      assert.ok(!badLogin.json?.token, 'Failed login must never return a session token');
+    }
+    console.log('✓ Test-DB write/login probes passed: upsert/reset/bad-key/bad-teacher-pw all blocked');
+  } else {
+    console.log('ℹ️ Read-only mode: skipped upsert/reset/student-login/bad-password probes (0 mutations or seat probes).');
+  }
+
+  // 5. Public leaderboard must contain 0 PRIORI rows (GET count check); INSERT constraint probe runs on test DB only
   const legacyCheck = await restCall(
     'leaderboard?select=id&mode=in.(priori-record,priori-roster)&limit=1'
   );
@@ -161,58 +186,63 @@ async function run() {
     0,
     `Expected 0 legacy PRIORI rows in public leaderboard, found: ${legacyCheck.text}`
   );
+  console.log('✓ Public leaderboard exposes 0 legacy PRIORI rows (GET count check)');
 
-  const rejectPrioriInsert = await restCall('leaderboard', {
-    method: 'POST',
-    body: {
-      device_id: 'audit_probe',
-      name: 'audit',
-      mode: 'priori-record',
-      book: '{}',
-      score: 0,
-      time: 0,
-      week: 0,
-    },
-  });
-  assert.ok(
-    rejectPrioriInsert.status >= 400,
-    `Expected chk_leaderboard_no_priori to reject priori-record insert, got ${rejectPrioriInsert.status}: ${rejectPrioriInsert.text}`
-  );
-  console.log('✓ Public leaderboard has 0 PRIORI rows & permanently rejects priori-* writes');
+  if (ALLOW_TEST_DB_WRITES) {
+    const rejectPrioriInsert = await restCall('leaderboard', {
+      method: 'POST',
+      body: {
+        device_id: 'audit_probe',
+        name: 'audit',
+        mode: 'priori-record',
+        book: '{}',
+        score: 0,
+        time: 0,
+        week: 0,
+      },
+    });
+    assert.ok(
+      rejectPrioriInsert.status >= 400,
+      `Expected chk_leaderboard_no_priori to reject priori-record insert, got ${rejectPrioriInsert.status}: ${rejectPrioriInsert.text}`
+    );
 
-  // 5b. Unactivated / bogus-seat anonymous claims MUST NOT issue tokens
-  const badSeatClaim = await restCall('rpc/priori_student_login_seat', {
-    method: 'POST',
-    body: {
-      p_student_key: '030199',
-      p_device_secret: 'audit_bad_seat_' + 'x'.repeat(24),
-      p_transfer_pin: '1234',
-      p_activation_code: '000000',
-    },
-  });
-  assert.ok(
-    isDenied(badSeatClaim),
-    `Expected out-of-directory seat '030199' denied (42501), got ${badSeatClaim.status}: ${badSeatClaim.text}`
-  );
-  const anonClaimNoCode = await restCall('rpc/priori_student_login_seat', {
-    method: 'POST',
-    body: {
-      p_student_key: '030101',
-      p_device_secret: 'audit_anon_probe_' + 'x'.repeat(24),
-      p_transfer_pin: '1234',
-    },
-  });
-  assert.equal(
-    Boolean(anonClaimNoCode.json?.authorized),
-    false,
-    `Anonymous login without activation code/PIN must never authorize: ${anonClaimNoCode.text}`
-  );
-  assert.ok(!anonClaimNoCode.json?.token, 'Anonymous unverified login must not return token');
-  console.log('✓ Anonymous student login cannot claim unbound or out-of-directory seats');
+    const badSeatClaim = await restCall('rpc/priori_student_login_seat', {
+      method: 'POST',
+      body: {
+        p_student_key: '030199',
+        p_device_secret: 'audit_bad_seat_' + 'x'.repeat(24),
+        p_transfer_pin: '1234',
+        p_activation_code: '000000',
+      },
+    });
+    assert.ok(
+      isDenied(badSeatClaim),
+      `Expected out-of-directory seat '030199' denied (42501), got ${badSeatClaim.status}: ${badSeatClaim.text}`
+    );
 
-  // 6. Optional write/binding isolation roundtrip (strictly isolated DB or dedicated '00xxxx' test seat — never defaults to real student seats)
+    const probeSeat = (process.env.PRIORI_TEST_SEAT || '000099').trim();
+    const anonClaimNoCode = await restCall('rpc/priori_student_login_seat', {
+      method: 'POST',
+      body: {
+        p_student_key: probeSeat,
+        p_device_secret: 'audit_anon_probe_' + 'x'.repeat(24),
+        p_transfer_pin: '1234',
+      },
+    });
+    assert.equal(
+      Boolean(anonClaimNoCode.json?.authorized),
+      false,
+      `Anonymous login without activation code/PIN must never authorize: ${anonClaimNoCode.text}`
+    );
+    assert.ok(!anonClaimNoCode.json?.token, 'Anonymous unverified login must not return token');
+    console.log('✓ Test-DB leaderboard constraint & anonymous claim block verified');
+  } else {
+    console.log('ℹ️ Read-only mode: skipped POST leaderboard & student-seat login probes (protected from PIN/trusted-device writes).');
+  }
+
+  // 6. Optional write/binding isolation roundtrip (strictly isolated test DB with PRIORI_TEST_DB=1 + dedicated '00xxxx' test seat)
   const teacherPw = process.env.PRIORI_TEACHER_PASSWORD || '';
-  if (process.env.PRIORI_TEST_STUDENT_ISOLATION === '1') {
+  if (ENABLE_ISOLATION_TEST) {
     if (!teacherPw) {
       throw new Error(
         'PRIORI_TEST_STUDENT_ISOLATION=1 requires PRIORI_TEACHER_PASSWORD (initial binding requires a teacher-issued 6-digit activation code).'
@@ -321,7 +351,7 @@ async function run() {
       await restCall('rpc/priori_teacher_logout', { method: 'POST', body: { p_token: adminTok } });
     }
   } else {
-    console.log('ℹ️ Read-only audit mode. For mutating isolation tests, run against a test DB with PRIORI_TEST_STUDENT_ISOLATION=1 PRIORI_TEST_SEAT=000099 (or node scripts/test_priori_sql_pg.mjs).');
+    console.log('ℹ️ Read-only audit mode: skipped isolation write test (run only on a test DB with PRIORI_TEST_DB=1 PRIORI_TEST_STUDENT_ISOLATION=1 PRIORI_TEST_SEAT=000099).');
   }
 
   // 7. Optional authenticated teacher & single-class isolation roundtrip
@@ -394,7 +424,11 @@ async function run() {
     console.log('ℹ️ Tip: pass PRIORI_CLASS_TEACHER_PASSWORD=... to also verify single-class teacher isolation.');
   }
 
-  console.log('\n✅ ALL PRIORI SUPABASE RLS & RPC PERMISSION CHECKS PASSED!');
+  if (!ALLOW_TEST_DB_WRITES && !ENABLE_ISOLATION_TEST) {
+    console.log('\n🔒 STRICT READ-ONLY AUDIT PASSED (0 INSERT/UPDATE/reset/student-login probes executed against target DB).');
+  } else {
+    console.log('\n✅ ALL PRIORI SUPABASE RLS & RPC PERMISSION CHECKS PASSED (including test-DB write probes)!');
+  }
 }
 
 run().catch((err) => {
