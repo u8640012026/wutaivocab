@@ -300,21 +300,37 @@ async function run() {
         const has114Chi = chiTxt.includes('114 年') && chiTxt.includes('三年級國語科');
         const chiNoPrematureRemedial = !chiTxt.includes('開始特訓');
 
-        // Switch to 英語科 tab & verify 114 English card
+        // Verify Grade 5 Chinese card
+        Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').trim() === '五年級')?.click();
+        await new Promise(r => setTimeout(r, 150));
+        const has114ChiG5 = (document.body.innerText || '').includes('114 年') && (document.body.innerText || '').includes('五年級國語科');
+
+        // Switch to 英語科 tab & verify 114 English G5 & G3 cards
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('英語科'))?.click();
         await new Promise(r => setTimeout(r, 200));
+        const has114EngG5 = (document.body.innerText || '').includes('114 年') && (document.body.innerText || '').includes('五年級英語科');
+        Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').trim() === '三年級')?.click();
+        await new Promise(r => setTimeout(r, 150));
         const engTxt = document.body.innerText || '';
         const has114Eng = engTxt.includes('114 年') && engTxt.includes('三年級英語科');
         const engNoPrematureRemedial = !engTxt.includes('開始特訓');
 
-        // Switch back to 數學科
+        // Switch back to 數學科 & verify Grade 4 / Grade 6 cards then restore Grade 3
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('數學科'))?.click();
         await new Promise(r => setTimeout(r, 200));
+        Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').trim() === '四年級')?.click();
+        await new Promise(r => setTimeout(r, 150));
+        const has114MathG4 = (document.body.innerText || '').includes('114 年') && (document.body.innerText || '').includes('四年級數學科');
+        Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').trim() === '六年級')?.click();
+        await new Promise(r => setTimeout(r, 150));
+        const has114MathG6 = (document.body.innerText || '').includes('114 年') && (document.body.innerText || '').includes('六年級數學科');
+        Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').trim() === '三年級')?.click();
+        await new Promise(r => setTimeout(r, 150));
 
         return {
-          ok: hasTitle && has114Row && has115Row && descOrderOk && hasUnattemptedText && hasTeacherBadge && hasGuestHint && hasGradePills && hasEmblems && !overflow && qrHasPaperUrl && window.__printCalls >= 1 && studentPrintClean && has114Chi && chiNoPrematureRemedial && has114Eng && engNoPrematureRemedial,
+          ok: hasTitle && has114Row && has115Row && descOrderOk && hasUnattemptedText && hasTeacherBadge && hasGuestHint && hasGradePills && hasEmblems && !overflow && qrHasPaperUrl && window.__printCalls >= 1 && studentPrintClean && has114Chi && chiNoPrematureRemedial && has114ChiG5 && has114EngG5 && has114Eng && engNoPrematureRemedial && has114MathG4 && has114MathG6,
           hasTitle, has114Row, has115Row, descOrderOk, hasUnattemptedText, hasTeacherBadge, hasGuestHint, hasGradePills, hasEmblems, overflow, qrHasPaperUrl,
-          printCalls: window.__printCalls, studentPrintClean, has114Chi, chiNoPrematureRemedial, has114Eng, engNoPrematureRemedial,
+          printCalls: window.__printCalls, studentPrintClean, has114Chi, chiNoPrematureRemedial, has114ChiG5, has114EngG5, has114Eng, engNoPrematureRemedial, has114MathG4, has114MathG6,
         };
       })()
     `);
@@ -631,9 +647,10 @@ async function run() {
         const radios = document.querySelectorAll('[role="radio"]');
         radios[1]?.click(); // official Q20 answer (遊戲機)
         await new Promise(r => setTimeout(r, 120));
+        const noScratchpadInChinese = !Array.from(document.querySelectorAll('button')).some(b => (b.innerText || '').includes('計算紙'));
         return {
-          ok: hasPassageTitle && passageLoaded && radios.length === 4,
-          hasPassageTitle, passageLoaded, radioCount: radios.length,
+          ok: hasPassageTitle && passageLoaded && radios.length === 4 && noScratchpadInChinese,
+          hasPassageTitle, passageLoaded, radioCount: radios.length, noScratchpadInChinese,
         };
       })()
     `);
@@ -650,6 +667,7 @@ async function run() {
         const upperInput = document.querySelector('input[aria-label="大寫字母輸入"]');
         const lowerInput = document.querySelector('input[aria-label="小寫字母輸入"]');
         const noMcqRadios = document.querySelectorAll('[role="radio"]').length === 0;
+        const noScratchpadInEnglish = !Array.from(document.querySelectorAll('button')).some(b => (b.innerText || '').includes('計算紙'));
         if (!upperInput || !lowerInput) return { ok: false, reason: 'Missing PrioriAlphabetPad inputs' };
 
         const setInput = (el, val) => {
@@ -663,8 +681,8 @@ async function run() {
         await new Promise(r => setTimeout(r, 120));
 
         return {
-          ok: hasAudioBtn && noMcqRadios && upperInput.value === 'V' && lowerInput.value === 'v',
-          hasAudioBtn, noMcqRadios, upperVal: upperInput.value, lowerVal: lowerInput.value,
+          ok: hasAudioBtn && noMcqRadios && noScratchpadInEnglish && upperInput.value === 'V' && lowerInput.value === 'v',
+          hasAudioBtn, noMcqRadios, noScratchpadInEnglish, upperVal: upperInput.value, lowerVal: lowerInput.value,
         };
       })()
     `);
@@ -813,13 +831,15 @@ async function run() {
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('依年度看國／數／英'))?.click();
         await new Promise(r => setTimeout(r, 200));
 
-        // Click a student's score cell inside matrix -> Student breakdown & scratchpad replay
-        const scoreCellBtn = Array.from(matrixSection?.querySelectorAll('tbody button') || []).find(b => (b.innerText || '').includes('分'));
+        // Click a Math student's score cell (with ✏️ scratchpad icon; Chinese/English must NOT carry ✏️)
+        const allScoreBtns = Array.from(matrixSection?.querySelectorAll('tbody button') || []).filter(b => (b.innerText || '').includes('分'));
+        const nonMathNoPadOk = allScoreBtns.some(b => !(b.innerText || '').includes('✏️'));
+        const scoreCellBtn = allScoreBtns.find(b => (b.innerText || '').includes('✏️'));
         scoreCellBtn?.click();
         await new Promise(r => setTimeout(r, 250));
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('含計算紙筆跡'))?.click();
         await new Promise(r => setTimeout(r, 180));
-        const studentDetailOk = (document.body.innerText || '').includes('回成績總表') && document.querySelectorAll('article canvas').length >= 1;
+        const studentDetailOk = nonMathNoPadOk && (document.body.innerText || '').includes('回成績總表') && document.querySelectorAll('article canvas').length >= 1;
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('回成績總表'))?.click();
         await new Promise(r => setTimeout(r, 200));
 

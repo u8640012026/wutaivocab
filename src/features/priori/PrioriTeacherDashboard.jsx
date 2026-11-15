@@ -1312,7 +1312,9 @@ export function PrioriTeacherDashboard({ onBack }) {
                   { id: 'remedial', label: '⚠️ 待補強' },
                   { id: 'progress', label: '🌱 連對 1 次' },
                   { id: 'mastered', label: '🌟 已精熟' },
-                  { id: 'scratchpad', label: '✏️ 含計算紙筆跡' },
+                  ...(inspectedPaper.subject === 'math'
+                    ? [{ id: 'scratchpad', label: '✏️ 含計算紙筆跡' }]
+                    : []),
                 ].map((pill) => (
                   <button
                     key={pill.id}
@@ -1339,7 +1341,12 @@ export function PrioriTeacherDashboard({ onBack }) {
                 const isFirstOk = isPrioriAnswerCorrect(q, firstChosen);
                 const streak = Number(inspectedCell.record.streaks?.[q.id]) || 0;
                 const badge = getStreakBadge(streak);
-                const padStrokes = inspectedCell.record.scratchpad?.[q.id] || [];
+                const padStrokes =
+                  inspectedPaper.subject === 'math'
+                    ? inspectedCell.record.scratchpad?.[q.id] || []
+                    : [];
+                const showPadPane =
+                  inspectedPaper.subject === 'math' || padStrokes.length > 0;
                 const qAttempts = getQuestionAttemptCount(inspectedCell.record, q.id);
 
                 return (
@@ -1351,7 +1358,7 @@ export function PrioriTeacherDashboard({ onBack }) {
                         : 'border-rose-300 dark:border-rose-800/80'
                     }`}
                   >
-                    <div className="lg:col-span-7 space-y-2">
+                    <div className={`${showPadPane ? 'lg:col-span-7' : 'lg:col-span-12'} space-y-2`}>
                       <div className="flex flex-wrap items-center gap-2">
                         {isOk ? (
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1401,13 +1408,15 @@ export function PrioriTeacherDashboard({ onBack }) {
                       </div>
                     </div>
 
-                    <div className="lg:col-span-5">
-                      <PrioriScratchpadPreview
-                        questionNumber={q.number}
-                        strokes={padStrokes}
-                        compact={true}
-                      />
-                    </div>
+                    {showPadPane && (
+                      <div className="lg:col-span-5">
+                        <PrioriScratchpadPreview
+                          questionNumber={q.number}
+                          strokes={padStrokes}
+                          compact={true}
+                        />
+                      </div>
+                    )}
                   </article>
                 );
               })}
@@ -1523,9 +1532,11 @@ export function PrioriTeacherDashboard({ onBack }) {
                           const masteredCount = rec.masteredCount || 0;
                           const drillCount = getDrillAttemptsCount(rec);
                           const allMastered = masteredCount >= totalCount && totalCount > 0;
-                          const hasPad = Object.values(rec.scratchpad || {}).some(
-                            (arr) => Array.isArray(arr) && arr.length > 0
-                          );
+                          const hasPad =
+                            col.paper.subject === 'math' &&
+                            Object.values(rec.scratchpad || {}).some(
+                              (arr) => Array.isArray(arr) && arr.length > 0
+                            );
                           const displayScore =
                             scoreViewMode === 'initial' ? firstScore : latestScore;
 
@@ -1773,11 +1784,13 @@ export function PrioriTeacherDashboard({ onBack }) {
                             </div>
                           </div>
 
-                          <PrioriScratchpadPreview
-                            questionNumber={inspectedQuestion.number}
-                            strokes={padStrokes}
-                            compact={true}
-                          />
+                          {(activePaper.subject === 'math' || padStrokes.length > 0) && (
+                            <PrioriScratchpadPreview
+                              questionNumber={inspectedQuestion.number}
+                              strokes={padStrokes}
+                              compact={true}
+                            />
+                          )}
                         </div>
                       );
                     })}
@@ -1792,7 +1805,9 @@ export function PrioriTeacherDashboard({ onBack }) {
             >
               <div className="px-4 py-2.5 bg-stone-50/80 dark:bg-slate-800/70 border-b border-stone-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-300">
                 <span>
-                  縱軸：第 1–{activePaper.questions.length} 題（題意縮減，點題目看全班計算紙）｜橫軸：座號由 1 至末
+                  {activePaper.subject === 'math'
+                    ? `縱軸：第 1–${activePaper.questions.length} 題（題意縮減，點題目看全班計算紙）｜橫軸：座號由 1 至末`
+                    : `縱軸：第 1–${activePaper.questions.length} 題（題意縮減，點題目看全班選項統計）｜橫軸：座號由 1 至末`}
                 </span>
                 <div className="flex flex-wrap items-center gap-2.5">
                   <span className="text-emerald-700 dark:text-emerald-300">🌟 已精熟</span>

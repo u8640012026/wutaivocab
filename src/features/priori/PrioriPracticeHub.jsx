@@ -1360,18 +1360,20 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                 <span>原卷注音圖：{showOriginalImage ? '開' : '關'}</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setShowScratchpad((v) => !v)}
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 border transition cursor-pointer ${
-                  showScratchpad
-                    ? 'bg-teal-700 border-teal-600 text-white shadow-sm'
-                    : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
-                }`}
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                <span>計算紙</span>
-              </button>
+              {activePaper.subject === 'math' && (
+                <button
+                  type="button"
+                  onClick={() => setShowScratchpad((v) => !v)}
+                  className={`px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 border transition cursor-pointer ${
+                    showScratchpad
+                      ? 'bg-teal-700 border-teal-600 text-white shadow-sm'
+                      : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>計算紙</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1524,10 +1526,10 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
             <div
               className={`flex flex-col justify-between gap-3 ${
                 hasPassageSplit
-                  ? showScratchpad
+                  ? activePaper.subject === 'math' && showScratchpad
                     ? 'lg:col-span-4'
                     : 'lg:col-span-7'
-                  : showScratchpad
+                  : activePaper.subject === 'math' && showScratchpad
                   ? 'lg:col-span-7'
                   : 'lg:col-span-12'
               }`}
@@ -1701,7 +1703,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                               ? 'sm:grid-cols-2'
                               : currentQuestion.options.length === 3
                               ? 'sm:grid-cols-3'
-                              : showScratchpad
+                              : activePaper.subject === 'math' && showScratchpad
                               ? 'sm:grid-cols-1 xl:grid-cols-2'
                               : 'sm:grid-cols-2'
                           }`}
@@ -1877,8 +1879,8 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
               </article>
             </div>
 
-            {/* 右側：iPad 雙欄並排手寫計算紙 */}
-            {showScratchpad && (
+            {/* 右側：數學科專屬 iPad 雙欄並排手寫計算紙 */}
+            {activePaper.subject === 'math' && showScratchpad && (
               <div className={`${hasPassageSplit ? 'lg:col-span-3' : 'lg:col-span-5'} flex flex-col`}>
                 <PrioriScratchpad
                   questionNumber={currentQuestion.number}
@@ -2212,13 +2214,16 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                     </div>
                   )}
 
-                  {qStrokes.length > 0 && (
-                    <PrioriScratchpadPreview
-                      questionNumber={q.number}
-                      strokes={qStrokes}
-                      compact={true}
-                    />
-                  )}
+                  {(q.paperId
+                    ? q.paperId.includes('-math-')
+                    : activePaper.subject === 'math') &&
+                    qStrokes.length > 0 && (
+                      <PrioriScratchpadPreview
+                        questionNumber={q.number}
+                        strokes={qStrokes}
+                        compact={true}
+                      />
+                    )}
                 </article>
               );
             })}

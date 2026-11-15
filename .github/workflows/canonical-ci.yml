@@ -62,10 +62,11 @@ jobs:
       - name: 📦 Install Dependencies
         run: npm ci
 
-      - name: 🧪 Run PRIORI Contracts (Drill + 114 G3 + 115 Math G3)
+      - name: 🧪 Run PRIORI Contracts (Drill + 114 G3–G6 + 115 Math G3)
         run: |
           node scripts/test_priori_drill_contract.mjs
           node scripts/test_priori_114_g3_contract.mjs
+          node scripts/test_priori_114_g4_6_contract.mjs
           node scripts/test_priori_115_math_g3_contract.mjs
 
       - name: 🧹 ESLint Check

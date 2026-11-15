@@ -1067,7 +1067,8 @@ const DEMO_STUDENTS_META = [
 
 function buildDemoScratchpadForPaper(paperId, padMode) {
   const paper = PRIORI_PAPER_MAP[paperId];
-  if (!paper) return {};
+  // 僅數學科需使用計算紙；國語、英語不附帶計算紙筆跡
+  if (!paper || paper.subject !== 'math') return {};
   const q1 = paper.questions[0]?.id;
   const q2 = paper.questions[1]?.id;
   const q3 = paper.questions[2]?.id;
