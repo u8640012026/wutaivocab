@@ -305,13 +305,13 @@ const READING_DIALOGUE_SPECS = [
       "It's five o'clock. The boy is going to the supermarket.",
       "It's five o'clock. The boy is in the supermarket.",
     ],
-    answer: 0,
+    answer: 1,
     hasFigure: true,
-    concept: '看圖讀時鐘與方向動詞（three o\'clock + going to）',
+    concept: '看圖讀時鐘與方向動詞（five o\'clock + going to）',
     steps: [
-      '先看圖中大樓牆上的大圓鐘：短針指 3、長針指 12，代表現在是三點整（three o\'clock），可直接刪去 (2)、(3)。',
-      '再看男孩正走在門口外、朝「超市」方向前去，正是 "going to the supermarket"。',
-      '故選 (1)。',
+      '先看圖中大樓牆上的大圓鐘：短針指 5、長針指 12，代表現在是五點整（five o\'clock），可直接刪去 (1) 三點整。',
+      '再看男孩正走在門口外、朝「超市」方向前去，並非已經在超市裡面（in），因此是 "going to the supermarket"。',
+      '故選 (2)。',
     ],
   },
   {

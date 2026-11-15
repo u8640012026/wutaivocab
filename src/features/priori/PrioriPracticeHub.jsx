@@ -44,6 +44,8 @@ import {
   buildPrioriDrillCohort,
   loadPrioriRecords,
   fetchAndMergeStudentCloudRecords,
+  logoutPrioriStudentSession,
+  releaseWrongPrioriSeat,
   getLastSeatOnThisIpad,
   rememberSeatOnThisIpad,
   normalizePrioriDrillLimit,
@@ -172,6 +174,9 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
   const [cloudSyncNotice, setCloudSyncNotice] = useState(null);
   const [deviceNotice, setDeviceNotice] = useState(null);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [pinPrompt, setPinPrompt] = useState(null);
+  const [pinInput, setPinInput] = useState('');
+  const [pinBusy, setPinBusy] = useState(false);
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
@@ -196,6 +201,8 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
   useEffect(() => {
     let cancelled = false;
     setSavedRecords(loadPrioriRecords(studentKey));
+    setPinPrompt(null);
+    setPinInput('');
 
     if (!isLoggedIn || studentKey === 'guest' || studentKey === '999999') {
       setDeviceNotice(null);
@@ -224,7 +231,15 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
       .then((res) => {
         if (cancelled) return;
         setSavedRecords(res.records || {});
-        if (res.cloudError) {
+        if (res.authRequired) {
+          setPinPrompt({
+            status: res.authStatus || 'needs_pin_setup',
+            remainingAttempts: res.remainingAttempts,
+            lockedUntil: res.lockedUntil || null,
+            hasRecords: Boolean(res.hasRecords),
+            error: '',
+          });
+        } else if (res.cloudError) {
           setCloudSyncNotice({ type: 'error', message: res.cloudError });
         } else if (
           res.syncedCount > 0 &&
@@ -270,6 +285,75 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
     setSpeakingKey(null);
     stopAudio();
   }, [stopAudio]);
+
+  const handlePinSubmit = useCallback(
+    async (e) => {
+      e?.preventDefault?.();
+      if (pinBusy || !isLoggedIn || studentKey === 'guest') return;
+      const cleanPin = pinInput.trim();
+      if (!/^\d{4}$/.test(cleanPin)) {
+        setPinPrompt((prev) => ({
+          ...(prev || { status: 'needs_pin_setup' }),
+          error: '請輸入 4 位數字小密碼（例如生日 0512）',
+        }));
+        return;
+      }
+      setPinBusy(true);
+      try {
+        const res = await fetchAndMergeStudentCloudRecords(currentStudent, '', {
+          transferPin: cleanPin,
+          forceAuthCheck: true,
+        });
+        setSavedRecords(res.records || {});
+        if (res.authRequired) {
+          const msg =
+            res.authStatus === 'pin_locked'
+              ? '密碼連續輸入錯誤已達上限，請稍候 15 分鐘或請老師在教師後台一鍵重設。'
+              : res.authStatus === 'invalid_pin'
+              ? `換機小密碼不正確，還剩 ${res.remainingAttempts ?? 0} 次嘗試機會。`
+              : '請再確認一次 4 位數換機密碼。';
+          setPinPrompt({
+            status: res.authStatus || 'pin_required',
+            remainingAttempts: res.remainingAttempts,
+            lockedUntil: res.lockedUntil || null,
+            hasRecords: Boolean(res.hasRecords),
+            error: msg,
+          });
+        } else if (res.cloudError) {
+          setPinPrompt((prev) => ({ ...(prev || {}), error: res.cloudError }));
+        } else {
+          const wasSetup = pinPrompt?.status === 'needs_pin_setup';
+          setPinPrompt(null);
+          setPinInput('');
+          setCloudSyncNotice({ type: 'ok' });
+          setDeviceNotice({
+            type: 'resumed-from-other-device',
+            text: wasSetup
+              ? '已設定 4 碼換機密碼並記住這台 iPad！以後同台裝置直接進入，換新裝置才會詢問。'
+              : `已驗證換機密碼並記住這台裝置${res.syncedCount > 0 ? `，接續 ${res.syncedCount} 份作答進度` : ''}。`,
+          });
+        }
+      } finally {
+        setPinBusy(false);
+      }
+    },
+    [currentStudent, isLoggedIn, pinBusy, pinInput, pinPrompt?.status, studentKey]
+  );
+
+  const handleReleaseOrSwitchSeat = useCallback(async () => {
+    stopSpeech();
+    if (pinPrompt?.status === 'needs_pin_setup') {
+      await logoutPrioriStudentSession(studentKey);
+    } else if (pinPrompt?.status === 'pin_required' || pinPrompt?.status === 'invalid_pin' || pinPrompt?.status === 'pin_locked') {
+      await logoutPrioriStudentSession(studentKey);
+    } else {
+      await releaseWrongPrioriSeat(currentStudent);
+    }
+    setPinPrompt(null);
+    setPinInput('');
+    logoutStudent();
+    openModal();
+  }, [currentStudent, logoutStudent, openModal, pinPrompt?.status, studentKey, stopSpeech]);
 
   useEffect(() => () => stopSpeech(), [stopSpeech]);
 
@@ -584,7 +668,16 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
           : '訪客學生';
 
         const handleCloudSyncResult = (syncRes) => {
-          if (syncRes && !syncRes.ok) {
+          if (syncRes?.authRequired) {
+            setPinPrompt({
+              status: syncRes.authStatus || 'needs_pin_setup',
+              error: '',
+            });
+            setCloudSyncNotice({
+              type: 'error',
+              message: syncRes.error || '請設定／驗證 4 碼換機小密碼後即自動同步至雲端。',
+            });
+          } else if (syncRes && !syncRes.ok) {
             setCloudSyncNotice({ type: 'error', message: syncRes.error || '雲端同步失敗' });
           } else if (syncRes?.ok) {
             setCloudSyncNotice((prev) => (prev?.type === 'error' ? prev : { type: 'ok' }));
@@ -860,6 +953,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                   type="button"
                   onClick={() => {
                     stopSpeech();
+                    logoutPrioriStudentSession(studentKey);
                     logoutStudent();
                   }}
                   title="登出目前座號，讓自己或同學重新點選班級座號"
@@ -2318,6 +2412,108 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {pinPrompt && viewMode !== 'teacher' && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="4 碼換機小密碼驗證"
+          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <form
+            onSubmit={handlePinSubmit}
+            className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border-2 border-lime-300 dark:border-lime-700"
+          >
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-lime-100 dark:bg-lime-900/60 text-lime-800 dark:text-lime-200 text-[11px] font-black">
+                <Smartphone className="w-3.5 h-3.5" />
+                <span>
+                  {pinPrompt.status === 'needs_pin_setup'
+                    ? '首次綁定這台裝置'
+                    : '偵測到更換新裝置'}
+                </span>
+              </div>
+              <h3 className="text-base font-black text-slate-900 dark:text-white pt-1">
+                {pinPrompt.status === 'needs_pin_setup'
+                  ? '設定 4 碼「換機小密碼」'
+                  : '請輸入之前設定的 4 碼換機密碼'}
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                {pinPrompt.status === 'needs_pin_setup'
+                  ? '設一組自己好記的 4 位數字（如生日四碼）。這台 iPad 記住你後以後都不會再問；只有換別台手機／iPad 時才需要輸入！'
+                  : '這組座號已綁定另一台常用裝置。輸入當初設的 4 碼小密碼即可接續雲端進度並記住這台裝置；若點錯座號或忘記密碼，可點下方重選或請老師在後台一鍵重設。'}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label
+                htmlFor="priori-student-transfer-pin"
+                className="block text-xs font-black text-slate-700 dark:text-slate-200"
+              >
+                4 位數字換機小密碼（目前座號：{formatStudentDisplayName(currentStudent)}）
+              </label>
+              <input
+                id="priori-student-transfer-pin"
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                pattern="\d{4}"
+                autoFocus
+                disabled={pinBusy || pinPrompt.status === 'pin_locked'}
+                value={pinInput}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                  setPinInput(val);
+                  if (pinPrompt.error) {
+                    setPinPrompt((prev) => (prev ? { ...prev, error: '' } : prev));
+                  }
+                }}
+                placeholder="例如：0512"
+                className="w-full px-4 py-3 rounded-2xl border-2 border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800 text-slate-900 dark:text-white font-black text-center text-xl tracking-[0.4em] focus:outline-none focus:border-lime-600"
+              />
+              {pinPrompt.error && (
+                <p className="text-xs font-black text-rose-600 dark:text-rose-400">
+                  {pinPrompt.error}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button
+                type="submit"
+                disabled={pinBusy || pinPrompt.status === 'pin_locked'}
+                className="w-full py-2.5 px-4 rounded-2xl bg-lime-500 hover:bg-lime-400 disabled:opacity-50 text-lime-950 font-black text-sm shadow-sm transition cursor-pointer"
+              >
+                {pinBusy
+                  ? '驗證同步中…'
+                  : pinPrompt.status === 'needs_pin_setup'
+                  ? '設好密碼・記住這台 iPad'
+                  : '確認換機密碼・接續進度'}
+              </button>
+
+              <div className="flex items-center justify-between gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={handleReleaseOrSwitchSeat}
+                  className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-[11px] font-black transition cursor-pointer"
+                >
+                  選錯座號？登出重選
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPinPrompt(null);
+                    setPinInput('');
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-black transition cursor-pointer"
+                >
+                  暫時先用本機練習
+                </button>
+              </div>
+            </div>
+          </form>
         </div>
       )}
 

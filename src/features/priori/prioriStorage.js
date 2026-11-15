@@ -11,6 +11,7 @@ import {
   hasPrioriAnswer,
   isPrioriAnswerCorrect,
   summarizePrioriPaperState,
+  reconcilePrioriPaperRecordWithPaper,
   mergePrioriPaperRecordWithPaper,
 } from './prioriDrill';
 import {
@@ -30,6 +31,74 @@ export {
 const STORAGE_PREFIX = 'wutai_priori_v1_';
 const STUDENT_META_INDEX_KEY = 'wutai_priori_student_meta_v1';
 const LAST_IPAD_SEAT_KEY = 'wutai_priori_last_seat_on_ipad_v1';
+const DEVICE_SECRET_KEY = 'wutai_priori_device_secret_v1';
+const STUDENT_SESSIONS_KEY = 'wutai_priori_student_sessions_v1';
+
+export function getOrCreatePrioriDeviceSecret() {
+  try {
+    const existing = localStorage.getItem(DEVICE_SECRET_KEY);
+    if (existing && existing.length >= 32) return existing;
+    let secret = '';
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const bytes = new Uint8Array(32);
+      crypto.getRandomValues(bytes);
+      secret = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    } else {
+      secret =
+        'wdev_' +
+        Math.random().toString(36).slice(2) +
+        Math.random().toString(36).slice(2) +
+        Date.now().toString(36);
+    }
+    localStorage.setItem(DEVICE_SECRET_KEY, secret);
+    return secret;
+  } catch {
+    return 'fallback_' + getDeviceId();
+  }
+}
+
+function loadAllStudentSessions() {
+  try {
+    const raw = localStorage.getItem(STUDENT_SESSIONS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getCachedPrioriStudentSession(studentKey) {
+  if (!studentKey || studentKey === 'guest' || studentKey === '999999') return null;
+  const all = loadAllStudentSessions();
+  const entry = all?.[studentKey];
+  if (!entry?.token || !entry?.expiresAt) return null;
+  if (new Date(entry.expiresAt).getTime() <= Date.now() + 60_000) {
+    return null;
+  }
+  return entry;
+}
+
+export function saveCachedPrioriStudentSession(studentKey, token, expiresAt) {
+  if (!studentKey || studentKey === 'guest' || !token) return;
+  try {
+    const all = loadAllStudentSessions();
+    all[studentKey] = {
+      token,
+      expiresAt: expiresAt || new Date(Date.now() + 30 * 86400 * 1000).toISOString(),
+    };
+    localStorage.setItem(STUDENT_SESSIONS_KEY, JSON.stringify(all));
+  } catch {}
+}
+
+export function clearCachedPrioriStudentSession(studentKey) {
+  if (!studentKey) return;
+  try {
+    const all = loadAllStudentSessions();
+    if (all && Object.prototype.hasOwnProperty.call(all, studentKey)) {
+      delete all[studentKey];
+      localStorage.setItem(STUDENT_SESSIONS_KEY, JSON.stringify(all));
+    }
+  } catch {}
+}
 
 export function getPrioriStorageKey(studentId) {
   return `${STORAGE_PREFIX}${studentId || 'guest'}`;
@@ -38,7 +107,14 @@ export function getPrioriStorageKey(studentId) {
 export function loadPrioriRecords(studentId) {
   try {
     const raw = localStorage.getItem(getPrioriStorageKey(studentId));
-    return raw ? JSON.parse(raw) : {};
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    const reconciled = {};
+    for (const [pid, rec] of Object.entries(parsed)) {
+      reconciled[pid] = reconcilePrioriPaperRecordWithPaper(rec, PRIORI_PAPER_MAP[pid] || null);
+    }
+    return reconciled;
   } catch {
     return {};
   }
@@ -578,42 +654,168 @@ function hydrateCloudPayload(row) {
     if (!pid) return null;
     const sk = payload.studentKey || row?.student_key || 'guest';
     if (sk === 'guest' || sk === '999999') return null;
-    return {
-      paperId: pid,
-      studentKey: sk,
-      studentGrade: payload.grade || row?.grade || '03',
-      studentClass: payload.classNum || row?.class_num || '1',
-      studentSeat: payload.seat || row?.seat || '01',
-      displayName: payload.displayName || row?.name || sk,
-      lastDeviceId: payload.lastDeviceId || '',
-      firstScore: payload.firstScore ?? row?.score ?? 0,
-      firstAnswers: payload.firstAnswers || null,
-      firstCorrectCount: payload.firstCorrectCount,
-      firstSubmittedAt: payload.firstSubmittedAt,
-      latestScore: payload.latestScore ?? row?.score ?? 0,
-      score: payload.latestScore ?? row?.score ?? 0,
-      correctCount: payload.correctCount ?? 0,
-      totalCount:
-        payload.totalCount ?? (PRIORI_PAPER_MAP[pid]?.totalQuestions || 25),
-      masteredCount: payload.masteredCount ?? row?.time ?? 0,
-      attemptsCount: payload.attemptsCount ?? 1,
-      drillAttemptsCount: payload.drillAttemptsCount ?? 0,
-      streaks: payload.streaks || {},
-      latestAnswers: payload.latestAnswers || {},
-      questionAttemptCounts: payload.questionAttemptCounts || {},
-      scratchpad: payload.scratchpad || {},
-      updatedAt: payload.updatedAt || row?.updated_at || row?.created_at,
-      source: 'cloud',
-    };
+    return reconcilePrioriPaperRecordWithPaper(
+      {
+        paperId: pid,
+        studentKey: sk,
+        studentGrade: payload.grade || row?.grade || '03',
+        studentClass: payload.classNum || row?.class_num || '1',
+        studentSeat: payload.seat || row?.seat || '01',
+        displayName: payload.displayName || row?.name || sk,
+        lastDeviceId: payload.lastDeviceId || '',
+        firstScore: payload.firstScore ?? row?.score ?? 0,
+        firstAnswers: payload.firstAnswers || null,
+        firstCorrectCount: payload.firstCorrectCount,
+        firstSubmittedAt: payload.firstSubmittedAt,
+        latestScore: payload.latestScore ?? row?.score ?? 0,
+        score: payload.latestScore ?? row?.score ?? 0,
+        correctCount: payload.correctCount ?? 0,
+        totalCount:
+          payload.totalCount ?? (PRIORI_PAPER_MAP[pid]?.totalQuestions || 25),
+        masteredCount: payload.masteredCount ?? row?.time ?? 0,
+        attemptsCount: payload.attemptsCount ?? 1,
+        drillAttemptsCount: payload.drillAttemptsCount ?? 0,
+        streaks: payload.streaks || {},
+        latestAnswers: payload.latestAnswers || {},
+        questionAttemptCounts: payload.questionAttemptCounts || {},
+        scratchpad: payload.scratchpad || {},
+        updatedAt: payload.updatedAt || row?.updated_at || row?.created_at,
+        source: 'cloud',
+      },
+      PRIORI_PAPER_MAP[pid] || null
+    );
   } catch {
     return null;
   }
 }
 
 /**
+ * 透過伺服器 RPC 取得／核發當前座號專屬的學生工作階段 Token
+ * - 同台已綁定裝置：直接無密碼核發 token (`trusted_device`)
+ * - 首次綁定：需設定 4 碼換機小密碼 (`needs_pin_setup` -> `bound_new`)
+ * - 更換新裝置：需輸入先前設定之 4 碼換機小密碼 (`pin_required` -> `pin_verified`)
+ */
+export async function loginPrioriStudentSeat(
+  student,
+  transferPin = null,
+  displayName = '',
+  { forceRefresh = false } = {}
+) {
+  const identity = buildStudentIdentity(student, displayName);
+  if (identity.isGuest || (typeof window !== 'undefined' && window.__CI__)) {
+    return { ok: true, isGuest: true, token: '' };
+  }
+
+  const cleanPin =
+    typeof transferPin === 'string' && transferPin.trim() ? transferPin.trim() : null;
+
+  if (!forceRefresh && !cleanPin) {
+    const cached = getCachedPrioriStudentSession(identity.studentKey);
+    if (cached?.token) {
+      return {
+        ok: true,
+        token: cached.token,
+        status: 'cached',
+        studentKey: identity.studentKey,
+      };
+    }
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('priori_student_login_seat', {
+      p_student_key: identity.studentKey,
+      p_device_secret: getOrCreatePrioriDeviceSecret(),
+      p_transfer_pin: cleanPin,
+    });
+
+    if (error) {
+      if (isPrioriSchemaPendingError(error)) {
+        return {
+          ok: false,
+          schemaPending: true,
+          status: 'schema_pending',
+          error:
+            '尚未於 Supabase 執行 supabase_priori_security.sql 權限隔離腳本，目前僅保留本機作答（絕不寫入公開表）。',
+        };
+      }
+      return {
+        ok: false,
+        status: 'error',
+        error: error.message || '學生座號驗證失敗',
+      };
+    }
+
+    if (data?.authorized && data?.token) {
+      saveCachedPrioriStudentSession(identity.studentKey, data.token, data.expires_at);
+      return {
+        ok: true,
+        token: data.token,
+        status: data.status || 'trusted_device',
+        studentKey: identity.studentKey,
+      };
+    }
+
+    clearCachedPrioriStudentSession(identity.studentKey);
+    return {
+      ok: false,
+      status: data?.status || 'pin_required',
+      remainingAttempts: data?.remaining_attempts,
+      lockedUntil: data?.locked_until || null,
+      hasRecords: Boolean(data?.has_records),
+      error: '',
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 'error',
+      error: err?.message || '雲端連線異常',
+    };
+  }
+}
+
+export async function logoutPrioriStudentSession(studentKey) {
+  const cached = getCachedPrioriStudentSession(studentKey);
+  clearCachedPrioriStudentSession(studentKey);
+  if (!cached?.token || (typeof window !== 'undefined' && window.__CI__)) return;
+  try {
+    await supabase.rpc('priori_student_logout', { p_token: cached.token });
+  } catch {}
+}
+
+export async function releaseWrongPrioriSeat(student) {
+  const identity = buildStudentIdentity(student);
+  if (identity.isGuest) return { released: true };
+  const cached = getCachedPrioriStudentSession(identity.studentKey);
+  clearCachedPrioriStudentSession(identity.studentKey);
+  try {
+    const prev = getLastSeatOnThisIpad();
+    if (prev?.studentKey === identity.studentKey) {
+      localStorage.removeItem(LAST_IPAD_SEAT_KEY);
+    }
+  } catch {}
+
+  if (!cached?.token || (typeof window !== 'undefined' && window.__CI__)) {
+    return { released: false };
+  }
+  try {
+    const { data, error } = await supabase.rpc('priori_student_release_wrong_seat', {
+      p_token: cached.token,
+    });
+    if (error) return { released: false, error: error.message };
+    return { released: Boolean(data?.released), reason: data?.reason || '' };
+  } catch (err) {
+    return { released: false, error: err?.message };
+  }
+}
+
+/**
  * 學生切換裝置或登入座號時，透過獨立隔離表 RPC (`priori_student_get_records`) 僅讀取自己座號的跨裝置進度（無法撈取他生紀錄）
  */
-export async function fetchAndMergeStudentCloudRecords(student, displayName = '') {
+export async function fetchAndMergeStudentCloudRecords(
+  student,
+  displayName = '',
+  options = {}
+) {
   const identity = buildStudentIdentity(student, displayName);
   const localAll = loadPrioriRecords(identity.studentKey);
 
@@ -623,13 +825,90 @@ export async function fetchAndMergeStudentCloudRecords(student, displayName = ''
       syncedCount: 0,
       cloudLastDeviceId: '',
       cloudError: '',
+      authStatus: 'guest',
     };
   }
 
   try {
-    const { data, error } = await supabase.rpc('priori_student_get_records', {
+    let authRes = await loginPrioriStudentSeat(
+      student,
+      options.transferPin || null,
+      displayName,
+      { forceRefresh: Boolean(options.forceAuthCheck) }
+    );
+
+    if (!authRes.ok) {
+      if (authRes.schemaPending) {
+        return {
+          records: localAll,
+          syncedCount: 0,
+          cloudLastDeviceId: '',
+          schemaPending: true,
+          authStatus: 'schema_pending',
+          cloudError: authRes.error,
+        };
+      }
+      if (
+        authRes.status === 'needs_pin_setup' ||
+        authRes.status === 'pin_required' ||
+        authRes.status === 'invalid_pin' ||
+        authRes.status === 'pin_locked' ||
+        authRes.status === 'invalid_pin_format'
+      ) {
+        return {
+          records: localAll,
+          syncedCount: 0,
+          cloudLastDeviceId: '',
+          authRequired: true,
+          authStatus: authRes.status,
+          remainingAttempts: authRes.remainingAttempts,
+          lockedUntil: authRes.lockedUntil || null,
+          hasRecords: Boolean(authRes.hasRecords),
+          cloudError: '',
+        };
+      }
+      return {
+        records: localAll,
+        syncedCount: 0,
+        cloudLastDeviceId: '',
+        authStatus: authRes.status || 'error',
+        cloudError: authRes.error || '雲端紀錄同步失敗',
+      };
+    }
+
+    let { data, error } = await supabase.rpc('priori_student_get_records', {
+      p_token: authRes.token,
       p_student_key: identity.studentKey,
     });
+
+    if (error && isPrioriUnauthorizedError(error)) {
+      clearCachedPrioriStudentSession(identity.studentKey);
+      authRes = await loginPrioriStudentSeat(
+        student,
+        options.transferPin || null,
+        displayName,
+        { forceRefresh: true }
+      );
+      if (!authRes.ok) {
+        return {
+          records: localAll,
+          syncedCount: 0,
+          cloudLastDeviceId: '',
+          authRequired: !authRes.schemaPending,
+          authStatus: authRes.status || 'pin_required',
+          remainingAttempts: authRes.remainingAttempts,
+          lockedUntil: authRes.lockedUntil || null,
+          hasRecords: Boolean(authRes.hasRecords),
+          cloudError: authRes.error || '',
+        };
+      }
+      const retry = await supabase.rpc('priori_student_get_records', {
+        p_token: authRes.token,
+        p_student_key: identity.studentKey,
+      });
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       if (isPrioriSchemaPendingError(error)) {
@@ -638,6 +917,7 @@ export async function fetchAndMergeStudentCloudRecords(student, displayName = ''
           syncedCount: 0,
           cloudLastDeviceId: '',
           schemaPending: true,
+          authStatus: 'schema_pending',
           cloudError:
             '尚未於 Supabase 執行 supabase_priori_security.sql 權限隔離腳本，目前僅保留本機作答（絕不寫入公開表）。',
         };
@@ -652,6 +932,7 @@ export async function fetchAndMergeStudentCloudRecords(student, displayName = ''
 
     const rows = Array.isArray(data) ? data : [];
     const mergedAll = { ...localAll };
+    const cloudPaperIds = new Set();
     let syncedCount = 0;
     let cloudLastDeviceId = '';
     let latestCloudTs = -1;
@@ -660,6 +941,7 @@ export async function fetchAndMergeStudentCloudRecords(student, displayName = ''
       const cloudRec = hydrateCloudPayload(row);
       if (!cloudRec) continue;
       syncedCount += 1;
+      cloudPaperIds.add(cloudRec.paperId);
       mergedAll[cloudRec.paperId] = mergePrioriPaperRecord(
         mergedAll[cloudRec.paperId],
         cloudRec
@@ -680,11 +962,21 @@ export async function fetchAndMergeStudentCloudRecords(student, displayName = ''
       } catch {}
     }
 
+    // 若本機在登入驗證前已有尚未上雲的離線作答，完成驗證後自動補傳上雲
+    for (const [pid, localRec] of Object.entries(localAll)) {
+      if (!cloudPaperIds.has(pid) && localRec?.paperId) {
+        syncPrioriRecordToCloud(identity, localRec, {
+          studentToken: authRes.token,
+        }).catch(() => {});
+      }
+    }
+
     return {
       records: mergedAll,
       syncedCount,
       cloudLastDeviceId,
       cloudError: '',
+      authStatus: authRes.status,
     };
   } catch (err) {
     return {
@@ -696,15 +988,79 @@ export async function fetchAndMergeStudentCloudRecords(student, displayName = ''
   }
 }
 
-async function syncPrioriRecordToCloud(identity, record) {
+async function syncPrioriRecordToCloud(identity, record, options = {}) {
   if (identity.isGuest) {
     return { ok: true, localOnly: true };
   }
   try {
-    const { data: existingRows, error: selectError } = await supabase.rpc(
+    const pseudoStudent = {
+      student_id: identity.studentKey,
+      grade: identity.grade,
+      class: identity.classNum,
+      seat: identity.seat,
+    };
+
+    let activeToken = options.studentToken || '';
+    if (!activeToken) {
+      const authRes = await loginPrioriStudentSeat(
+        pseudoStudent,
+        null,
+        identity.displayName
+      );
+      if (!authRes.ok) {
+        if (authRes.schemaPending) {
+          return {
+            ok: false,
+            schemaPending: true,
+            error: authRes.error,
+          };
+        }
+        return {
+          ok: false,
+          authRequired: true,
+          authStatus: authRes.status || 'needs_pin_setup',
+          error:
+            authRes.status === 'needs_pin_setup'
+              ? '已存於本機！設定 4 碼換機密碼後即可同步雲端。'
+              : '已存於本機！完成換機密碼驗證後即可同步雲端。',
+        };
+      }
+      activeToken = authRes.token;
+    }
+
+    let { data: existingRows, error: selectError } = await supabase.rpc(
       'priori_student_get_records',
-      { p_student_key: identity.studentKey }
+      {
+        p_token: activeToken,
+        p_student_key: identity.studentKey,
+      }
     );
+
+    if (selectError && isPrioriUnauthorizedError(selectError)) {
+      clearCachedPrioriStudentSession(identity.studentKey);
+      const refreshAuth = await loginPrioriStudentSeat(
+        pseudoStudent,
+        null,
+        identity.displayName,
+        { forceRefresh: true }
+      );
+      if (!refreshAuth.ok) {
+        return {
+          ok: false,
+          authRequired: !refreshAuth.schemaPending,
+          authStatus: refreshAuth.status || 'pin_required',
+          error:
+            refreshAuth.error || '裝置憑證已更新，請輸入 4 碼換機小密碼後再同步雲端。',
+        };
+      }
+      activeToken = refreshAuth.token;
+      const retrySel = await supabase.rpc('priori_student_get_records', {
+        p_token: activeToken,
+        p_student_key: identity.studentKey,
+      });
+      existingRows = retrySel.data;
+      selectError = retrySel.error;
+    }
 
     if (selectError) {
       if (isPrioriSchemaPendingError(selectError)) {
@@ -741,6 +1097,7 @@ async function syncPrioriRecordToCloud(identity, record) {
 
     const cloudPayload = serializeRecordForCloud(identity, finalRecord);
     const { error: upsertError } = await supabase.rpc('priori_student_upsert_record', {
+      p_token: activeToken,
       p_student_key: identity.studentKey,
       p_paper_id: finalRecord.paperId,
       p_grade: identity.grade,

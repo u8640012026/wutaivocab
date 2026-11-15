@@ -4,6 +4,7 @@ import {
   buildPrioriDrillCohort,
   stepPrioriDrillQueue,
   normalizePrioriDrillLimit,
+  reconcilePrioriPaperRecordWithPaper,
   mergePrioriPaperRecordWithPaper,
 } from '../src/features/priori/prioriDrill.js';
 import { PRIORI_PAPER_MAP } from '../src/data/priori/index.js';
@@ -175,4 +176,52 @@ assert.equal(mergedAfterWrong.streaks[q1.id], 0);
 assert.equal(mergedAfterWrong.firstAnswers[q1.id], q1.answer, 'Initial firstAnswers[Q1] remains frozen');
 assert.equal(mergedAfterWrong.firstScore, 8, 'Frozen firstScore retains Q1 initial answer + Q2');
 
-console.log('✅ PRIORI drill cap (10/20), early exit, & cross-device staggered merge contracts passed!');
+// Case 7: Auto-reconcile pre-fix miskeyed records for 113-english-g5 (Q9 -> 0) and 113-english-g6 (Q23 -> 1)
+const engG5Paper = PRIORI_PAPER_MAP['113-english-g5'];
+const engG5Ans = Object.fromEntries(engG5Paper.questions.map((q) => [q.id, q.answer]));
+const preFixEngG5 = {
+  paperId: '113-english-g5',
+  score: 96,
+  latestScore: 96,
+  firstScore: 96,
+  correctCount: 24,
+  firstCorrectCount: 24,
+  totalCount: 25,
+  wrongIds: ['priori-113-eng-g5-q09'],
+  masteredIds: [],
+  masteredCount: 0,
+  latestAnswers: engG5Ans,
+  firstAnswers: engG5Ans,
+  streaks: Object.fromEntries(
+    engG5Paper.questions.map((q) => [q.id, q.id === 'priori-113-eng-g5-q09' ? 0 : 1])
+  ),
+};
+const reconciledEngG5 = reconcilePrioriPaperRecordWithPaper(preFixEngG5, engG5Paper);
+assert.equal(reconciledEngG5.score, 100, '113 Eng G5 Q9=(1) must reconcile 96 -> 100');
+assert.equal(reconciledEngG5.firstScore, 100);
+assert.equal(reconciledEngG5.wrongIds.length, 0);
+assert.equal(reconciledEngG5.streaks['priori-113-eng-g5-q09'], 1);
+
+const engG6Paper = PRIORI_PAPER_MAP['113-english-g6'];
+const staleOldWrongEngG6 = {
+  paperId: '113-english-g6',
+  score: 4,
+  latestScore: 4,
+  firstScore: 4,
+  correctCount: 1,
+  firstCorrectCount: 1,
+  totalCount: 25,
+  wrongIds: engG6Paper.questions.filter((q) => q.number !== 23).map((q) => q.id),
+  masteredIds: [],
+  masteredCount: 0,
+  latestAnswers: { 'priori-113-eng-g6-q23': 0 },
+  firstAnswers: { 'priori-113-eng-g6-q23': 0 },
+  streaks: { 'priori-113-eng-g6-q23': 1 },
+};
+const reconciledEngG6 = reconcilePrioriPaperRecordWithPaper(staleOldWrongEngG6, engG6Paper);
+assert.equal(reconciledEngG6.score, 0, '113 Eng G6 Q23=(1) (old key) must reconcile 4 -> 0');
+assert.equal(reconciledEngG6.firstScore, 0);
+assert.ok(reconciledEngG6.wrongIds.includes('priori-113-eng-g6-q23'));
+assert.equal(reconciledEngG6.streaks['priori-113-eng-g6-q23'], 0);
+
+console.log('✅ PRIORI drill cap (10/20), early exit, staggered merge & answer-key reconciliation contracts passed!');

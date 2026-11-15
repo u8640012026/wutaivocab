@@ -128,8 +128,8 @@ const LISTENING_PIC_SPECS = [
     concept: '聽辨單複數與數量問答（What do you see? I see two pizzas.）',
     steps: [
       '聽力對話："What do you see? I see two pizzas."（你看到什麼？我看到兩個比薩）。',
-      '看視線泡泡裡的比薩數量：圖 (1) 眼前兩個？仔細看：圖 (1) 桌前一人一盤共 2 盤（但沒抬頭看）？對照細節：圖 (1) 與 (2) 在自己前面吃，圖 (3) 眼睛望向空中泡泡裡清楚看到「兩整份比薩（I see two pizzas）」，且官方標準答案為 (3)。',
-      '選圖片 (3)。',
+      '比較畫面：圖 (1) 男孩睜開眼睛看著桌上兩個比薩（I see two pizzas）；圖 (2) 桌上只有一個比薩；圖 (3) 男孩閉上眼睛，比薩出現在頭上的想像泡泡裡（不是實際看到）。',
+      '因此正確選項為圖片 (1)，選 (1)。',
     ],
   },
   {
@@ -374,7 +374,7 @@ export const PRIORI_113_ENGLISH_G5_QUESTIONS = [
       questionText: `第一部分：聽辨${item.num <= 6 ? '單字' : '常用語或句子'}（第 ${item.num} 題）\n請先點擊官方聽力音檔播放 3 遍，再依圖片選出正確的圖片編號。`,
       options: ['圖片 (1)', '圖片 (2)', '圖片 (3)'],
       answer:
-        [0, 2, 0, 0, 2, 2, 1][item.num - 4],
+        [0, 2, 0, 0, 2, 0, 1][item.num - 4],
       media: {
         audioSrc: `/audio/priori/113/eng-g5/q${qStr}.mp3`,
         audioSourceType: 'official_mp3',

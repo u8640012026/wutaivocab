@@ -68,7 +68,9 @@ class CDP {
     this.consoleErrors = [];
     this.mockRows = [];
     this.prioriRecords = [];
-    this.prioriRoster = null;
+    this.prioriRosters = new Map();
+    this.studentBindings = new Map();
+    this.studentSessions = new Map();
     this.teacherSessions = new Map();
     this.mockRequests = [];
     this.nextRowSeq = 1;
@@ -95,8 +97,11 @@ class CDP {
     if (
       parsedUrl.pathname.includes('/rest/v1/priori_records') ||
       parsedUrl.pathname.includes('/rest/v1/priori_rosters') ||
+      parsedUrl.pathname.includes('/rest/v1/priori_student_bindings') ||
+      parsedUrl.pathname.includes('/rest/v1/priori_student_sessions') ||
       parsedUrl.pathname.includes('/rest/v1/priori_teacher_auth') ||
-      parsedUrl.pathname.includes('/rest/v1/priori_teacher_sessions')
+      parsedUrl.pathname.includes('/rest/v1/priori_teacher_sessions') ||
+      parsedUrl.pathname.includes('/rest/v1/priori_legacy_leaderboard_backup')
     ) {
       return { status: 401, body: JSON.stringify({ code: '42501', message: 'permission denied by RLS' }) };
     }
@@ -107,12 +112,16 @@ class CDP {
 
       if (rpcName === 'priori_teacher_login') {
         const pw = String(payload?.p_password || '').trim();
-        if (pw === 'wt7902230') {
+        if (pw === 'ci-mock-admin-pw' || pw === 'ci-mock-class31-pw') {
+          const isClass31 = pw === 'ci-mock-class31-pw';
+          const allowedClasses = isClass31 ? ['3-1'] : ['*'];
+          const teacherId = isClass31 ? 'teacher_301' : 'admin';
+          const displayName = isClass31 ? '三年甲班導師' : '霧臺國小管理教師';
           const token = `mock-teacher-token-${this.nextRowSeq++}-${'a'.repeat(32)}`;
           const expiresAt = new Date(Date.now() + 12 * 3600 * 1000).toISOString();
           this.teacherSessions.set(token, {
-            teacherId: 'admin',
-            allowedClasses: ['*'],
+            teacherId,
+            allowedClasses,
             expiresAt,
           });
           return {
@@ -120,9 +129,9 @@ class CDP {
             body: JSON.stringify({
               authorized: true,
               token,
-              teacher_id: 'admin',
-              display_name: '霧臺國小管理教師',
-              allowed_classes: ['*'],
+              teacher_id: teacherId,
+              display_name: displayName,
+              allowed_classes: allowedClasses,
               expires_at: expiresAt,
             }),
           };
@@ -140,60 +149,189 @@ class CDP {
         if (!sess) {
           return { status: 401, body: JSON.stringify({ code: '42501', message: 'Unauthorized teacher session' }) };
         }
+        const reqG = payload?.p_grade ? String(parseInt(payload.p_grade, 10) || payload.p_grade) : null;
+        const reqC = payload?.p_class_num ? String(parseInt(payload.p_class_num, 10) || payload.p_class_num) : null;
+        if (!sess.allowedClasses.includes('*') && (reqG || reqC)) {
+          const scopeOk = sess.allowedClasses.some((item) => {
+            const [ag, ac] = String(item).split('-');
+            return (!reqG || String(parseInt(ag, 10)) === reqG) && (!reqC || String(parseInt(ac, 10)) === reqC);
+          });
+          if (!scopeOk) {
+            return { status: 401, body: JSON.stringify({ code: '42501', message: 'Forbidden: requested class outside teacher scope' }) };
+          }
+        }
         const hits = this.prioriRecords.filter((r) => {
           if (payload?.p_paper_id && r.paper_id !== payload.p_paper_id) return false;
           if (!sess.allowedClasses.includes('*')) {
             const cKey = `${parseInt(r.grade, 10)}-${parseInt(r.class_num, 10)}`;
             if (!sess.allowedClasses.includes(cKey)) return false;
           }
+          if (reqG && String(parseInt(r.grade, 10)) !== reqG) return false;
+          if (reqC && String(parseInt(r.class_num, 10)) !== reqC) return false;
           return true;
         });
         return { status: 200, body: JSON.stringify(hits) };
       }
 
       if (rpcName === 'priori_teacher_get_roster') {
-        if (!this.teacherSessions.get(payload?.p_token || '')) {
+        const sess = this.teacherSessions.get(payload?.p_token || '');
+        if (!sess) {
           return { status: 401, body: JSON.stringify({ code: '42501', message: 'Unauthorized teacher session' }) };
         }
+        const scopeKey = String(payload?.p_roster_key || 'priori_school_roster_v1').trim();
+        if (scopeKey === 'priori_school_roster_v1' && !sess.allowedClasses.includes('*')) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Forbidden: whole-school roster requires * scope' }) };
+        }
+        if (scopeKey.startsWith('class:')) {
+          const cls = scopeKey.slice(6);
+          if (!sess.allowedClasses.includes('*') && !sess.allowedClasses.includes(cls)) {
+            return { status: 401, body: JSON.stringify({ code: '42501', message: 'Forbidden: class roster outside scope' }) };
+          }
+        }
+        const row = this.prioriRosters.get(scopeKey);
         return {
           status: 200,
           body: JSON.stringify(
-            this.prioriRoster || { envelope: null, updated_at: null }
+            row || { envelope: null, updated_at: null, roster_key: scopeKey }
           ),
         };
       }
 
       if (rpcName === 'priori_teacher_save_roster') {
         const sess = this.teacherSessions.get(payload?.p_token || '');
-        if (!sess || !sess.allowedClasses.includes('*')) {
+        const scopeKey = String(payload?.p_roster_key || 'priori_school_roster_v1').trim();
+        const scopeOk =
+          sess &&
+          (sess.allowedClasses.includes('*') ||
+            (scopeKey.startsWith('class:') && sess.allowedClasses.includes(scopeKey.slice(6))));
+        if (!scopeOk) {
           return { status: 401, body: JSON.stringify({ code: '42501', message: 'Unauthorized teacher session' }) };
         }
         const now = new Date().toISOString();
-        this.prioriRoster = {
+        this.prioriRosters.set(scopeKey, {
           envelope: payload?.p_envelope,
           entry_count: Number(payload?.p_entry_count) || 0,
           updated_at: now,
+          roster_key: scopeKey,
+        });
+        return { status: 200, body: JSON.stringify({ ok: true, updated_at: now, roster_key: scopeKey }) };
+      }
+
+      if (rpcName === 'priori_teacher_reset_student_binding') {
+        const sess = this.teacherSessions.get(payload?.p_token || '');
+        const sk = String(payload?.p_student_key || '').trim();
+        if (!sess) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Unauthorized teacher session' }) };
+        }
+        const cls = `${parseInt(sk.slice(0, 2), 10)}-${parseInt(sk.slice(2, 4), 10)}`;
+        if (!sess.allowedClasses.includes('*') && !sess.allowedClasses.includes(cls)) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Forbidden: student outside scope' }) };
+        }
+        this.studentBindings.delete(sk);
+        for (const [t, s] of this.studentSessions.entries()) {
+          if (s.studentKey === sk) this.studentSessions.delete(t);
+        }
+        return { status: 200, body: JSON.stringify({ ok: true, student_key: sk }) };
+      }
+
+      if (rpcName === 'priori_student_login_seat') {
+        const sk = String(payload?.p_student_key || '').trim();
+        const devSecret = String(payload?.p_device_secret || '').trim();
+        const pin = payload?.p_transfer_pin ? String(payload.p_transfer_pin).trim() : '';
+        if (!/^\d{6}$/.test(sk) || sk === '999999' || devSecret.length < 16) {
+          return { status: 400, body: JSON.stringify({ code: '22023', message: 'Invalid student/device credential' }) };
+        }
+        let bind = this.studentBindings.get(sk);
+        const expiresAt = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
+        const issueToken = (status) => {
+          const token = `psess_mock_${sk}_${this.nextRowSeq++}_${'s'.repeat(32)}`;
+          this.studentSessions.set(token, { studentKey: sk, devSecret, expiresAt });
+          return { status: 200, body: JSON.stringify({ authorized: true, status, token, student_key: sk, expires_at: expiresAt }) };
         };
-        return { status: 200, body: JSON.stringify({ ok: true, updated_at: now }) };
+        if (!bind) {
+          if (!/^\d{4}$/.test(pin)) {
+            return {
+              status: 200,
+              body: JSON.stringify({
+                authorized: false,
+                status: pin ? 'invalid_pin_format' : 'needs_pin_setup',
+                has_records: this.prioriRecords.some((r) => r.student_key === sk),
+              }),
+            };
+          }
+          bind = { pin, deviceSecrets: new Set([devSecret]), failCount: 0, lockedUntil: 0 };
+          this.studentBindings.set(sk, bind);
+          return issueToken('bound_new');
+        }
+        if (bind.deviceSecrets.has(devSecret)) {
+          bind.failCount = 0;
+          return issueToken('trusted_device');
+        }
+        if (bind.lockedUntil > Date.now()) {
+          return { status: 200, body: JSON.stringify({ authorized: false, status: 'pin_locked' }) };
+        }
+        if (!pin) {
+          return { status: 200, body: JSON.stringify({ authorized: false, status: 'pin_required', remaining_attempts: Math.max(1, 5 - bind.failCount) }) };
+        }
+        if (pin !== bind.pin) {
+          bind.failCount += 1;
+          if (bind.failCount >= 5) {
+            bind.lockedUntil = Date.now() + 15 * 60 * 1000;
+            return { status: 200, body: JSON.stringify({ authorized: false, status: 'pin_locked', remaining_attempts: 0 }) };
+          }
+          return { status: 200, body: JSON.stringify({ authorized: false, status: 'invalid_pin', remaining_attempts: 5 - bind.failCount }) };
+        }
+        bind.deviceSecrets.add(devSecret);
+        bind.failCount = 0;
+        return issueToken('pin_verified');
+      }
+
+      if (rpcName === 'priori_student_logout') {
+        if (payload?.p_token) this.studentSessions.delete(payload.p_token);
+        return { status: 200, body: JSON.stringify({ ok: true }) };
+      }
+
+      if (rpcName === 'priori_student_release_wrong_seat') {
+        const sess = this.studentSessions.get(payload?.p_token || '');
+        if (!sess) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Unauthorized student session' }) };
+        }
+        if (this.prioriRecords.some((r) => r.student_key === sess.studentKey)) {
+          return { status: 200, body: JSON.stringify({ released: false, reason: 'has_records' }) };
+        }
+        this.studentBindings.delete(sess.studentKey);
+        this.studentSessions.delete(payload.p_token);
+        return { status: 200, body: JSON.stringify({ released: true }) };
       }
 
       if (rpcName === 'priori_student_get_records') {
-        const sk = String(payload?.p_student_key || '').trim();
-        if (!/^\d{6}$/.test(sk) || sk === '999999') {
-          return { status: 400, body: JSON.stringify({ code: '22023', message: 'Invalid student key scope' }) };
+        const sess = this.studentSessions.get(payload?.p_token || '');
+        const reqSk = payload?.p_student_key ? String(payload.p_student_key).trim() : sess?.studentKey;
+        if (!sess) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Unauthorized student session' }) };
+        }
+        if (reqSk !== sess.studentKey) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Forbidden: student session scope mismatch' }) };
         }
         if (this.blockCloudReads) {
           return { status: 200, body: '[]' };
         }
         return {
           status: 200,
-          body: JSON.stringify(this.prioriRecords.filter((r) => r.student_key === sk)),
+          body: JSON.stringify(this.prioriRecords.filter((r) => r.student_key === sess.studentKey)),
         };
       }
 
       if (rpcName === 'priori_student_upsert_record') {
+        const sess = this.studentSessions.get(payload?.p_token || '');
         const sk = String(payload?.p_student_key || '').trim();
         const pid = String(payload?.p_paper_id || '').trim();
+        if (!sess) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Unauthorized student session' }) };
+        }
+        if (sk !== sess.studentKey) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Forbidden: student session scope mismatch' }) };
+        }
         if (!/^\d{6}$/.test(sk) || sk === '999999' || !pid) {
           return { status: 400, body: JSON.stringify({ code: '22023', message: 'Invalid student record scope' }) };
         }
@@ -442,10 +580,11 @@ async function run() {
         return {
           ok: (document.body.innerText || '').includes('霧臺國小・學習扶助自主練習館'),
           url: window.location.search,
+          bodyHead: (document.body.innerText || '').slice(0, 300),
         };
       })()
     `);
-    assert.equal(portalResult?.ok, true, `Portal navigation failed: ${JSON.stringify(portalResult)}`);
+    assert.equal(portalResult?.ok, true, `Portal navigation failed: ${JSON.stringify(portalResult)}; exceptions=${JSON.stringify(client.exceptions)}; console=${JSON.stringify(client.consoleErrors)}`);
     console.log('✓ Test A (Portal -> Priori navigation at 1024x768) passed');
 
     // Test B: Deep-link /?view=priori Minimalist Hub View + 3-Subject Switching at 1024x768
@@ -945,7 +1084,7 @@ async function run() {
     assert.equal(engSubmit?.ok, true, `114 English grading check failed: ${JSON.stringify(engSubmit)}`);
     console.log('✓ Test F (114 English G3 official MP3, Alphabet Pad, 2-opt O/X, 3-opt dialogue & 3/25 grading) passed');
 
-    // Test G: Independent Teacher Dashboard (Salted SHA-256 wt7902230, Real Clean Default vs Dropdown Demo, Initial vs Mastery toggle, Class Matrix + AES Roster + Year 114 & 115)
+    // Test G: Independent Teacher Dashboard (Server Auth ci-mock-admin-pw, Real Clean Default vs Dropdown Demo, Initial vs Mastery toggle, Class Matrix + AES Roster + Year 114 & 115)
     await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&tab=teacher` });
     await sleep(600);
     const teacherCheck = await client.eval(`
@@ -980,7 +1119,7 @@ async function run() {
         await new Promise(r => setTimeout(r, 200));
         const wrongPwMsg = (document.body.innerText || '').includes('教師密碼錯誤');
 
-        setInput(pwInput, 'wt7902230');
+        setInput(pwInput, 'ci-mock-admin-pw');
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
         let matrixSection = null;
         const matrixDeadline = Date.now() + 5000;
@@ -1178,7 +1317,7 @@ async function run() {
     `);
     assert.equal(teacher115, true, 'Teacher dashboard failed to switch back to 115 Math');
     await client.screenshot('priori_teacher_question.png');
-    console.log('✓ Test G (Teacher backend wt7902230, clean real class, dropdown demo, initial/mastery toggle, AES roster & 114/115) passed');
+    console.log('✓ Test G (Teacher backend ci-mock-admin-pw, clean real class, dropdown demo, initial/mastery toggle, AES roster & 114/115) passed');
 
     // Test H: Mobile Portrait (375x812)
     await client.send('Emulation.setDeviceMetricsOverride', {
@@ -1227,15 +1366,51 @@ async function run() {
     client.mockRequests = [];
     client.blockCloudReads = false;
 
-    const resetLocalPrioriForSeat = async (seatId = '030105') => {
+    const resetLocalPrioriForSeat = async (seatId = '030105', { resetDeviceSecret = false } = {}) => {
       await client.eval(`
         (() => {
           Object.keys(localStorage)
-            .filter((k) => k.startsWith('wutai_priori'))
+            .filter((k) => k.startsWith('wutai_priori') && k !== 'wutai_priori_device_secret_v1')
             .forEach((k) => localStorage.removeItem(k));
+          if (${resetDeviceSecret}) {
+            localStorage.removeItem('wutai_priori_device_secret_v1');
+          }
           localStorage.setItem('wutai_last_student_id', ${JSON.stringify(seatId)});
         })()
       `);
+    };
+
+    const submitTransferPin = async (pin, expectError = false) => {
+      const res = await client.eval(`
+        (async () => {
+          const deadline = Date.now() + 5000;
+          let input = null;
+          while (Date.now() < deadline) {
+            input = document.getElementById('priori-student-transfer-pin');
+            if (input) break;
+            await new Promise((r) => setTimeout(r, 100));
+          }
+          if (!input) return { ok: false, reason: 'PIN dialog not shown' };
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+          setter.call(input, ${JSON.stringify(pin)});
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          const form = input.closest('form');
+          form?.querySelector('button[type="submit"]')?.click();
+          if (${expectError}) {
+            await new Promise((r) => setTimeout(r, 350));
+            const stillOpen = !!document.getElementById('priori-student-transfer-pin');
+            const dialogText = form?.innerText || '';
+            return { ok: stillOpen && dialogText.includes('不正確'), dialogText };
+          }
+          const closeDeadline = Date.now() + 5000;
+          while (Date.now() < closeDeadline) {
+            if (!document.getElementById('priori-student-transfer-pin')) break;
+            await new Promise((r) => setTimeout(r, 100));
+          }
+          return { ok: !document.getElementById('priori-student-transfer-pin') };
+        })()
+      `);
+      assert.equal(res?.ok, true, `Transfer PIN interaction (${pin}) failed: ${JSON.stringify(res)}`);
     };
 
     const start114MathAndAnswer = async (qNum, optIdx) => {
@@ -1284,10 +1459,18 @@ async function run() {
       `);
     };
 
-    // Device 1: Logged in as 3年甲班 05號 ('030105'), solves Q1 right (option index 3) and submits
-    await resetLocalPrioriForSeat('030105');
+    // Device 1: Logged in as 3年甲班 05號 ('030105'), sets 4-digit PIN '0512', solves Q1 right (option index 3) and submits
+    await resetLocalPrioriForSeat('030105', { resetDeviceSecret: true });
     await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori` });
     await sleep(600);
+    await submitTransferPin('0512', false);
+
+    // Reload on SAME Device 1: MUST NOT prompt for PIN again!
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori` });
+    await sleep(600);
+    const sameDevNoPrompt = await client.eval(`!document.getElementById('priori-student-transfer-pin')`);
+    assert.equal(sameDevNoPrompt, true, 'Same trusted device must NOT prompt for transfer PIN again');
+
     await start114MathAndAnswer(1, 3);
     await submitQuiz();
     for (let i = 0; i < 20; i++) {
@@ -1306,11 +1489,13 @@ async function run() {
     }
     assert.equal(afterDev1Row.score, 4, `Expected Device 1 cloud score 4, got ${afterDev1Row.score}; row=${JSON.stringify(afterDev1Row)}`);
 
-    // Device 2 (staggered): starts offline before cloud pull, solves Q2 right (option index 1), reconnects & submits
-    await resetLocalPrioriForSeat('030105');
+    // Device 2 (staggered): simulates new device secret -> rejects wrong PIN '9999' -> unlocks with '0512', solves Q2 right (option index 1), reconnects & submits
+    await resetLocalPrioriForSeat('030105', { resetDeviceSecret: true });
     client.blockCloudReads = true;
     await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori` });
     await sleep(600);
+    await submitTransferPin('9999', true);
+    await submitTransferPin('0512', false);
     await start114MathAndAnswer(2, 1);
     client.blockCloudReads = false;
     await submitQuiz();
@@ -1364,8 +1549,14 @@ async function run() {
           el.dispatchEvent(new Event('change', { bubbles: true }));
         };
         const pwInput = document.getElementById('priori-teacher-password');
+        let legacyBlocked = false;
         if (pwInput) {
           setInput(pwInput, 'wt7902230');
+          Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
+          await new Promise((r) => setTimeout(r, 350));
+          legacyBlocked = (document.body.innerText || '').includes('教師密碼錯誤');
+
+          setInput(pwInput, 'ci-mock-admin-pw');
           Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
           const deadline = Date.now() + 5000;
           while (Date.now() < deadline) {
@@ -1394,7 +1585,8 @@ async function run() {
         const masteryText = seat05RowMastery?.innerText || '';
 
         return {
-          ok: initialText.includes('8 分') && masteryText.includes('8 分'),
+          ok: legacyBlocked && initialText.includes('8 分') && masteryText.includes('8 分'),
+          legacyBlocked,
           initialText,
           masteryText,
         };
@@ -1412,12 +1604,62 @@ async function run() {
       `PRIORI must not read/write public leaderboard: ${JSON.stringify(leakedLeaderboardReqs)}`
     );
     const rpcUrls = client.mockRequests.filter((r) => r.url.includes('/rpc/priori_')).map((r) => r.url.split('/rpc/')[1]);
+    assert.ok(rpcUrls.includes('priori_student_login_seat'), `Missing student login RPC call: ${JSON.stringify(rpcUrls)}`);
     assert.ok(rpcUrls.includes('priori_student_upsert_record'), `Missing student upsert RPC call: ${JSON.stringify(rpcUrls)}`);
     assert.ok(rpcUrls.includes('priori_teacher_login'), `Missing teacher login RPC call: ${JSON.stringify(rpcUrls)}`);
     assert.ok(rpcUrls.includes('priori_teacher_list_records'), `Missing teacher list RPC call: ${JSON.stringify(rpcUrls)}`);
-    console.log('✓ Test I (Isolated RPC cross-sync -> merged 8 分 / 2 題 -> Server Teacher auth & zero leaderboard leak verified) passed');
 
-    // Test J: Year-113 G3–G6 Hub & Sampling Verification (113 Chinese G6 / 113 English G3 / 113 Math G5 / Teacher 113)
+    // Direct RPC contract isolation assertions on mock server (0 browser console noise):
+    const activeTokenA = Array.from(client.studentSessions.entries()).find(([, s]) => s.studentKey === '030105')?.[0];
+    assert.ok(activeTokenA, 'Expected active mock student token for 030105');
+    const crossReadMock = client.handleMockSupabase({
+      url: 'https://fqkdkmcqjswufzbvkram.supabase.co/rest/v1/rpc/priori_student_get_records',
+      method: 'POST',
+      postData: JSON.stringify({ p_token: activeTokenA, p_student_key: '030106' }),
+    });
+    assert.equal(crossReadMock.status, 401, `Student A reading Student B must be rejected: ${crossReadMock.body}`);
+    const crossWriteMock = client.handleMockSupabase({
+      url: 'https://fqkdkmcqjswufzbvkram.supabase.co/rest/v1/rpc/priori_student_upsert_record',
+      method: 'POST',
+      postData: JSON.stringify({
+        p_token: activeTokenA,
+        p_student_key: '030106',
+        p_paper_id: '114-math-g3',
+        p_grade: '03',
+        p_class_num: '1',
+        p_seat: '06',
+        p_score: 100,
+        p_elapsed: 5,
+        p_payload: {},
+      }),
+    });
+    assert.equal(crossWriteMock.status, 401, `Student A writing Student B must be rejected: ${crossWriteMock.body}`);
+
+    const clsLoginMock = client.handleMockSupabase({
+      url: 'https://fqkdkmcqjswufzbvkram.supabase.co/rest/v1/rpc/priori_teacher_login',
+      method: 'POST',
+      postData: JSON.stringify({ p_password: 'ci-mock-class31-pw' }),
+    });
+    const clsToken = JSON.parse(clsLoginMock.body).token;
+    const clsSchoolRoster = client.handleMockSupabase({
+      url: 'https://fqkdkmcqjswufzbvkram.supabase.co/rest/v1/rpc/priori_teacher_get_roster',
+      method: 'POST',
+      postData: JSON.stringify({ p_token: clsToken, p_roster_key: 'priori_school_roster_v1' }),
+    });
+    assert.equal(clsSchoolRoster.status, 401, `Single-class teacher must be denied school roster: ${clsSchoolRoster.body}`);
+    const clsForeignClass = client.handleMockSupabase({
+      url: 'https://fqkdkmcqjswufzbvkram.supabase.co/rest/v1/rpc/priori_teacher_list_records',
+      method: 'POST',
+      postData: JSON.stringify({ p_token: clsToken, p_grade: '3', p_class_num: '2' }),
+    });
+    assert.equal(clsForeignClass.status, 401, `Single-class teacher must be denied foreign class 3-2: ${clsForeignClass.body}`);
+    console.log('✓ Test I (4-digit transfer PIN + cross-sync 8 分 + Student/Class Teacher isolation verified) passed');
+
+    // Test J: Year-113 G3–G6 Sampling + Official 113 Eng G5 Q9 (1) / G6 Q23 (2) Grading + Legacy Record Reconciliation
+    await client.send('Page.addScriptToEvaluateOnNewDocument', {
+      source: `window.__CI__ = true;`,
+    });
+
     await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&paper=113-chinese-g6` });
     await sleep(600);
     const check113ChiG6 = await client.eval(`
@@ -1442,6 +1684,107 @@ async function run() {
     `);
     assert.equal(check113EngG3?.ok, true, `113-english-g3 UI check failed: ${JSON.stringify(check113EngG3)}`);
 
+    // Verify 113-english-g5 Q9 selects official (1) (index 0) -> scores 4 分
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&paper=113-english-g5` });
+    await sleep(600);
+    const check113EngG5Q9 = await client.eval(`
+      (async () => {
+        document.querySelector('button[aria-label="跳到第 9 題"]')?.click();
+        await new Promise((r) => setTimeout(r, 150));
+        const radios = Array.from(document.querySelectorAll('[role="radio"]'));
+        radios[0]?.click();
+        await new Promise((r) => setTimeout(r, 150));
+        document.querySelector('button[aria-label="跳到第 25 題"]')?.click();
+        await new Promise((r) => setTimeout(r, 150));
+        Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('交卷核對'))?.click();
+        await new Promise((r) => setTimeout(r, 180));
+        Array.from(document.querySelectorAll('[role="dialog"] button')).find((b) => (b.innerText || '').includes('確定交卷'))?.click();
+        await new Promise((r) => setTimeout(r, 400));
+        const body = document.body.innerText || '';
+        return { ok: body.includes('4 分') && body.includes('本輪通過 1 / 25 題'), snippet: body.slice(0, 400) };
+      })()
+    `);
+    assert.equal(check113EngG5Q9?.ok, true, `113-english-g5 Q9 official (1) grading failed: ${JSON.stringify(check113EngG5Q9)}`);
+
+    // Verify 113-english-g6 Q23 selects official (2) (index 1) -> scores 4 分
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&paper=113-english-g6` });
+    await sleep(600);
+    const check113EngG6Q23 = await client.eval(`
+      (async () => {
+        document.querySelector('button[aria-label="跳到第 23 題"]')?.click();
+        await new Promise((r) => setTimeout(r, 150));
+        const radios = Array.from(document.querySelectorAll('[role="radio"]'));
+        radios[1]?.click();
+        await new Promise((r) => setTimeout(r, 150));
+        document.querySelector('button[aria-label="跳到第 25 題"]')?.click();
+        await new Promise((r) => setTimeout(r, 150));
+        Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('交卷核對'))?.click();
+        await new Promise((r) => setTimeout(r, 180));
+        Array.from(document.querySelectorAll('[role="dialog"] button')).find((b) => (b.innerText || '').includes('確定交卷'))?.click();
+        await new Promise((r) => setTimeout(r, 400));
+        const body = document.body.innerText || '';
+        return { ok: body.includes('4 分') && body.includes('本輪通過 1 / 25 題'), snippet: body.slice(0, 400) };
+      })()
+    `);
+    assert.equal(check113EngG6Q23?.ok, true, `113-english-g6 Q23 official (2) grading failed: ${JSON.stringify(check113EngG6Q23)}`);
+
+    // Seed pre-fix miskeyed local record (where 113 Eng G5 Q9 had official answer 0 but cached 96 / wrongIds=['priori-113-eng-g5-q09']) -> Hub reconciles to 100 分!
+    await client.eval(`
+      (() => {
+        const sid = '050101';
+        localStorage.setItem('wutai_last_student_id', sid);
+        const allCorrect = [2, 1, 1, 0, 2, 0, 0, 2, 0, 1, 2, 1, 1, 2, 0, 1, 2, 0, 0, 1, 1, 2, 0, 2, 2];
+        const answers = {};
+        const streaks = {};
+        allCorrect.forEach((ans, idx) => {
+          const qid = 'priori-113-eng-g5-q' + String(idx + 1).padStart(2, '0');
+          answers[qid] = ans;
+          streaks[qid] = idx === 8 ? 0 : 1;
+        });
+        localStorage.setItem('wutai_priori_v1_' + sid, JSON.stringify({
+          '113-english-g5': {
+            paperId: '113-english-g5',
+            year: 113,
+            subject: 'english',
+            grade: 5,
+            score: 96,
+            latestScore: 96,
+            firstScore: 96,
+            correctCount: 24,
+            firstCorrectCount: 24,
+            totalCount: 25,
+            wrongIds: ['priori-113-eng-g5-q09'],
+            masteredIds: [],
+            masteredCount: 0,
+            latestAnswers: answers,
+            firstAnswers: answers,
+            streaks,
+          },
+        }));
+      })()
+    `);
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori` });
+    await sleep(600);
+    const reconciledCheck = await client.eval(`
+      (async () => {
+        await new Promise((r) => setTimeout(r, 350));
+        Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('暫時先用本機練習'))?.click();
+        await new Promise((r) => setTimeout(r, 150));
+        Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('英語'))?.click();
+        await new Promise((r) => setTimeout(r, 200));
+        Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('五年級'))?.click();
+        await new Promise((r) => setTimeout(r, 250));
+        const strip = Array.from(document.querySelectorAll('div.rounded-2xl')).find((el) => {
+          const t = el.innerText || '';
+          return t.includes('113 年') && t.includes('五年級英語');
+        });
+        const stripText = strip?.innerText || '';
+        const noWrongChip = !document.body.innerText.includes('待訂正 1 題');
+        return { ok: stripText.includes('100 分') && noWrongChip, stripText, noWrongChip };
+      })()
+    `);
+    assert.equal(reconciledCheck?.ok, true, `Expected legacy pre-fix record to auto-reconcile to 100 分: ${JSON.stringify(reconciledCheck)}`);
+
     await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&paper=113-math-g5` });
     await sleep(600);
     const check113MathG5 = await client.eval(`
@@ -1454,7 +1797,7 @@ async function run() {
       })()
     `);
     assert.equal(check113MathG5?.ok, true, `113-math-g5 UI check failed: ${JSON.stringify(check113MathG5)}`);
-    console.log('✓ Test J (Year-113 G3–G6 Chinese/English/Math direct entry, audio, & scratchpad rules verified) passed');
+    console.log('✓ Test J (Year-113 G3–G6 sampling, Eng G5 Q9 (1) / G6 Q23 (2) official grading & auto-reconciliation verified) passed');
 
     assert.equal(client.exceptions.length, 0, `Page exceptions: ${client.exceptions.join('; ')}`);
     assert.equal(client.consoleErrors.length, 0, `Console errors: ${client.consoleErrors.join('; ')}`);

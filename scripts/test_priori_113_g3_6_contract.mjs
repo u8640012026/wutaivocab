@@ -128,7 +128,7 @@ const EXPECTED_113_SPECS = {
     groupCount: 0,
     passageImageCount: 0,
     audioCount: 10,
-    answers: [2, 1, 1, 0, 2, 0, 0, 2, 2, 1, 2, 1, 1, 2, 0, 1, 2, 0, 0, 1, 1, 2, 0, 2, 2],
+    answers: [2, 1, 1, 0, 2, 0, 0, 2, 0, 1, 2, 1, 1, 2, 0, 1, 2, 0, 0, 1, 1, 2, 0, 2, 2],
   },
   '113-english-g6': {
     subject: 'english',
@@ -138,7 +138,7 @@ const EXPECTED_113_SPECS = {
     groupCount: 0,
     passageImageCount: 0,
     audioCount: 10,
-    answers: [2, 1, 2, 1, 2, 0, 0, 2, 2, 0, 1, 0, 1, 2, 1, 2, 1, 0, 2, 0, 0, 0, 0, 2, 1],
+    answers: [2, 1, 2, 1, 2, 0, 0, 2, 2, 0, 1, 0, 1, 2, 1, 2, 1, 0, 2, 0, 0, 0, 1, 2, 1],
   },
 };
 

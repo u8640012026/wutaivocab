@@ -19,6 +19,7 @@ export function PrioriRosterModal({
   existingEnvelope,
   decryptedCount = 0,
   teacherToken = '',
+  allowedClasses = ['*'],
   onRosterUnlocked,
 }) {
   const [mode, setMode] = useState(existingEnvelope ? 'unlock' : 'import');
@@ -85,7 +86,11 @@ export function PrioriRosterModal({
     setBusy(true);
     try {
       const envelope = await encryptRosterEntries(parsedPreview.entries, passphrase);
-      const syncRes = await saveEncryptedRosterEnvelope(envelope, teacherToken);
+      const syncRes = await saveEncryptedRosterEnvelope(
+        envelope,
+        teacherToken,
+        allowedClasses
+      );
       onRosterUnlocked(parsedPreview.entries, envelope);
       setPassphrase('');
       if (syncRes.ok) {

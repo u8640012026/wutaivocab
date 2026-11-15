@@ -38,6 +38,7 @@ import {
   loginPrioriTeacherServer,
   logoutPrioriTeacherServer,
   loadEncryptedRosterEnvelope,
+  resetPrioriStudentBindingServer,
 } from './prioriSecurity';
 
 const ALL_YEARS_DESC = ['115', '114', '113', '112', '111', '110', '109', '108'];
@@ -181,6 +182,7 @@ export function PrioriTeacherDashboard({ onBack }) {
   // 全卷資料與加密名冊狀態（示範班級已內建於年級／班級下拉選單，空班預設保持乾淨）
   const [realRecordsByPaper, setRealRecordsByPaper] = useState({});
   const [cloudError, setCloudError] = useState('');
+  const [bindingNotice, setBindingNotice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [scoreViewMode, setScoreViewMode] = useState('initial'); // 'initial' (預設初測) | 'mastery' (精熟後)
   const isDemoView = selectedGrade === 'demo' || selectedClass === 'demo';
@@ -229,7 +231,10 @@ export function PrioriTeacherDashboard({ onBack }) {
           teacherToken: teacherSession.token,
           allowedClasses: teacherSession.allowedClasses,
         }),
-        loadEncryptedRosterEnvelope(teacherSession.token),
+        loadEncryptedRosterEnvelope(
+          teacherSession.token,
+          teacherSession.allowedClasses
+        ),
       ]);
 
       if (recRes.unauthorized || rosRes.unauthorized) {
@@ -288,6 +293,30 @@ export function PrioriTeacherDashboard({ onBack }) {
     setRosterEntries([]);
     setInspectedCell(null);
   };
+
+  const handleResetStudentBinding = useCallback(
+    async (row) => {
+      const sk = row?.studentKey;
+      if (!sk || !/^\d{6}$/.test(sk) || sk === '999999') return;
+      const label = row.rosterName || row.localName || `${row.seatStr || sk}`;
+      if (
+        typeof window !== 'undefined' &&
+        typeof window.confirm === 'function' &&
+        !window.confirm(
+          `確定要重設「${label}（座號代碼 ${sk}）」的裝置綁定與 4 碼換機密碼嗎？\n（會保留所有既有作答與初測成績，僅讓學生能在新裝置重新設定密碼與綁定）`
+        )
+      ) {
+        return;
+      }
+      const res = await resetPrioriStudentBindingServer(teacherSession?.token || '', sk);
+      if (res.ok) {
+        setBindingNotice(`已重設「${label}」的換機裝置鎖定（作答成績已完整保留），學生可用新裝置直接點選座號重新綁定。`);
+      } else {
+        setBindingNotice(`重設失敗：${res.error || '請確認教師權限'}`);
+      }
+    },
+    [teacherSession?.token]
+  );
 
   // 依目前選取切換「真實班級紀錄」或「內建示範班級（假資料）」
   const combinedByPaper = useMemo(() => {
@@ -897,6 +926,22 @@ export function PrioriTeacherDashboard({ onBack }) {
           >
             <AlertTriangle className="w-4 h-4 shrink-0" />
             <span>雲端紀錄讀取失敗（目前僅顯示本機紀錄）：{cloudError}</span>
+          </div>
+        )}
+
+        {bindingNotice && (
+          <div
+            role="status"
+            className="rounded-2xl bg-amber-50/95 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 px-4 py-2.5 text-xs font-black text-amber-900 dark:text-amber-100 flex items-center justify-between gap-2"
+          >
+            <span>{bindingNotice}</span>
+            <button
+              type="button"
+              onClick={() => setBindingNotice('')}
+              className="px-2 py-0.5 rounded-lg bg-amber-200/70 dark:bg-amber-900 text-[11px] font-black cursor-pointer"
+            >
+              關閉
+            </button>
           </div>
         )}
 
@@ -1531,6 +1576,20 @@ export function PrioriTeacherDashboard({ onBack }) {
                               )}
                             </div>
                           )}
+                          {!isDemoView &&
+                            row.studentKey &&
+                            /^\d{6}$/.test(row.studentKey) &&
+                            row.studentKey !== '999999' && (
+                              <button
+                                type="button"
+                                onClick={() => handleResetStudentBinding(row)}
+                                title="若學生忘記 4 碼換機密碼或換新平板，點此解除裝置鎖（不刪成績）"
+                                className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-[10px] font-black text-amber-800 dark:text-amber-200 transition cursor-pointer"
+                              >
+                                <KeyRound className="w-2.5 h-2.5" />
+                                <span>重設換機鎖</span>
+                              </button>
+                            )}
                         </td>
 
                         {matrixColumns.map((col) => {
@@ -2056,6 +2115,7 @@ export function PrioriTeacherDashboard({ onBack }) {
         existingEnvelope={rosterEnvelope}
         decryptedCount={rosterEntries.length}
         teacherToken={teacherSession?.token || ''}
+        allowedClasses={teacherSession?.allowedClasses || ['*']}
         onRosterUnlocked={(entries, env) => {
           setRosterEntries(entries);
           if (env) setRosterEnvelope(env);

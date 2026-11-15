@@ -278,12 +278,84 @@ export function summarizePrioriPaperState(
 }
 
 /**
+ * 依最新題庫標準答案重算單筆紀錄（修正過往誤鍵題號後可自動校正既有本機／雲端分數、初測分數、錯題表與連對一致度）
+ */
+export function reconcilePrioriPaperRecordWithPaper(rec, paper = null) {
+  if (!rec || typeof rec !== 'object' || !Array.isArray(paper?.questions) || paper.questions.length === 0) {
+    return rec;
+  }
+  const latestAnswers = rec.latestAnswers;
+  const firstAnswers =
+    rec.firstAnswers && typeof rec.firstAnswers === 'object' ? rec.firstAnswers : null;
+  if (!latestAnswers || typeof latestAnswers !== 'object') {
+    return rec;
+  }
+
+  const nextStreaks = { ...(rec.streaks || {}) };
+  let streaksChanged = false;
+  for (const q of paper.questions) {
+    if (!Object.prototype.hasOwnProperty.call(latestAnswers, q.id)) continue;
+    const ans = latestAnswers[q.id];
+    if (!hasPrioriAnswer(q, ans)) continue;
+    const isCorrect = isPrioriAnswerCorrect(q, ans);
+    const curStreak = Number(nextStreaks[q.id]) || 0;
+    if (isCorrect && curStreak === 0) {
+      nextStreaks[q.id] = 1;
+      streaksChanged = true;
+    } else if (!isCorrect && curStreak > 0) {
+      nextStreaks[q.id] = 0;
+      streaksChanged = true;
+    }
+  }
+
+  const summary = summarizePrioriPaperState(
+    paper,
+    latestAnswers,
+    nextStreaks,
+    firstAnswers,
+    rec.totalCount || paper.totalQuestions || 25
+  );
+
+  const unchanged =
+    !streaksChanged &&
+    rec.latestScore === summary.latestScore &&
+    rec.score === summary.latestScore &&
+    rec.correctCount === summary.correctCount &&
+    rec.masteredCount === summary.masteredCount &&
+    (typeof summary.firstScore !== 'number' || rec.firstScore === summary.firstScore) &&
+    (typeof summary.firstCorrectCount !== 'number' ||
+      rec.firstCorrectCount === summary.firstCorrectCount) &&
+    Array.isArray(rec.wrongIds) &&
+    rec.wrongIds.length === summary.wrongIds.length &&
+    rec.wrongIds.every((id, i) => id === summary.wrongIds[i]);
+
+  if (unchanged) return rec;
+
+  return {
+    ...rec,
+    score: summary.latestScore,
+    latestScore: summary.latestScore,
+    correctCount: summary.correctCount,
+    totalCount: summary.totalCount,
+    wrongIds: summary.wrongIds,
+    masteredIds: summary.masteredIds,
+    masteredCount: summary.masteredCount,
+    streaks: nextStreaks,
+    firstScore: typeof summary.firstScore === 'number' ? summary.firstScore : rec.firstScore,
+    firstCorrectCount:
+      typeof summary.firstCorrectCount === 'number'
+        ? summary.firstCorrectCount
+        : rec.firstCorrectCount,
+  };
+}
+
+/**
  * 合併單卷新舊／跨裝置作答紀錄（保留初次測驗快照與較新精熟進度，避免舊機或未作答題覆蓋實作答，並重算總分與精熟數）
  */
 export function mergePrioriPaperRecordWithPaper(localRec, cloudRec, paper = null) {
   if (!localRec && !cloudRec) return null;
-  if (!localRec) return cloudRec;
-  if (!cloudRec) return localRec;
+  if (!localRec) return reconcilePrioriPaperRecordWithPaper(cloudRec, paper);
+  if (!cloudRec) return reconcilePrioriPaperRecordWithPaper(localRec, paper);
 
   const localTs = new Date(localRec.updatedAt || localRec.completedAt || 0).getTime();
   const cloudTs = new Date(cloudRec.updatedAt || cloudRec.completedAt || 0).getTime();
@@ -387,31 +459,34 @@ export function mergePrioriPaperRecordWithPaper(localRec, cloudRec, paper = null
       ? firstCandidate.firstCorrectCount
       : older.firstCorrectCount ?? summary.correctCount;
 
-  return {
-    ...newer,
-    score: summary.latestScore,
-    latestScore: summary.latestScore,
-    correctCount: summary.correctCount,
-    totalCount: summary.totalCount,
-    wrongIds: summary.wrongIds,
-    masteredIds: summary.masteredIds,
-    masteredCount: summary.masteredCount,
-    firstScore:
-      typeof summary.firstScore === 'number' ? summary.firstScore : fallbackFirstScore,
-    firstAnswers: mergedFirstAnswers,
-    firstCorrectCount:
-      typeof summary.firstCorrectCount === 'number'
-        ? summary.firstCorrectCount
-        : fallbackFirstCorrect,
-    firstSubmittedAt: firstCandidate.firstSubmittedAt || older.firstSubmittedAt || older.completedAt,
-    latestAnswers: mergedLatestAnswers,
-    streaks: mergedStreaks,
-    scratchpad: mergedScratchpad,
-    questionAttemptCounts: mergedQCounts,
-    attemptsCount: Math.max(Number(localRec.attemptsCount) || 1, Number(cloudRec.attemptsCount) || 1),
-    drillAttemptsCount: Math.max(
-      Number(localRec.drillAttemptsCount) || 0,
-      Number(cloudRec.drillAttemptsCount) || 0
-    ),
-  };
+  return reconcilePrioriPaperRecordWithPaper(
+    {
+      ...newer,
+      score: summary.latestScore,
+      latestScore: summary.latestScore,
+      correctCount: summary.correctCount,
+      totalCount: summary.totalCount,
+      wrongIds: summary.wrongIds,
+      masteredIds: summary.masteredIds,
+      masteredCount: summary.masteredCount,
+      firstScore:
+        typeof summary.firstScore === 'number' ? summary.firstScore : fallbackFirstScore,
+      firstAnswers: mergedFirstAnswers,
+      firstCorrectCount:
+        typeof summary.firstCorrectCount === 'number'
+          ? summary.firstCorrectCount
+          : fallbackFirstCorrect,
+      firstSubmittedAt: firstCandidate.firstSubmittedAt || older.firstSubmittedAt || older.completedAt,
+      latestAnswers: mergedLatestAnswers,
+      streaks: mergedStreaks,
+      scratchpad: mergedScratchpad,
+      questionAttemptCounts: mergedQCounts,
+      attemptsCount: Math.max(Number(localRec.attemptsCount) || 1, Number(cloudRec.attemptsCount) || 1),
+      drillAttemptsCount: Math.max(
+        Number(localRec.drillAttemptsCount) || 0,
+        Number(cloudRec.drillAttemptsCount) || 0
+      ),
+    },
+    paper
+  );
 }
