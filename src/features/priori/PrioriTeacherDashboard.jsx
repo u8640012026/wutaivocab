@@ -21,13 +21,16 @@ import {
 import { PRIORI_SUBJECTS, PRIORI_PAPERS, PRIORI_PAPER_MAP } from '../../data/priori';
 import { MathRichText } from './MathRichText';
 import { PrioriScratchpadPreview } from './PrioriScratchpad';
-import { LilyEmblem, PrioriPrintableSheet } from './PrioriModals';
+import { LilyEmblem, PrioriPrintableSheet, PrioriTeacherPrintModal } from './PrioriModals';
 import { PrioriRosterModal } from './PrioriRosterModal';
 import {
   fetchAllPrioriTeacherRecordsWithMeta,
   PRIORI_DEMO_CLASS_RECORDS,
   isPrioriAnswerCorrect,
   formatPrioriAnswerLabel,
+  getClassHeadcount,
+  loadLocalSeatNames,
+  saveLocalSeatNames,
 } from './prioriStorage';
 import {
   verifyPrioriTeacherPassword,
@@ -37,6 +40,7 @@ import {
 const AUTH_SESSION_KEY = 'wutai_priori_teacher_authed';
 const ALL_YEARS_DESC = ['115', '114', '113', '112', '111', '110', '109', '108'];
 const GRADE_TABS = ['1', '2', '3', '4', '5', '6'];
+const PAPER_GRADE_OPTIONS = ['3', '4', '5', '6'];
 
 function normNumStr(val, fallback = '') {
   const s = String(val ?? '').trim();
@@ -79,12 +83,16 @@ function formatClassLabel(classNum) {
   return map[n] || `${n} 班`;
 }
 
+function formatShortClassName(classNum) {
+  if (classNum === 'guest') return '訪客';
+  const map = { '1': '甲班', '2': '乙班', '3': '丙班' };
+  return map[normNumStr(classNum, '1')] || `${classNum}班`;
+}
+
 function formatGradeClassTitle(grade, classNum) {
   if (classNum === 'all') return `${grade} 年級全部班級`;
   if (classNum === 'guest') return '訪客練習';
-  const cMap = { '1': '甲班', '2': '乙班', '3': '丙班' };
-  const cLabel = cMap[normNumStr(classNum)] || `${classNum}班`;
-  return `${grade} 年${cLabel}`;
+  return `${grade} 年${formatShortClassName(classNum)}`;
 }
 
 function extractSeatAndNickname(rec) {
@@ -93,6 +101,20 @@ function extractSeatAndNickname(rec) {
   const parenMatch = rawName.match(/\(([^)]+)\)/);
   const nickname = parenMatch ? parenMatch[1] : rawName;
   return { seat, nickname };
+}
+
+/**
+ * 將題幹濃縮為單題矩陣左側簡明摘要（移除 LaTeX 定界符與多餘空白，保留核心題意）
+ */
+function summarizeQuestionText(q, maxLen = 24) {
+  const raw = String(q?.questionText || q?.conceptTitle || '')
+    .replace(/\r?\n+/g, ' ')
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+    .replace(/\$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!raw) return q?.conceptTitle || `第 ${q?.number || ''} 題`;
+  return raw.length > maxLen ? `${raw.slice(0, maxLen)}…` : raw;
 }
 
 export function PrioriTeacherDashboard({ onBack }) {
@@ -114,11 +136,20 @@ export function PrioriTeacherDashboard({ onBack }) {
   const [selectedClass, setSelectedClass] = useState('1');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 矩陣維度切換：依年度看三科（國/數/英） vs 依科目看歷年（115–108）
+  // 矩陣維度切換：依年度看三科（國/數/英） vs 依科目看歷年（115–108）；試卷年級支援跨年級補救練習檢視
   const [matrixMode, setMatrixMode] = useState('by-year'); // 'by-year' | 'by-subject'
   const [selectedYear, setSelectedYear] = useState('114');
   const [selectedSubject, setSelectedSubject] = useState('math');
+  const [selectedPaperGrade, setSelectedPaperGrade] = useState('3');
   const [onlyBuiltYears, setOnlyBuiltYears] = useState(false);
+
+  // 本機可輸入座號姓名對照表（不上傳雲端／Git，僅留本機瀏覽器）
+  const [localSeatNames, setLocalSeatNames] = useState(() => loadLocalSeatNames());
+
+  // 教師指定列印彈窗與目標試卷設定
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printTargetPaperId, setPrintTargetPaperId] = useState('');
+  const [printShowAnswerKey, setPrintShowAnswerKey] = useState(true);
 
   // 全卷資料與加密名冊狀態
   const [realRecordsByPaper, setRealRecordsByPaper] = useState({});
@@ -143,15 +174,24 @@ export function PrioriTeacherDashboard({ onBack }) {
         (p) =>
           String(p.year) === String(selectedYear) &&
           p.subject === selectedSubject &&
-          String(p.grade) === String(selectedGrade)
-      ) ||
-      PRIORI_PAPERS.find(
-        (p) =>
-          String(p.year) === String(selectedYear) && p.subject === selectedSubject
-      ) ||
-      null
+          String(p.grade) === String(selectedPaperGrade)
+      ) || null
     );
-  }, [selectedYear, selectedSubject, selectedGrade]);
+  }, [selectedYear, selectedSubject, selectedPaperGrade]);
+
+  const handleLocalSeatNameChange = useCallback(
+    (rowKey, value) => {
+      const next = { ...localSeatNames };
+      if (value !== '') {
+        next[rowKey] = value;
+      } else {
+        delete next[rowKey];
+      }
+      saveLocalSeatNames(next);
+      setLocalSeatNames(next);
+    },
+    [localSeatNames]
+  );
 
   const loadAllData = useCallback(async () => {
     setIsLoading(true);
@@ -238,9 +278,9 @@ export function PrioriTeacherDashboard({ onBack }) {
     return map;
   }, [rosterEntries]);
 
-  // 動態收集所有出現過的班別
+  // 動態收集所有出現過的班別（預設含學校實際甲乙班）
   const availableClasses = useMemo(() => {
-    const set = new Set(['1', '2', '3']);
+    const set = new Set(['1', '2']);
     for (const entry of rosterEntries) {
       if (normNumStr(entry.grade) === String(selectedGrade)) {
         set.add(normNumStr(entry.classNum, '1'));
@@ -262,8 +302,8 @@ export function PrioriTeacherDashboard({ onBack }) {
     });
   }, [combinedByPaper, rosterEntries, selectedGrade]);
 
-  // ── 建置「班級座號升冪矩陣名單」（含花名冊空白座號與全部跨科／歷年成績） ──
-  const matrixRows = useMemo(() => {
+  // ── 建置「全班座號升冪基準名單」（含各班人數基準座號、加密名冊、本機輸入姓名與作答紀錄） ──
+  const classRosterRows = useMemo(() => {
     const rowMap = new Map();
 
     const ensureRow = (gradeVal, classVal, seatVal, skHint, nickHint, nameOverride = '') => {
@@ -280,8 +320,10 @@ export function PrioriTeacherDashboard({ onBack }) {
           grade: g,
           classNum: c,
           seatNum,
+          seatPad: seatStr,
           seatStr: c === 'guest' ? '訪客' : `${seatStr} 號`,
           rosterName: nameOverride || rosterMatch?.name || '',
+          localName: localSeatNames[rowKey] || '',
           nickname: nickHint || '',
           studentKey: skHint || '',
           recordsByPaper: {},
@@ -295,7 +337,21 @@ export function PrioriTeacherDashboard({ onBack }) {
       return rowMap.get(rowKey);
     };
 
-    // 1. 先納入解密名冊中屬於該年級／班級的每位學生（確保未作答學生也列出來並顯示 -）
+    // 0. 依全校公開各班人數先展開 1..N 座號骨架（無任何學生姓名的公開人數基準）
+    const targetClasses =
+      selectedClass === 'all'
+        ? availableClasses.filter((c) => c !== 'guest')
+        : selectedClass !== 'guest'
+        ? [selectedClass]
+        : [];
+    for (const c of targetClasses) {
+      const headcount = getClassHeadcount(selectedGrade, c);
+      for (let seatNo = 1; seatNo <= headcount; seatNo += 1) {
+        ensureRow(selectedGrade, c, seatNo, '', '');
+      }
+    }
+
+    // 1. 納入解密名冊中屬於該年級／班級的每位學生
     for (const entry of rosterEntries) {
       const g = normNumStr(entry.grade);
       const c = normNumStr(entry.classNum, '1');
@@ -318,17 +374,7 @@ export function PrioriTeacherDashboard({ onBack }) {
       }
     }
 
-    let rows = Array.from(rowMap.values());
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      rows = rows.filter((r) => {
-        const hay = `${r.seatStr} ${r.rosterName} ${r.nickname} ${r.studentKey}`.toLowerCase();
-        return hay.includes(q);
-      });
-    }
-
-    return rows.sort((a, b) => {
+    return Array.from(rowMap.values()).sort((a, b) => {
       if (a.classNum === 'guest' && b.classNum !== 'guest') return 1;
       if (b.classNum === 'guest' && a.classNum !== 'guest') return -1;
       if (a.classNum !== b.classNum) {
@@ -336,9 +382,27 @@ export function PrioriTeacherDashboard({ onBack }) {
       }
       return a.seatNum - b.seatNum;
     });
-  }, [combinedByPaper, rosterEntries, rosterLookup, searchQuery, selectedClass, selectedGrade]);
+  }, [
+    availableClasses,
+    combinedByPaper,
+    localSeatNames,
+    rosterEntries,
+    rosterLookup,
+    selectedClass,
+    selectedGrade,
+  ]);
 
-  // 矩陣欄位定義（依年度看三科 vs 依科目看歷年 115~108）
+  // 依班級檢視用的搜尋後名單
+  const matrixRows = useMemo(() => {
+    if (!searchQuery.trim()) return classRosterRows;
+    const q = searchQuery.trim().toLowerCase();
+    return classRosterRows.filter((r) => {
+      const hay = `${r.seatStr} ${r.rosterName} ${r.localName} ${r.nickname} ${r.studentKey}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [classRosterRows, searchQuery]);
+
+  // 矩陣欄位定義（依年度看三科 vs 依科目看歷年 115~108，採用選定的試卷年級）
   const matrixColumns = useMemo(() => {
     if (matrixMode === 'by-year') {
       return [
@@ -350,7 +414,7 @@ export function PrioriTeacherDashboard({ onBack }) {
           (p) =>
             p.subject === col.subjectId &&
             String(p.year) === String(col.year) &&
-            String(p.grade) === String(selectedGrade)
+            String(p.grade) === String(selectedPaperGrade)
         );
         return { ...col, paper: paper || null };
       });
@@ -362,7 +426,7 @@ export function PrioriTeacherDashboard({ onBack }) {
             (p) =>
               p.subject === selectedSubject &&
               String(p.year) === y &&
-              String(p.grade) === String(selectedGrade)
+              String(p.grade) === String(selectedPaperGrade)
           )
         )
       : ALL_YEARS_DESC;
@@ -372,7 +436,7 @@ export function PrioriTeacherDashboard({ onBack }) {
         (p) =>
           p.subject === selectedSubject &&
           String(p.year) === y &&
-          String(p.grade) === String(selectedGrade)
+          String(p.grade) === String(selectedPaperGrade)
       );
       return {
         key: `${selectedSubject}-${y}`,
@@ -382,9 +446,9 @@ export function PrioriTeacherDashboard({ onBack }) {
         paper: paper || null,
       };
     });
-  }, [matrixMode, selectedYear, selectedSubject, selectedGrade, onlyBuiltYears]);
+  }, [matrixMode, selectedYear, selectedSubject, selectedPaperGrade, onlyBuiltYears]);
 
-  // ── 「單題分析分頁」用單卷篩選學生清單 ──
+  // ── 「依題目分頁」用單卷已作答學生紀錄（不受搜尋題目關鍵字影響統計） ──
   const questionTabRecords = useMemo(() => {
     if (!activePaper) return [];
     const list = combinedByPaper[activePaper.paperId] || [];
@@ -394,15 +458,10 @@ export function PrioriTeacherDashboard({ onBack }) {
         if (gNorm !== String(selectedGrade)) return false;
         const cNorm = r.studentClass === 'guest' ? 'guest' : normNumStr(r.studentClass, '1');
         if (selectedClass !== 'all' && cNorm !== String(selectedClass)) return false;
-        if (searchQuery.trim()) {
-          const q = searchQuery.trim().toLowerCase();
-          const hay = `${r.displayName || ''} ${r.studentSeat || ''} ${r.studentKey || ''}`.toLowerCase();
-          if (!hay.includes(q)) return false;
-        }
         return true;
       })
       .sort((a, b) => Number(a.studentSeat || 99) - Number(b.studentSeat || 99));
-  }, [activePaper, combinedByPaper, searchQuery, selectedClass, selectedGrade]);
+  }, [activePaper, combinedByPaper, selectedClass, selectedGrade]);
 
   const classAnalytics = useMemo(() => {
     if (!activePaper) {
@@ -491,6 +550,17 @@ export function PrioriTeacherDashboard({ onBack }) {
     };
   }, [activePaper, questionTabRecords]);
 
+  const filteredQuestionStats = useMemo(() => {
+    const stats = classAnalytics.questionStats || [];
+    if (!searchQuery.trim()) return stats;
+    const kw = searchQuery.trim().toLowerCase();
+    return stats.filter((st) => {
+      const q = st.question;
+      const hay = `第${q.number}題 ${q.number} ${q.conceptTitle || ''} ${q.questionText || ''}`.toLowerCase();
+      return hay.includes(kw);
+    });
+  }, [classAnalytics.questionStats, searchQuery]);
+
   const inspectedQuestion = useMemo(() => {
     if (!activePaper || !inspectedQuestionId) return null;
     return activePaper.questions.find((q) => q.id === inspectedQuestionId) || null;
@@ -521,11 +591,14 @@ export function PrioriTeacherDashboard({ onBack }) {
       const g = normNumStr(rec.studentGrade, '3');
       const c = rec.studentClass === 'guest' ? 'guest' : normNumStr(rec.studentClass, '1');
       const { seat, nickname } = extractSeatAndNickname(rec);
-      const rosterMatch = rosterLookup.get(`${g}-${c}-${seat}`);
+      const key = c === 'guest' ? '' : `${g}-${c}-${seat}`;
+      const rosterMatch = key ? rosterLookup.get(key) : null;
       if (rosterMatch) return `${seat} 號 ${rosterMatch.name}`;
+      const localName = key ? localSeatNames[key] : '';
+      if (localName) return `${seat} 號 ${localName}`;
       return rec.displayName || `${seat} 號 (${nickname})`;
     },
-    [rosterLookup]
+    [rosterLookup, localSeatNames]
   );
 
   // ── 密碼驗證登入畫面 ──
@@ -596,7 +669,12 @@ export function PrioriTeacherDashboard({ onBack }) {
     );
   }
 
-  const printablePaper = inspectedPaper || activePaper;
+  const printablePaper =
+    (printTargetPaperId && PRIORI_PAPER_MAP[printTargetPaperId]) ||
+    inspectedPaper ||
+    activePaper ||
+    PRIORI_PAPERS[0] ||
+    null;
 
   return (
     <>
@@ -659,9 +737,9 @@ export function PrioriTeacherDashboard({ onBack }) {
 
             <button
               type="button"
-              onClick={() => window.print()}
-              disabled={!printablePaper}
-              className="px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-black flex items-center gap-1 hover:bg-amber-100 disabled:opacity-50 transition cursor-pointer"
+              onClick={() => setIsPrintModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-black flex items-center gap-1 hover:bg-amber-100 transition cursor-pointer"
+              title="指定科目・年度・年級並選擇教師解答卷或空白練習卷"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>列印解答卷（含正解）</span>
@@ -697,22 +775,28 @@ export function PrioriTeacherDashboard({ onBack }) {
           </div>
         )}
 
-        {/* 第一順位：選擇班級 + 視角切換 */}
-        <section className="rounded-2xl bg-white/95 dark:bg-slate-900/95 border border-teal-200/70 dark:border-slate-700 p-3.5 sm:p-4 shadow-sm space-y-3">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div>
+        {/* 第一順位：精簡單行篩選列 (1 年級 2 班級 3 檢視 4 搜尋) + 子膠囊維度 */}
+        <section className="rounded-2xl bg-white/95 dark:bg-slate-900/95 border border-teal-200/70 dark:border-slate-700 p-3.5 sm:p-4 shadow-sm space-y-2.5">
+          <div className="grid grid-cols-2 lg:grid-cols-12 gap-2.5 items-end">
+            <div className="lg:col-span-2">
               <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 mb-1">
-                1. 選擇年級
+                1. 年級
               </label>
               <select
                 aria-label="篩選年級"
                 value={selectedGrade}
                 onChange={(e) => {
-                  setSelectedGrade(e.target.value);
+                  const nextGrade = e.target.value;
+                  setSelectedGrade(nextGrade);
+                  setSelectedPaperGrade(
+                    PRIORI_PAPERS.some((p) => String(p.grade) === String(nextGrade))
+                      ? String(nextGrade)
+                      : '3'
+                  );
                   setInspectedCell(null);
                   setInspectedQuestionId(null);
                 }}
-                className="w-full px-3 py-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800 text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100"
+                className="w-full px-2.5 py-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800 text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100"
               >
                 {GRADE_TABS.map((g) => (
                   <option key={g} value={g}>
@@ -722,9 +806,9 @@ export function PrioriTeacherDashboard({ onBack }) {
               </select>
             </div>
 
-            <div>
+            <div className="lg:col-span-3">
               <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 mb-1">
-                2. 選擇班級
+                2. 班級
               </label>
               <select
                 aria-label="篩選班級"
@@ -734,20 +818,25 @@ export function PrioriTeacherDashboard({ onBack }) {
                   setInspectedCell(null);
                   setInspectedQuestionId(null);
                 }}
-                className="w-full px-3 py-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800 text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100"
+                className="w-full px-2.5 py-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800 text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100"
               >
-                {availableClasses.map((cls) => (
-                  <option key={cls} value={cls}>
-                    {selectedGrade}年{formatClassLabel(cls)}
-                  </option>
-                ))}
-                <option value="all">{selectedGrade}年級全部班級</option>
+                {availableClasses.map((cls) => {
+                  const count = cls !== 'guest' ? getClassHeadcount(selectedGrade, cls) : 0;
+                  return (
+                    <option key={cls} value={cls}>
+                      {cls === 'guest'
+                        ? `${selectedGrade}年訪客練習`
+                        : `${selectedGrade}年${formatShortClassName(cls)}${count > 0 ? ` (${count}人)` : ''}`}
+                    </option>
+                  );
+                })}
+                <option value="all">{selectedGrade}年級全體</option>
               </select>
             </div>
 
-            <div>
+            <div className="lg:col-span-4">
               <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 mb-1">
-                3. 檢視模式
+                3. 檢視
               </label>
               <div className="inline-flex w-full p-1 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700">
                 <button
@@ -763,7 +852,7 @@ export function PrioriTeacherDashboard({ onBack }) {
                   }`}
                 >
                   <Table2 className="w-3.5 h-3.5" />
-                  <span>班級成績表</span>
+                  <span>依班級</span>
                 </button>
                 <button
                   type="button"
@@ -778,31 +867,32 @@ export function PrioriTeacherDashboard({ onBack }) {
                   }`}
                 >
                   <BarChart3 className="w-3.5 h-3.5" />
-                  <span>單題診斷</span>
+                  <span>依題目</span>
                 </button>
               </div>
             </div>
 
-            <div>
+            <div className="lg:col-span-3">
               <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 mb-1">
-                搜尋座號／姓名
+                4. 搜尋
               </label>
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
+                  aria-label="搜尋座號姓名或題目"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="座號或姓名"
+                  placeholder={activeTab === 'questions' ? '搜尋題號／題意關鍵字' : '搜尋座號／姓名'}
                   className="w-full pl-8 pr-3 py-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-500"
                 />
               </div>
             </div>
           </div>
 
-          {/* 矩陣或單題的年度／科目維度控制列 */}
+          {/* 檢視模式子膠囊 */}
           {activeTab === 'matrix' && !inspectedCell && (
-            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-stone-100 dark:border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-stone-100 dark:border-slate-800">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="inline-flex p-1 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700">
                   <button
@@ -834,11 +924,11 @@ export function PrioriTeacherDashboard({ onBack }) {
                     aria-label="矩陣篩選年度"
                     value={selectedYear}
                     onChange={(e) => setSelectedYear(e.target.value)}
-                    className="px-3 py-1.5 rounded-xl border border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/60 text-xs font-black text-teal-900 dark:text-teal-100"
+                    className="px-2.5 py-1.5 rounded-xl border border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/60 text-xs font-black text-teal-900 dark:text-teal-100"
                   >
                     {ALL_YEARS_DESC.map((y) => {
                       const hasPaper = PRIORI_PAPERS.some(
-                        (p) => String(p.year) === y && String(p.grade) === String(selectedGrade)
+                        (p) => String(p.year) === y && String(p.grade) === String(selectedPaperGrade)
                       );
                       return (
                         <option key={y} value={y}>
@@ -853,7 +943,7 @@ export function PrioriTeacherDashboard({ onBack }) {
                       aria-label="矩陣篩選科目"
                       value={selectedSubject}
                       onChange={(e) => setSelectedSubject(e.target.value)}
-                      className="px-3 py-1.5 rounded-xl border border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/60 text-xs font-black text-teal-900 dark:text-teal-100"
+                      className="px-2.5 py-1.5 rounded-xl border border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/60 text-xs font-black text-teal-900 dark:text-teal-100"
                     >
                       {PRIORI_SUBJECTS.map((s) => (
                         <option key={s.id} value={s.id}>
@@ -872,44 +962,124 @@ export function PrioriTeacherDashboard({ onBack }) {
                     </label>
                   </>
                 )}
+
+                <select
+                  aria-label="矩陣試卷年級"
+                  value={selectedPaperGrade}
+                  onChange={(e) => setSelectedPaperGrade(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800 text-xs font-black text-slate-700 dark:text-slate-200"
+                >
+                  {PAPER_GRADE_OPTIONS.map((pg) => (
+                    <option key={pg} value={pg}>
+                      {pg}年級試卷
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                {formatGradeClassTitle(selectedGrade, selectedClass)}・共 {matrixRows.length} 位（座號升冪）
+                {formatGradeClassTitle(selectedGrade, selectedClass)}・共 {matrixRows.length} 人（座號升冪）
               </span>
             </div>
           )}
 
           {activeTab === 'questions' && (
-            <div className="flex flex-wrap items-center gap-2.5 pt-2.5 border-t border-stone-100 dark:border-slate-800">
-              <span className="text-xs font-black text-slate-500">單題診斷考卷：</span>
-              <select
-                aria-label="篩選年度"
-                value={selectedYear}
-                onChange={(e) => {
-                  setSelectedYear(e.target.value);
-                  setInspectedQuestionId(null);
-                }}
-                className="px-3 py-1.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800 text-xs font-black"
-              >
-                <option value="114">114 年（官方答案）</option>
-                <option value="115">115 年（教師參考解）</option>
-              </select>
-              <select
-                aria-label="篩選科目"
-                value={selectedSubject}
-                onChange={(e) => {
-                  setSelectedSubject(e.target.value);
-                  setInspectedQuestionId(null);
-                }}
-                className="px-3 py-1.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800 text-xs font-black"
-              >
-                {PRIORI_SUBJECTS.map((subj) => (
-                  <option key={subj.id} value={subj.id}>
-                    {subj.label}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-stone-100 dark:border-slate-800">
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  aria-label="篩選科目"
+                  value={selectedSubject}
+                  onChange={(e) => {
+                    setSelectedSubject(e.target.value);
+                    setInspectedQuestionId(null);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl border border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/60 text-xs font-black text-teal-900 dark:text-teal-100"
+                >
+                  {PRIORI_SUBJECTS.map((subj) => (
+                    <option key={subj.id} value={subj.id}>
+                      {subj.label}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  aria-label="篩選年度"
+                  value={selectedYear}
+                  onChange={(e) => {
+                    setSelectedYear(e.target.value);
+                    setInspectedQuestionId(null);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl border border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/60 text-xs font-black text-teal-900 dark:text-teal-100"
+                >
+                  {ALL_YEARS_DESC.map((y) => {
+                    const exists = PRIORI_PAPERS.some(
+                      (p) =>
+                        p.subject === selectedSubject &&
+                        String(p.year) === y &&
+                        String(p.grade) === String(selectedPaperGrade)
+                    );
+                    return (
+                      <option key={y} value={y}>
+                        {y} 年{exists ? '' : ' (未建)'}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                <select
+                  aria-label="篩選試卷年級"
+                  value={selectedPaperGrade}
+                  onChange={(e) => {
+                    setSelectedPaperGrade(e.target.value);
+                    setInspectedQuestionId(null);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl border border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/60 text-xs font-black text-teal-900 dark:text-teal-100"
+                >
+                  {PAPER_GRADE_OPTIONS.map((pg) => {
+                    const exists = PRIORI_PAPERS.some(
+                      (p) =>
+                        p.subject === selectedSubject &&
+                        String(p.year) === String(selectedYear) &&
+                        String(p.grade) === pg
+                    );
+                    return (
+                      <option key={pg} value={pg}>
+                        {pg}年級卷{exists ? '' : ' (未建)'}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                <div className="flex flex-wrap items-center gap-1">
+                  {PRIORI_PAPERS.map((p) => {
+                    const isPicked = activePaper?.paperId === p.paperId;
+                    return (
+                      <button
+                        key={p.paperId}
+                        type="button"
+                        onClick={() => {
+                          setSelectedSubject(p.subject);
+                          setSelectedYear(String(p.year));
+                          setSelectedPaperGrade(String(p.grade));
+                          setInspectedQuestionId(null);
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-black border transition cursor-pointer ${
+                          isPicked
+                            ? 'bg-teal-700 border-teal-800 text-white shadow-sm'
+                            : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-teal-400'
+                        }`}
+                      >
+                        {p.year} {p.gradeLabel}
+                        {p.subjectLabel}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                {formatGradeClassTitle(selectedGrade, selectedClass)}（{classRosterRows.length} 席）
+              </span>
             </div>
           )}
         </section>
@@ -1073,9 +1243,11 @@ export function PrioriTeacherDashboard({ onBack }) {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-stone-50/95 dark:bg-slate-800/90 border-b border-stone-200 dark:border-slate-700 text-xs font-black text-slate-600 dark:text-slate-300">
-                      <th className="py-3 px-3 sm:px-4 whitespace-nowrap w-20">座號</th>
-                      <th className="py-3 px-3 sm:px-4 whitespace-nowrap min-w-[130px]">
-                        {rosterEntries.length > 0 ? '姓名（名冊）' : '身分／暱稱'}
+                      <th className="sticky left-0 z-10 bg-stone-50/95 dark:bg-slate-800/95 py-3 px-3 sm:px-4 whitespace-nowrap w-20">
+                        座號
+                      </th>
+                      <th className="py-3 px-3 sm:px-4 whitespace-nowrap min-w-[140px]">
+                        姓名（本機／名冊）
                       </th>
                       {matrixColumns.map((col) => (
                         <th
@@ -1098,14 +1270,14 @@ export function PrioriTeacherDashboard({ onBack }) {
                         key={row.rowKey}
                         className="hover:bg-teal-50/40 dark:hover:bg-slate-800/50 transition-colors"
                       >
-                        <td className="py-2.5 px-3 sm:px-4 font-black text-slate-700 dark:text-slate-200 tabular-nums whitespace-nowrap">
+                        <td className="sticky left-0 z-10 bg-white/95 dark:bg-slate-900/95 py-2.5 px-3 sm:px-4 font-black text-slate-700 dark:text-slate-200 tabular-nums whitespace-nowrap">
                           {selectedClass === 'all' && row.classNum !== 'guest'
-                            ? `${formatClassLabel(row.classNum).slice(0, 2)} `
+                            ? `${formatShortClassName(row.classNum)} `
                             : ''}
                           {row.seatStr}
                         </td>
 
-                        <td className="py-2.5 px-3 sm:px-4 whitespace-nowrap">
+                        <td className="py-2 px-3 sm:px-4 whitespace-nowrap">
                           {row.rosterName ? (
                             <div>
                               <span className="font-black text-slate-900 dark:text-white">
@@ -1117,10 +1289,26 @@ export function PrioriTeacherDashboard({ onBack }) {
                                 </span>
                               )}
                             </div>
-                          ) : (
+                          ) : row.classNum === 'guest' ? (
                             <span className="font-bold text-slate-600 dark:text-slate-300">
-                              {row.nickname || '尚未作答'}
+                              {row.nickname || '訪客練習'}
                             </span>
+                          ) : (
+                            <div>
+                              <input
+                                type="text"
+                                aria-label={`${row.seatStr} 姓名輸入`}
+                                value={row.localName}
+                                onChange={(e) => handleLocalSeatNameChange(row.rowKey, e.target.value)}
+                                placeholder="輸入姓名（僅存本機）"
+                                className="w-28 sm:w-32 px-2 py-1 rounded-lg bg-stone-50 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:outline-none focus:border-teal-500"
+                              />
+                              {row.nickname && (
+                                <span className="block text-[10px] font-bold text-slate-400 mt-0.5">
+                                  前台：{row.nickname}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </td>
 
@@ -1247,6 +1435,40 @@ export function PrioriTeacherDashboard({ onBack }) {
                     <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
                       <MathRichText text={inspectedQuestion.questionText} />
                     </div>
+                    {(() => {
+                      const st = classAnalytics.questionStats.find(
+                        (item) => item.question.id === inspectedQuestion.id
+                      );
+                      if (!st) return null;
+                      return (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          {inspectedQuestion.questionType === 'alphabet-pair' ? (
+                            <span className="px-2 py-0.5 rounded-lg text-[11px] font-black bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-400 text-emerald-800 dark:text-emerald-200">
+                              正解：{inspectedQuestion.answer} ✓（{st.correctCount}人）
+                            </span>
+                          ) : (
+                            inspectedQuestion.options.map((_, oIdx) => {
+                              const isCorrectOpt = oIdx === inspectedQuestion.answer;
+                              const cnt = st.optionCounts[oIdx];
+                              return (
+                                <span
+                                  key={oIdx}
+                                  className={`px-2 py-0.5 rounded-lg text-[11px] font-black tabular-nums border ${
+                                    isCorrectOpt
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-400 text-emerald-800 dark:text-emerald-200'
+                                      : cnt > 0
+                                      ? 'bg-rose-50 dark:bg-rose-950/50 border-rose-300 text-rose-700 dark:text-rose-300'
+                                      : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-400'
+                                  }`}
+                                >
+                                  ({oIdx + 1}){isCorrectOpt ? '✓' : ''}：{cnt}人
+                                </span>
+                              );
+                            })
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <button
                     type="button"
@@ -1337,101 +1559,187 @@ export function PrioriTeacherDashboard({ onBack }) {
               </section>
             )}
 
-            <div className="space-y-2.5">
-              {classAnalytics.questionStats.map((st) => {
-                const q = st.question;
-                const isInspected = inspectedQuestionId === q.id;
-                const isWeak = classAnalytics.studentCount > 0 && st.correctRate < 60;
-                return (
-                  <article
-                    key={q.id}
-                    className={`rounded-2xl bg-white/95 dark:bg-slate-900/95 border-2 p-3.5 sm:p-4 shadow-sm transition ${
-                      isInspected
-                        ? 'border-cyan-600 ring-2 ring-cyan-400/40'
-                        : isWeak
-                        ? 'border-rose-300 dark:border-rose-800/80'
-                        : 'border-stone-200/90 dark:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                      <div className="space-y-1.5 flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="px-2.5 py-0.5 rounded-xl bg-teal-700 text-white text-xs font-black tabular-nums">
-                            第 {q.number} 題
-                          </span>
-                          <span className="px-2 py-0.5 rounded-lg bg-stone-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-black">
-                            {q.conceptTitle}
-                          </span>
-                        </div>
-                        <div className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
-                          <MathRichText text={q.questionText} />
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                          {q.questionType === 'alphabet-pair' ? (
-                            <>
-                              <span className="px-2 py-0.5 rounded-lg text-[11px] font-black bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-400 text-emerald-800 dark:text-emerald-200">
-                                正解：{q.answer} ✓（{st.correctCount}人）
-                              </span>
-                              {st.wrongInputs?.length > 0 && (
-                                <span className="px-2 py-0.5 rounded-lg text-[11px] font-black bg-rose-50 dark:bg-rose-950/50 border border-rose-300 text-rose-700 dark:text-rose-300">
-                                  常見誤寫：{Array.from(new Set(st.wrongInputs)).join(' / ')}
-                                </span>
-                              )}
-                            </>
-                          ) : (
-                            q.options.map((_, oIdx) => {
-                              const isCorrectOpt = oIdx === q.answer;
-                              const cnt = st.optionCounts[oIdx];
-                              return (
+            <section
+              aria-label="依題目班級作答交叉矩陣"
+              className="rounded-3xl bg-white/95 dark:bg-slate-900/95 border-2 border-teal-200/80 dark:border-slate-700 shadow-md overflow-hidden"
+            >
+              <div className="px-4 py-2.5 bg-stone-50/80 dark:bg-slate-800/70 border-b border-stone-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                <span>
+                  縱軸：第 1–{activePaper.questions.length} 題（題意縮減，點題目看全班計算紙）｜橫軸：座號由 1 至末
+                </span>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className="text-emerald-700 dark:text-emerald-300">🌟 已精熟</span>
+                  <span className="text-teal-700 dark:text-teal-300">○ 答對</span>
+                  <span className="text-rose-600 dark:text-rose-400">✕ 答錯</span>
+                  <span className="text-slate-400">- 未作答</span>
+                  <span>✏️ 有計算紙</span>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-stone-50/95 dark:bg-slate-800/90 border-b border-stone-200 dark:border-slate-700 text-xs font-black text-slate-600 dark:text-slate-300">
+                      <th className="sticky left-0 z-10 bg-stone-50/95 dark:bg-slate-800/95 py-2.5 px-3 sm:px-4 min-w-[235px] whitespace-nowrap">
+                        題目（題意縮減）
+                      </th>
+                      <th className="py-2.5 px-2.5 text-center whitespace-nowrap min-w-[68px]">
+                        答對率
+                      </th>
+                      {classRosterRows.map((stuRow) => {
+                        const shortCls =
+                          selectedClass === 'all' && stuRow.classNum !== 'guest'
+                            ? formatShortClassName(stuRow.classNum).slice(0, 1)
+                            : '';
+                        const seatHead =
+                          stuRow.classNum === 'guest'
+                            ? '訪'
+                            : `${shortCls}${stuRow.seatPad}`;
+                        const stuName = stuRow.rosterName || stuRow.localName;
+                        return (
+                          <th
+                            key={stuRow.rowKey}
+                            className="py-2 px-1.5 text-center whitespace-nowrap min-w-[46px]"
+                            title={stuName ? `${stuRow.seatStr} ${stuName}` : stuRow.seatStr}
+                          >
+                            <div className="font-black text-slate-800 dark:text-slate-100 tabular-nums">
+                              {seatHead}
+                            </div>
+                            {stuName && (
+                              <div className="text-[10px] font-bold text-slate-400 truncate max-w-[44px] mx-auto">
+                                {stuName}
+                              </div>
+                            )}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100 dark:divide-slate-800 text-xs">
+                    {filteredQuestionStats.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={classRosterRows.length + 2}
+                          className="py-8 text-center font-bold text-slate-500 dark:text-slate-400"
+                        >
+                          找不到符合「{searchQuery}」的題目
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredQuestionStats.map((st) => {
+                        const q = st.question;
+                        const isInspected = inspectedQuestionId === q.id;
+                        const isWeak = classAnalytics.studentCount > 0 && st.correctRate < 60;
+                        return (
+                          <tr
+                            key={q.id}
+                            className={`transition-colors ${
+                              isInspected
+                                ? 'bg-cyan-50/70 dark:bg-cyan-950/30'
+                                : isWeak
+                                ? 'bg-rose-50/35 dark:bg-rose-950/15 hover:bg-rose-50/70'
+                                : 'hover:bg-teal-50/40 dark:hover:bg-slate-800/50'
+                            }`}
+                          >
+                            <td className="sticky left-0 z-10 bg-white/95 dark:bg-slate-900/95 py-2 px-3 sm:px-4 align-middle border-r border-stone-100 dark:border-slate-800">
+                              <button
+                                type="button"
+                                onClick={() => setInspectedQuestionId(isInspected ? null : q.id)}
+                                className="w-full text-left flex items-start gap-2 group cursor-pointer"
+                              >
                                 <span
-                                  key={oIdx}
-                                  className={`px-2 py-0.5 rounded-lg text-[11px] font-black tabular-nums border ${
-                                    isCorrectOpt
-                                      ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-400 text-emerald-800 dark:text-emerald-200'
-                                      : cnt > 0
-                                      ? 'bg-rose-50 dark:bg-rose-950/50 border-rose-300 text-rose-700 dark:text-rose-300'
-                                      : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-400'
+                                  className={`px-2 py-0.5 rounded-lg text-[11px] font-black tabular-nums shrink-0 transition ${
+                                    isInspected
+                                      ? 'bg-cyan-700 text-white'
+                                      : isWeak
+                                      ? 'bg-rose-600 text-white'
+                                      : 'bg-teal-700 text-white group-hover:bg-teal-600'
                                   }`}
                                 >
-                                  ({oIdx + 1}){isCorrectOpt ? '✓' : ''}：{cnt}人
+                                  第 {q.number} 題
                                 </span>
-                              );
-                            })
-                          )}
-                        </div>
-                      </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-bold text-slate-800 dark:text-slate-100 truncate max-w-[220px]">
+                                    {summarizeQuestionText(q)}
+                                  </div>
+                                  <div className="text-[10px] font-bold text-slate-400 truncate max-w-[220px]">
+                                    {q.conceptTitle}
+                                    {st.scratchpadCount > 0 ? ` · ✏️${st.scratchpadCount}` : ''}
+                                  </div>
+                                </div>
+                              </button>
+                            </td>
 
-                      <div className="flex flex-wrap items-center gap-3 shrink-0">
-                        <div className="text-right space-y-0.5 min-w-[110px]">
-                          <div className="text-xs font-black text-slate-700 dark:text-slate-200 tabular-nums">
-                            答對率 {st.correctRate}%（{st.correctCount}/{classAnalytics.studentCount}）
-                          </div>
-                          <div className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">
-                            🌟 精熟 {st.masteryRate}%（{st.masteredCount}/{classAnalytics.studentCount}）
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setInspectedQuestionId(isInspected ? null : q.id)}
-                          className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 border transition cursor-pointer ${
-                            isInspected
-                              ? 'bg-cyan-700 border-cyan-600 text-white shadow-sm'
-                              : 'bg-teal-50 dark:bg-teal-950/60 border-teal-300 dark:border-teal-700 text-teal-800 dark:text-teal-200 hover:bg-teal-100'
-                          }`}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                          <span>
-                            {isInspected
-                              ? '收合計算紙'
-                              : `檢視計算紙 (${st.scratchpadCount})`}
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+                            <td className="py-2 px-2.5 text-center whitespace-nowrap tabular-nums">
+                              {classAnalytics.studentCount > 0 ? (
+                                <span
+                                  className={`inline-block px-1.5 py-0.5 rounded-lg font-black text-[11px] ${
+                                    isWeak
+                                      ? 'bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300'
+                                      : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300'
+                                  }`}
+                                >
+                                  {st.correctRate}%
+                                </span>
+                              ) : (
+                                <span className="text-slate-300 dark:text-slate-600 font-bold">-</span>
+                              )}
+                            </td>
+
+                            {classRosterRows.map((stuRow) => {
+                              const rec = stuRow.recordsByPaper[activePaper.paperId];
+                              const chosen = rec?.latestAnswers?.[q.id];
+                              const hasAnswer =
+                                Boolean(rec) && chosen !== undefined && chosen !== null && chosen !== '';
+                              const streak = Number(rec?.streaks?.[q.id]) || 0;
+                              const hasPad = Boolean(
+                                rec &&
+                                  Array.isArray(rec.scratchpad?.[q.id]) &&
+                                  rec.scratchpad[q.id].length > 0
+                              );
+
+                              if (!rec || (!hasAnswer && streak === 0)) {
+                                return (
+                                  <td
+                                    key={stuRow.rowKey}
+                                    className="py-2 px-1 text-center font-bold text-slate-300 dark:text-slate-600 select-none"
+                                  >
+                                    -
+                                  </td>
+                                );
+                              }
+
+                              const isMastered = streak >= 2;
+                              const isOk = hasAnswer ? isPrioriAnswerCorrect(q, chosen) : streak > 0;
+                              const symbol = isMastered ? '🌟' : isOk ? '○' : '✕';
+                              const cellCls = isMastered
+                                ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-200'
+                                : isOk
+                                ? 'bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-200'
+                                : 'bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300';
+
+                              return (
+                                <td key={stuRow.rowKey} className="py-1.5 px-1 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => setInspectedQuestionId(q.id)}
+                                    title={`${stuRow.seatStr}｜作答：${formatPrioriAnswerLabel(q, chosen, false)}`}
+                                    className={`inline-flex items-center justify-center gap-0.5 min-w-[30px] px-1 py-1 rounded-lg border text-xs font-black transition hover:scale-105 cursor-pointer ${cellCls}`}
+                                  >
+                                    <span>{symbol}</span>
+                                    {hasPad && <span className="text-[9px]">✏️</span>}
+                                  </button>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </div>
         )}
       </div>
@@ -1447,11 +1755,28 @@ export function PrioriTeacherDashboard({ onBack }) {
         }}
       />
 
+      <PrioriTeacherPrintModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        initialPaperId={printablePaper?.paperId}
+        initialShowAnswerKey={printShowAnswerKey}
+        onConfirmPrint={(paperId, includeKey) => {
+          setPrintTargetPaperId(paperId);
+          setPrintShowAnswerKey(includeKey);
+          setIsPrintModalOpen(false);
+          setTimeout(() => {
+            try {
+              window.print();
+            } catch {}
+          }, 80);
+        }}
+      />
+
       <PrioriPrintableSheet
         paper={printablePaper}
         questions={printablePaper?.questions || []}
         answers={inspectedCell?.record?.latestAnswers || null}
-        showAnswerKey={true}
+        showAnswerKey={printShowAnswerKey}
       />
     </>
   );

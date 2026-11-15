@@ -871,3 +871,37 @@ export const PRIORI_DEMO_CLASS_RECORDS = ['114-math-g3', '114-chinese-g3', '114-
       };
     })
 );
+
+// ── 霧臺國小各年級各班編班人數骨架（不含姓名個資，僅供教師後台自動展開 1～末號座號） ──
+export const SCHOOL_CLASS_HEADCOUNTS = {
+  '1': { '1': 5, '2': 11 },
+  '2': { '1': 6, '2': 4 },
+  '3': { '1': 6, '2': 9 },
+  '4': { '1': 8, '2': 11 },
+  '5': { '1': 6, '2': 19 },
+  '6': { '1': 6, '2': 12 },
+};
+
+export function getClassHeadcount(grade, classNum) {
+  const g = String(parseInt(String(grade || ''), 10) || '');
+  const c = String(parseInt(String(classNum || ''), 10) || '');
+  return Number(SCHOOL_CLASS_HEADCOUNTS?.[g]?.[c]) || 0;
+}
+
+const LOCAL_SEAT_NAMES_KEY = 'wutai_priori_teacher_local_names_v1';
+
+export function loadLocalSeatNames() {
+  try {
+    const raw = localStorage.getItem(LOCAL_SEAT_NAMES_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveLocalSeatNames(nextMap) {
+  try {
+    localStorage.setItem(LOCAL_SEAT_NAMES_KEY, JSON.stringify(nextMap || {}));
+  } catch {}
+}
