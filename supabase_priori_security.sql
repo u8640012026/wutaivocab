@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS public.priori_legacy_migration_issues (
     issue_id BIGSERIAL PRIMARY KEY,
     legacy_id UUID,
     mode TEXT NOT NULL,
-    issue_type TEXT NOT NULL, -- 'unparseable_json' | 'invalid_key' | 'merged_duplicate' | 'superseded_roster'
+    issue_type TEXT NOT NULL, -- 'unparseable_json' | 'invalid_key' | 'invalid_field_type' | 'merged_duplicate' | 'superseded_roster'
     student_key TEXT,
     paper_id TEXT,
     detail TEXT NOT NULL,
@@ -222,7 +222,20 @@ DECLARE
     v_score INT;
     v_elapsed INT;
     v_updated TIMESTAMPTZ;
+    v_first_at TIMESTAMPTZ;
     v_existing RECORD;
+    v_existing_first_at TIMESTAMPTZ;
+    v_existing_has_first BOOLEAN;
+    v_row_has_first BOOLEAN;
+    v_raw_first_score INT;
+    v_raw_first_correct INT;
+    v_field_valid BOOLEAN;
+    v_field_err TEXT;
+    v_is_newer_latest BOOLEAN;
+    v_use_incoming_baseline BOOLEAN;
+    v_baseline_src JSONB;
+    v_baseline_at TIMESTAMPTZ;
+    v_expected_first_score INT;
     v_merged_payload JSONB;
     v_migrated_or_merged INT := 0;
     v_quarantined_issues INT := 0;
@@ -238,6 +251,7 @@ BEGIN
         CREATE TEMP TABLE tmp_expected_priori_winners (
             record_key TEXT PRIMARY KEY,
             expected_score INT NOT NULL,
+            expected_first_score INT,
             expected_updated_at TIMESTAMPTZ NOT NULL
         ) ON COMMIT DROP;
 
@@ -258,7 +272,7 @@ BEGIN
             RAISE EXCEPTION '備份筆數 (%) 少於公開表舊紀錄 (%)，已中止刪除以保全學生資料', v_backup_count, v_legacy_count;
         END IF;
 
-        -- 步驟 3.2：逐筆讀取舊版 priori-record（於迴圈內以 EXCEPTION 安全解析 JSON，再依 updatedAt / score 決定性合併勝出）
+        -- 步驟 3.2：逐筆讀取舊版 priori-record（安全驗證 JSON 與數值型別，分別挑選最新作答與最早有效初測基線）
         FOR v_rec IN
             SELECT id, name, book, score, time, created_at
             FROM public.leaderboard
@@ -295,6 +309,74 @@ BEGIN
                 CONTINUE;
             END IF;
 
+            -- 安全驗證可選整數與基線欄位型別（防止 22P02 中斷整批遷移；非法欄位改寫入稽核隔離表）
+            v_field_valid := TRUE;
+            v_field_err := '';
+            v_score := NULL;
+            v_elapsed := NULL;
+            v_raw_first_score := NULL;
+            v_raw_first_correct := NULL;
+            BEGIN
+                IF (v_payload ? 'latestScore') AND jsonb_typeof(v_payload->'latestScore') <> 'null' THEN
+                    IF jsonb_typeof(v_payload->'latestScore') NOT IN ('number', 'string') THEN
+                        RAISE EXCEPTION 'latestScore 必須為整數';
+                    END IF;
+                    v_score := (v_payload->>'latestScore')::int;
+                END IF;
+                IF v_score IS NULL AND (v_payload ? 'score') AND jsonb_typeof(v_payload->'score') <> 'null' THEN
+                    IF jsonb_typeof(v_payload->'score') NOT IN ('number', 'string') THEN
+                        RAISE EXCEPTION 'score 必須為整數';
+                    END IF;
+                    v_score := (v_payload->>'score')::int;
+                ELSIF (v_payload ? 'score') AND jsonb_typeof(v_payload->'score') <> 'null' THEN
+                    IF jsonb_typeof(v_payload->'score') NOT IN ('number', 'string') THEN
+                        RAISE EXCEPTION 'score 必須為整數';
+                    END IF;
+                    PERFORM (v_payload->>'score')::int;
+                END IF;
+                v_score := LEAST(100, GREATEST(0, COALESCE(v_score, v_rec.score, 0)));
+
+                IF (v_payload ? 'elapsedSeconds') AND jsonb_typeof(v_payload->'elapsedSeconds') <> 'null' THEN
+                    IF jsonb_typeof(v_payload->'elapsedSeconds') NOT IN ('number', 'string') THEN
+                        RAISE EXCEPTION 'elapsedSeconds 必須為整數';
+                    END IF;
+                    v_elapsed := (v_payload->>'elapsedSeconds')::int;
+                END IF;
+                v_elapsed := LEAST(7200, GREATEST(0, COALESCE(v_elapsed, v_rec.time, 0)));
+
+                IF (v_payload ? 'firstScore') AND jsonb_typeof(v_payload->'firstScore') <> 'null' THEN
+                    IF jsonb_typeof(v_payload->'firstScore') NOT IN ('number', 'string') THEN
+                        RAISE EXCEPTION 'firstScore 必須為整數';
+                    END IF;
+                    v_raw_first_score := LEAST(100, GREATEST(0, (v_payload->>'firstScore')::int));
+                END IF;
+
+                IF (v_payload ? 'firstCorrectCount') AND jsonb_typeof(v_payload->'firstCorrectCount') <> 'null' THEN
+                    IF jsonb_typeof(v_payload->'firstCorrectCount') NOT IN ('number', 'string') THEN
+                        RAISE EXCEPTION 'firstCorrectCount 必須為整數';
+                    END IF;
+                    v_raw_first_correct := GREATEST(0, (v_payload->>'firstCorrectCount')::int);
+                END IF;
+
+                IF (v_payload ? 'firstAnswers') AND jsonb_typeof(v_payload->'firstAnswers') NOT IN ('null', 'object') THEN
+                    RAISE EXCEPTION 'firstAnswers 必須為 JSON 物件';
+                END IF;
+            EXCEPTION WHEN others THEN
+                v_field_valid := FALSE;
+                v_field_err := SQLERRM;
+            END;
+
+            IF NOT v_field_valid THEN
+                v_quarantined_issues := v_quarantined_issues + 1;
+                INSERT INTO public.priori_legacy_migration_issues (legacy_id, mode, issue_type, student_key, paper_id, detail)
+                VALUES (v_rec.id, 'priori-record', 'invalid_field_type', v_sk, v_pid, format('JSON 欄位型別不合法，已隔離保留備份 (%s)', v_field_err));
+                UPDATE public.priori_legacy_leaderboard_backup
+                SET migration_status = 'invalid_field_type',
+                    migration_note = format('invalid field type: %s', v_field_err)
+                WHERE id = v_rec.id;
+                CONTINUE;
+            END IF;
+
             v_grade := COALESCE(NULLIF(ltrim(substring(v_sk, 1, 2), '0'), ''), '1');
             v_class := COALESCE(NULLIF(ltrim(substring(v_sk, 3, 2), '0'), ''), '1');
             v_seat := substring(v_sk, 5, 2);
@@ -309,13 +391,29 @@ BEGIN
             FROM public.priori_student_directory
             WHERE student_key = v_sk;
 
-            v_score := LEAST(100, GREATEST(0, COALESCE((v_payload->>'latestScore')::int, (v_payload->>'score')::int, v_rec.score, 0)));
-            v_elapsed := LEAST(7200, GREATEST(0, COALESCE((v_payload->>'elapsedSeconds')::int, v_rec.time, 0)));
             BEGIN
-                v_updated := COALESCE(NULLIF(trim(v_payload->>'updatedAt'), '')::timestamptz, v_rec.created_at, timezone('utc'::text, now()));
+                v_updated := COALESCE(
+                    NULLIF(trim(v_payload->>'updatedAt'), '')::timestamptz,
+                    NULLIF(trim(v_payload->>'completedAt'), '')::timestamptz,
+                    v_rec.created_at,
+                    timezone('utc'::text, now())
+                );
             EXCEPTION WHEN others THEN
                 v_updated := COALESCE(v_rec.created_at, timezone('utc'::text, now()));
             END;
+
+            BEGIN
+                v_first_at := COALESCE(
+                    NULLIF(trim(v_payload->>'firstSubmittedAt'), '')::timestamptz,
+                    NULLIF(trim(v_payload->>'completedAt'), '')::timestamptz,
+                    v_updated
+                );
+            EXCEPTION WHEN others THEN
+                v_first_at := v_updated;
+            END;
+
+            v_row_has_first := (v_raw_first_score IS NOT NULL)
+                OR ((v_payload ? 'firstAnswers') AND jsonb_typeof(v_payload->'firstAnswers') = 'object');
 
             v_rkey := 'priori_' || v_sk || '_' || v_pid;
             v_payload := v_payload || jsonb_build_object(
@@ -327,6 +425,15 @@ BEGIN
                 'score', v_score,
                 'latestScore', v_score
             );
+            IF v_row_has_first THEN
+                v_payload := v_payload || jsonb_build_object(
+                    'firstSubmittedAt', v_first_at,
+                    'firstScore', COALESCE(v_raw_first_score, v_score)
+                );
+                IF v_raw_first_correct IS NOT NULL THEN
+                    v_payload := v_payload || jsonb_build_object('firstCorrectCount', v_raw_first_correct);
+                END IF;
+            END IF;
 
             SELECT record_key, score, elapsed_seconds, payload, updated_at
             INTO v_existing
@@ -343,10 +450,16 @@ BEGIN
                     v_score, v_elapsed, v_payload, v_updated
                 );
 
-                INSERT INTO tmp_expected_priori_winners (record_key, expected_score, expected_updated_at)
-                VALUES (v_rkey, v_score, v_updated)
+                v_expected_first_score := CASE
+                    WHEN v_row_has_first THEN COALESCE(v_raw_first_score, v_score)
+                    ELSE NULL
+                END;
+
+                INSERT INTO tmp_expected_priori_winners (record_key, expected_score, expected_first_score, expected_updated_at)
+                VALUES (v_rkey, v_score, v_expected_first_score, v_updated)
                 ON CONFLICT (record_key) DO UPDATE SET
                     expected_score = EXCLUDED.expected_score,
+                    expected_first_score = EXCLUDED.expected_first_score,
                     expected_updated_at = EXCLUDED.expected_updated_at;
 
                 UPDATE public.priori_legacy_leaderboard_backup
@@ -356,41 +469,75 @@ BEGIN
                 WHERE id = v_rec.id;
                 v_migrated_or_merged := v_migrated_or_merged + 1;
             ELSE
-                -- 已存在同生同卷：僅在時間較新，或同時間分數更高時更新為主紀錄，並保留較早初測基準
-                IF v_updated > v_existing.updated_at OR (v_updated = v_existing.updated_at AND v_score >= v_existing.score) THEN
-                    v_merged_payload := v_payload;
-                    IF v_existing.payload ? 'firstScore' AND NOT (v_merged_payload ? 'firstScore') THEN
-                        v_merged_payload := v_merged_payload || jsonb_build_object(
-                            'firstScore', v_existing.payload->'firstScore',
-                            'firstAnswers', v_existing.payload->'firstAnswers',
-                            'firstCorrectCount', v_existing.payload->'firstCorrectCount'
-                        );
-                    END IF;
+                -- 已存在同生同卷：獨立挑選「最新作答」與「最早有效初測（日期＋答案＋分數＋題數）」
+                v_existing_has_first := (
+                    ((v_existing.payload ? 'firstScore') AND jsonb_typeof(v_existing.payload->'firstScore') <> 'null')
+                    OR ((v_existing.payload ? 'firstAnswers') AND jsonb_typeof(v_existing.payload->'firstAnswers') = 'object')
+                );
+                BEGIN
+                    v_existing_first_at := COALESCE(
+                        NULLIF(trim(v_existing.payload->>'firstSubmittedAt'), '')::timestamptz,
+                        NULLIF(trim(v_existing.payload->>'completedAt'), '')::timestamptz,
+                        v_existing.updated_at
+                    );
+                EXCEPTION WHEN others THEN
+                    v_existing_first_at := v_existing.updated_at;
+                END;
 
-                    UPDATE public.priori_records
-                    SET grade = v_grade,
-                        class_num = v_class,
-                        seat = v_seat,
-                        score = v_score,
-                        elapsed_seconds = v_elapsed,
-                        payload = v_merged_payload,
-                        updated_at = v_updated
-                    WHERE record_key = v_rkey;
+                v_is_newer_latest := (v_updated > v_existing.updated_at)
+                    OR (v_updated = v_existing.updated_at AND v_score >= v_existing.score);
 
-                    INSERT INTO tmp_expected_priori_winners (record_key, expected_score, expected_updated_at)
-                    VALUES (v_rkey, v_score, v_updated)
-                    ON CONFLICT (record_key) DO UPDATE SET
-                        expected_score = EXCLUDED.expected_score,
-                        expected_updated_at = EXCLUDED.expected_updated_at;
-                ELSIF v_payload ? 'firstScore' AND NOT (v_existing.payload ? 'firstScore') THEN
-                    UPDATE public.priori_records
-                    SET payload = v_existing.payload || jsonb_build_object(
-                        'firstScore', v_payload->'firstScore',
-                        'firstAnswers', v_payload->'firstAnswers',
-                        'firstCorrectCount', v_payload->'firstCorrectCount'
+                v_use_incoming_baseline := v_row_has_first AND (
+                    NOT v_existing_has_first
+                    OR v_first_at < v_existing_first_at
+                    OR (
+                        v_first_at = v_existing_first_at
+                        AND COALESCE(v_raw_first_score, v_score) < COALESCE((v_existing.payload->>'firstScore')::int, v_existing.score)
                     )
-                    WHERE record_key = v_rkey;
+                );
+
+                v_merged_payload := CASE WHEN v_is_newer_latest THEN v_payload ELSE v_existing.payload END;
+
+                IF v_row_has_first OR v_existing_has_first THEN
+                    v_baseline_src := CASE WHEN v_use_incoming_baseline THEN v_payload ELSE v_existing.payload END;
+                    v_baseline_at := CASE WHEN v_use_incoming_baseline THEN v_first_at ELSE v_existing_first_at END;
+                    v_merged_payload := (v_merged_payload - 'firstScore' - 'firstAnswers' - 'firstCorrectCount' - 'firstSubmittedAt')
+                        || jsonb_build_object(
+                            'firstSubmittedAt', v_baseline_at,
+                            'firstScore', v_baseline_src->'firstScore'
+                        );
+                    IF v_baseline_src ? 'firstAnswers' AND jsonb_typeof(v_baseline_src->'firstAnswers') = 'object' THEN
+                        v_merged_payload := v_merged_payload || jsonb_build_object('firstAnswers', v_baseline_src->'firstAnswers');
+                    END IF;
+                    IF v_baseline_src ? 'firstCorrectCount' AND jsonb_typeof(v_baseline_src->'firstCorrectCount') <> 'null' THEN
+                        v_merged_payload := v_merged_payload || jsonb_build_object('firstCorrectCount', v_baseline_src->'firstCorrectCount');
+                    END IF;
+                    v_expected_first_score := (v_baseline_src->>'firstScore')::int;
+                ELSE
+                    v_expected_first_score := NULL;
                 END IF;
+
+                UPDATE public.priori_records
+                SET grade = v_grade,
+                    class_num = v_class,
+                    seat = v_seat,
+                    score = CASE WHEN v_is_newer_latest THEN v_score ELSE v_existing.score END,
+                    elapsed_seconds = CASE WHEN v_is_newer_latest THEN v_elapsed ELSE v_existing.elapsed_seconds END,
+                    payload = v_merged_payload,
+                    updated_at = CASE WHEN v_is_newer_latest THEN v_updated ELSE v_existing.updated_at END
+                WHERE record_key = v_rkey;
+
+                INSERT INTO tmp_expected_priori_winners (record_key, expected_score, expected_first_score, expected_updated_at)
+                VALUES (
+                    v_rkey,
+                    CASE WHEN v_is_newer_latest THEN v_score ELSE v_existing.score END,
+                    v_expected_first_score,
+                    CASE WHEN v_is_newer_latest THEN v_updated ELSE v_existing.updated_at END
+                )
+                ON CONFLICT (record_key) DO UPDATE SET
+                    expected_score = EXCLUDED.expected_score,
+                    expected_first_score = EXCLUDED.expected_first_score,
+                    expected_updated_at = EXCLUDED.expected_updated_at;
 
                 INSERT INTO public.priori_legacy_migration_issues (legacy_id, mode, issue_type, student_key, paper_id, detail)
                 VALUES (
@@ -399,7 +546,7 @@ BEGIN
                     'merged_duplicate',
                     v_sk,
                     v_pid,
-                    format('偵測同生同卷重複列，已依最新時間／分數規則整併 (prev_score=%s, row_score=%s)', v_existing.score, v_score)
+                    format('偵測同生同卷重複列，已依最新時間／分數規則整併並保留最早初測基準 (prev_score=%s, row_score=%s)', v_existing.score, v_score)
                 );
                 UPDATE public.priori_legacy_leaderboard_backup
                 SET migration_status = 'merged_duplicate',
@@ -473,13 +620,16 @@ BEGIN
         END IF;
 
         FOR v_expected_key IN SELECT * FROM tmp_expected_priori_winners LOOP
-            SELECT record_key, score INTO v_actual_row
+            SELECT record_key, score, (payload->>'firstScore')::int AS first_score INTO v_actual_row
             FROM public.priori_records
             WHERE record_key = v_expected_key.record_key;
 
-            IF NOT FOUND OR v_actual_row.score <> v_expected_key.expected_score THEN
-                RAISE EXCEPTION '新表核對失敗 (% 預期分數 %，實際 %)，已中止清理公開表',
-                    v_expected_key.record_key, v_expected_key.expected_score, v_actual_row.score;
+            IF NOT FOUND
+               OR v_actual_row.score <> v_expected_key.expected_score
+               OR (v_expected_key.expected_first_score IS NOT NULL AND v_actual_row.first_score IS DISTINCT FROM v_expected_key.expected_first_score) THEN
+                RAISE EXCEPTION '新表核對失敗 (% 預期分數 % / 初測 %，實際 % / %)，已中止清理公開表',
+                    v_expected_key.record_key, v_expected_key.expected_score, v_expected_key.expected_first_score,
+                    v_actual_row.score, v_actual_row.first_score;
             END IF;
         END LOOP;
 
@@ -1565,11 +1715,13 @@ BEGIN
 END;
 $$;
 
--- 9G. 教師一鍵為整班未綁定／待啟用學生批量發放一次性 6 碼啟用碼
+-- 9G. 教師為整班尚未綁定學生批量發放一次性 6 碼啟用碼（預設跳過已綁定與尚持有有效未過期啟用碼者；僅 p_reissue_existing=TRUE 才重發覆蓋）
+DROP FUNCTION IF EXISTS public.priori_teacher_issue_class_activation_codes(TEXT, TEXT, TEXT);
 CREATE OR REPLACE FUNCTION public.priori_teacher_issue_class_activation_codes(
     p_token TEXT,
     p_grade TEXT,
-    p_class_num TEXT
+    p_class_num TEXT,
+    p_reissue_existing BOOLEAN DEFAULT FALSE
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -1580,6 +1732,7 @@ DECLARE
     v_sess RECORD;
     v_g TEXT := COALESCE(NULLIF(ltrim(trim(COALESCE(p_grade, '')), '0'), ''), '');
     v_c TEXT := COALESCE(NULLIF(ltrim(trim(COALESCE(p_class_num, '')), '0'), ''), '');
+    v_reissue BOOLEAN := COALESCE(p_reissue_existing, FALSE);
     v_now TIMESTAMPTZ := timezone('utc'::text, now());
     v_expires TIMESTAMPTZ := v_now + interval '7 days';
     v_stu RECORD;
@@ -1610,8 +1763,15 @@ BEGIN
         WHERE student_key = v_stu.student_key
         FOR UPDATE;
 
+        -- 已完成裝置綁定者永遠跳過
         IF FOUND AND v_bind.pin_hash IS NOT NULL AND v_bind.activation_code_hash IS NULL
            AND COALESCE(array_length(v_bind.authorized_device_hashes, 1), 0) > 0 THEN
+            CONTINUE;
+        END IF;
+
+        -- 已發放且尚未過期之有效啟用碼，預設予以保留以免學生手上的紙本碼失效
+        IF NOT v_reissue AND FOUND AND v_bind.activation_code_hash IS NOT NULL
+           AND v_bind.activation_expires_at IS NOT NULL AND v_bind.activation_expires_at > v_now THEN
             CONTINUE;
         END IF;
 
@@ -1814,8 +1974,8 @@ GRANT EXECUTE ON FUNCTION public.priori_teacher_list_bindings(TEXT, TEXT, TEXT) 
 REVOKE ALL ON FUNCTION public.priori_teacher_issue_activation_code(TEXT, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.priori_teacher_issue_activation_code(TEXT, TEXT) TO anon, authenticated;
 
-REVOKE ALL ON FUNCTION public.priori_teacher_issue_class_activation_codes(TEXT, TEXT, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.priori_teacher_issue_class_activation_codes(TEXT, TEXT, TEXT) TO anon, authenticated;
+REVOKE ALL ON FUNCTION public.priori_teacher_issue_class_activation_codes(TEXT, TEXT, TEXT, BOOLEAN) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.priori_teacher_issue_class_activation_codes(TEXT, TEXT, TEXT, BOOLEAN) TO anon, authenticated;
 
 REVOKE ALL ON FUNCTION public.priori_teacher_reset_student_binding(TEXT, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.priori_teacher_reset_student_binding(TEXT, TEXT) TO anon, authenticated;

@@ -67,6 +67,8 @@ async function run() {
     latestScore: 8,
     firstScore: 8,
     firstCorrectCount: 2,
+    firstAnswers: { q1: 3, q2: 1 },
+    firstSubmittedAt: '2026-11-01T08:00:00Z',
     updatedAt: '2026-11-01T08:00:00Z',
   });
   const newPayload12 = JSON.stringify({
@@ -74,7 +76,17 @@ async function run() {
     paperId: '114-math-g3',
     score: 12,
     latestScore: 12,
+    firstScore: 12,
+    firstCorrectCount: 3,
+    firstAnswers: { q1: 3, q2: 1, q3: 2 },
+    firstSubmittedAt: '2026-11-02T09:00:00Z',
     updatedAt: '2026-11-02T09:00:00Z',
+  });
+  const badFieldPayload = JSON.stringify({
+    studentKey: '030106',
+    paperId: '114-math-g3',
+    latestScore: 'not-an-int',
+    updatedAt: '2026-11-02T10:00:00Z',
   });
 
   await db.query(
@@ -82,10 +94,11 @@ async function run() {
      VALUES
        ('dev_1', '030105', 'priori-record', $1, 12, 50, 0, '2026-11-01T07:00:00Z'),
        ('dev_2', '030105', 'priori-record', $2, 8, 40, 0, '2026-11-01T10:00:00Z'),
+       ('dev_bad_field', '030106', 'priori-record', $3, 0, 10, 0, '2026-11-01T10:30:00Z'),
        ('dev_bad', '030105', 'priori-record', '{not-valid-json', 0, 10, 0, '2026-11-01T11:00:00Z'),
        ('dev_roster', 'roster', 'priori-roster', '{"version":1,"entries":{}}', 0, 12, 0, '2026-11-01T12:00:00Z'),
        ('dev_vocab', '巴奈', 'vocab', '1', 100, 30, 10, '2026-11-02T12:00:00Z')`,
-    [newPayload12, oldPayload8]
+    [newPayload12, oldPayload8, badFieldPayload]
   );
 
   // 3. Unreplaced placeholder MUST abort safely inside DO block without deleting legacy leaderboard
@@ -97,7 +110,7 @@ async function run() {
   const preLegacyLeft = await db.query(
     `SELECT COUNT(*)::int AS cnt FROM public.leaderboard WHERE mode IN ('priori-record', 'priori-roster')`
   );
-  assert.equal(preLegacyLeft.rows[0].cnt, 4, 'Failed placeholder guard must roll back whole script');
+  assert.equal(preLegacyLeft.rows[0].cnt, 5, 'Failed placeholder guard must roll back whole script');
 
   // 4. Execute full SQL top-to-bottom with rotated admin password
   const patchedSql = rawSecuritySql.replaceAll('__REPLACE_WITH_ADMIN_NEW_PASSWORD__', 'WutaiAdmin!2026Secure');
@@ -110,10 +123,11 @@ async function run() {
 
   // 6. Verify deterministic lossless migration + quarantine + backup
   const backupRes = await db.query(`SELECT migration_status FROM public.priori_legacy_leaderboard_backup ORDER BY backed_up_at`);
-  assert.equal(backupRes.rows.length, 4, 'All 4 legacy PRIORI rows must be backed up');
+  assert.equal(backupRes.rows.length, 5, 'All 5 legacy PRIORI rows must be backed up');
   const issuesRes = await db.query(`SELECT issue_type FROM public.priori_legacy_migration_issues`);
   const issueTypes = issuesRes.rows.map((r) => r.issue_type);
   assert.ok(issueTypes.includes('unparseable_json'), 'Corrupt legacy JSON must be logged to issues table');
+  assert.ok(issueTypes.includes('invalid_field_type'), 'Non-integer JSON score must be quarantined instead of raising 22P02');
   assert.ok(issueTypes.includes('merged_duplicate'), 'Duplicate (030105, 114-math-g3) must be logged as merged_duplicate');
 
   const migratedRowRes = await db.query(
@@ -121,7 +135,10 @@ async function run() {
   );
   assert.equal(migratedRowRes.rows.length, 1);
   assert.equal(migratedRowRes.rows[0].score, 12, 'Newer 12分 row MUST beat older 8分 row regardless of created_at');
-  assert.equal(migratedRowRes.rows[0].payload?.firstScore, 8, 'Earlier firstScore baseline should be preserved on merge');
+  assert.equal(migratedRowRes.rows[0].payload?.firstScore, 8, 'Earlier firstScore (8) MUST survive even when newer duplicate row also carries firstScore (12)');
+  assert.equal(migratedRowRes.rows[0].payload?.firstCorrectCount, 2, 'Earlier firstCorrectCount (2) MUST survive alongside firstScore (8)');
+  assert.deepEqual(migratedRowRes.rows[0].payload?.firstAnswers, { q1: 3, q2: 1 }, 'Earlier firstAnswers MUST survive');
+  assert.equal(new Date(migratedRowRes.rows[0].payload?.firstSubmittedAt).toISOString(), '2026-11-01T08:00:00.000Z');
 
   const remainingPrioris = await db.query(
     `SELECT COUNT(*)::int AS cnt FROM public.leaderboard WHERE mode IN ('priori-record', 'priori-roster')`
@@ -131,7 +148,7 @@ async function run() {
     `SELECT COUNT(*)::int AS cnt FROM public.leaderboard WHERE mode = 'vocab'`
   );
   assert.equal(survivingVocab.rows[0].cnt, 1, 'Non-PRIORI leaderboard rows must stay untouched');
-  console.log('✓ Legacy deterministic migration (12分 won over 8分, bad JSON quarantined, vocab intact) passed');
+  console.log('✓ Legacy deterministic migration (12分 latest + 8分 earliest baseline preserved + bad JSON/field quarantined + vocab intact) passed');
 
   // 7. Create a single-class teacher (4-2) to verify strict class scoping
   await db.exec(`
@@ -359,7 +376,16 @@ async function run() {
   assert.equal(preservedRecords[0].score, 12, 'Teacher reset + reactivation must preserve 100% of records');
   console.log('✓ Post-reset anti-preemption & zero-data-loss reactivation verified');
 
-  // 13. Teacher binding status listing & bulk class activation code issuance + class isolation
+  // 13. Teacher binding status listing & bulk class activation code issuance + preserving existing active codes
+  const single030101 = await callRpc(
+    db,
+    'anon',
+    `SELECT public.priori_teacher_issue_activation_code($1, '030101')`,
+    [adminLogin.token]
+  );
+  assert.equal(single030101.ok, true);
+  const code030101Before = single030101.activation_code;
+
   const bindings31 = await callRpc(
     db,
     'anon',
@@ -370,23 +396,54 @@ async function run() {
   const bind030105 = bindings31.find((b) => b.student_key === '030105');
   assert.equal(bind030105?.status, 'bound');
   assert.equal(bind030105?.device_count, 1);
+  const bind030101 = bindings31.find((b) => b.student_key === '030101');
+  assert.equal(bind030101?.status, 'awaiting_activation');
 
+  // Default bulk issue (p_reissue_existing = false) MUST skip BOTH bound 030105 AND awaiting-valid 030101!
   const bulk31 = await callRpc(
     db,
     'anon',
-    `SELECT public.priori_teacher_issue_class_activation_codes($1, '3', '1')`,
+    `SELECT public.priori_teacher_issue_class_activation_codes($1, '3', '1', FALSE)`,
     [adminLogin.token]
   );
-  assert.equal(bulk31.length, 5, 'Bulk issuance for 3-1 must skip already-bound 030105 and issue 5 codes');
-  assert.ok(!bulk31.some((x) => x.student_key === '030105'));
+  assert.equal(bulk31.length, 4, 'Bulk issuance must skip bound 030105 AND active awaiting 030101 -> 4 remaining seats');
+  assert.ok(!bulk31.some((x) => x.student_key === '030105' || x.student_key === '030101'));
+
+  // Explicit reissue (p_reissue_existing = true) replaces awaiting 030101 with a fresh code while keeping bound 030105 untouched
+  const reissue31 = await callRpc(
+    db,
+    'anon',
+    `SELECT public.priori_teacher_issue_class_activation_codes($1, '3', '1', TRUE)`,
+    [adminLogin.token]
+  );
+  assert.equal(reissue31.length, 5, 'Explicit class reissue covers all 5 non-bound seats');
+  const reissued030101 = reissue31.find((x) => x.student_key === '030101');
+  assert.ok(reissued030101 && reissued030101.activation_code !== code030101Before);
+
+  // Old code before explicit reissue fails; new code succeeds
+  const oldCodeFail = await callRpc(
+    db,
+    'anon',
+    `SELECT public.priori_student_login_seat('030101', $1, '1122', $2)`,
+    [dev1, code030101Before]
+  );
+  assert.equal(oldCodeFail.authorized, false);
+  assert.equal(oldCodeFail.status, 'invalid_activation_code');
+  const newCodeOk = await callRpc(
+    db,
+    'anon',
+    `SELECT public.priori_student_login_seat('030101', $1, '1122', $2)`,
+    [dev1, reissued030101.activation_code]
+  );
+  assert.equal(newCodeOk.authorized, true);
 
   await assert.rejects(
     async () =>
-      callRpc(db, 'anon', `SELECT public.priori_teacher_issue_class_activation_codes($1, '3', '1')`, [t42Login.token]),
+      callRpc(db, 'anon', `SELECT public.priori_teacher_issue_class_activation_codes($1, '3', '1', FALSE)`, [t42Login.token]),
     (err) => err.code === '42501',
     'Class 4-2 teacher must not bulk-issue codes for Class 3-1'
   );
-  console.log('✓ Teacher binding list & bulk class activation code issuance verified');
+  console.log('✓ Teacher binding list, non-destructive bulk class issuance & explicit reissue verified');
 
   await db.close();
   console.log('\n🎉 ALL POSTGRESQL SQL, MIGRATION & SECURITY AUDIT ASSERTIONS PASSED!');

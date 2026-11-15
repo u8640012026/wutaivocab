@@ -528,7 +528,12 @@ export async function issuePrioriActivationCodeServer(teacherToken, studentKey) 
 /**
  * 教師為整班尚未綁定學生批量產生一次性 6 碼啟用碼
  */
-export async function issuePrioriClassActivationCodesServer(teacherToken, grade, classNum) {
+export async function issuePrioriClassActivationCodesServer(
+  teacherToken,
+  grade,
+  classNum,
+  reissueExisting = false
+) {
   const activeToken = teacherToken || getPrioriTeacherSession()?.token || '';
   if (!activeToken) {
     return { ok: false, items: [], error: '缺乏有效教師伺服器憑證' };
@@ -538,6 +543,7 @@ export async function issuePrioriClassActivationCodesServer(teacherToken, grade,
       p_token: activeToken,
       p_grade: String(grade || ''),
       p_class_num: String(classNum || ''),
+      p_reissue_existing: Boolean(reissueExisting),
     });
     if (error) {
       return {

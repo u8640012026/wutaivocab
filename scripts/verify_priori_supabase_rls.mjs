@@ -210,14 +210,26 @@ async function run() {
   assert.ok(!anonClaimNoCode.json?.token, 'Anonymous unverified login must not return token');
   console.log('✓ Anonymous student login cannot claim unbound or out-of-directory seats');
 
-  // 6. Optional authenticated admin & student isolation + directory tamper roundtrip
+  // 6. Optional write/binding isolation roundtrip (strictly isolated DB or dedicated '00xxxx' test seat — never defaults to real student seats)
   const teacherPw = process.env.PRIORI_TEACHER_PASSWORD || '';
   if (process.env.PRIORI_TEST_STUDENT_ISOLATION === '1') {
     if (!teacherPw) {
       throw new Error(
-        'PRIORI_TEST_STUDENT_ISOLATION=1 now requires PRIORI_TEACHER_PASSWORD (because initial binding requires a teacher-issued one-time 6-digit activation code).'
+        'PRIORI_TEST_STUDENT_ISOLATION=1 requires PRIORI_TEACHER_PASSWORD (initial binding requires a teacher-issued 6-digit activation code).'
       );
     }
+    const testSeat = (process.env.PRIORI_TEST_SEAT || '').trim();
+    if (!/^\d{6}$/.test(testSeat) || testSeat === '999999') {
+      throw new Error(
+        'PRIORI_TEST_STUDENT_ISOLATION=1 requires explicit PRIORI_TEST_SEAT (e.g. dedicated 00xxxx test identity on a test DB); formal class seat defaults were removed to protect student accounts.'
+      );
+    }
+    if (!testSeat.startsWith('00') && process.env.PRIORI_TEST_ALLOW_NON_SYNTHETIC_ON_STAGING !== '1') {
+      throw new Error(
+        `Refusing to mutate class seat ${testSeat} without explicit staging opt-in. Use a dedicated 00xxxx test identity or staging DB with PRIORI_TEST_ALLOW_NON_SYNTHETIC_ON_STAGING=1.`
+      );
+    }
+
     const adminLoginForIso = await restCall('rpc/priori_teacher_login', {
       method: 'POST',
       body: { p_password: teacherPw },
@@ -226,74 +238,90 @@ async function run() {
     const adminTok = adminLoginForIso.json.token;
 
     try {
-      const testSeat = process.env.PRIORI_TEST_SEAT || '010105';
+      const existingRecs = await restCall('rpc/priori_teacher_list_records', {
+        method: 'POST',
+        body: { p_token: adminTok },
+      });
+      assert.equal(existingRecs.status, 200, `Failed checking pre-existing records: ${existingRecs.text}`);
+      if (Array.isArray(existingRecs.json) && existingRecs.json.some((r) => r.student_key === testSeat)) {
+        throw new Error(
+          `Refusing isolation test on ${testSeat}: seat already has records (cleanup via priori_student_release_wrong_seat would fail with has_records).`
+        );
+      }
+
       const issueRes = await restCall('rpc/priori_teacher_issue_activation_code', {
         method: 'POST',
         body: { p_token: adminTok, p_student_key: testSeat },
       });
       if (!issueRes.json?.ok) {
-        console.log(
-          `ℹ️ Skipped live student isolation probe on ${testSeat} (${issueRes.json?.reason || issueRes.text}) to protect bound student data.`
-        );
-      } else {
-        const devA = 'audit_dev_a_' + Date.now() + '_' + 'a'.repeat(16);
-        const bindA = await restCall('rpc/priori_student_login_seat', {
+        throw new Error(`Could not issue activation code for test seat ${testSeat}: ${issueRes.text}`);
+      }
+
+      const devA = 'audit_dev_a_' + Date.now() + '_' + 'a'.repeat(16);
+      const bindA = await restCall('rpc/priori_student_login_seat', {
+        method: 'POST',
+        body: {
+          p_student_key: testSeat,
+          p_device_secret: devA,
+          p_transfer_pin: '1357',
+          p_activation_code: issueRes.json.activation_code,
+        },
+      });
+      assert.equal(bindA.json?.authorized, true, `Failed activating test seat ${testSeat}: ${bindA.text}`);
+      let releaseErr = null;
+      try {
+        const siblingSeat = testSeat === '030106' ? '030105' : '030106';
+        const crossRead = await restCall('rpc/priori_student_get_records', {
+          method: 'POST',
+          body: { p_token: bindA.json.token, p_student_key: siblingSeat },
+        });
+        assert.ok(isDenied(crossRead), `Expected Student A reading ${siblingSeat} rejected: ${crossRead.text}`);
+
+        const tamperGradeClass = await restCall('rpc/priori_student_upsert_record', {
           method: 'POST',
           body: {
+            p_token: bindA.json.token,
             p_student_key: testSeat,
-            p_device_secret: devA,
-            p_transfer_pin: '1357',
-            p_activation_code: issueRes.json.activation_code,
+            p_paper_id: '114-math-g3',
+            p_grade: '4',
+            p_class_num: '2',
+            p_seat: testSeat.slice(4, 6),
+            p_score: 100,
+            p_elapsed: 5,
+            p_payload: { studentKey: testSeat, paperId: '114-math-g3' },
           },
         });
-        assert.equal(bindA.json?.authorized, true, `Failed activating test seat ${testSeat}: ${bindA.text}`);
-        try {
-          const siblingSeat = testSeat === '030106' ? '030105' : '030106';
-          const crossRead = await restCall('rpc/priori_student_get_records', {
-            method: 'POST',
-            body: { p_token: bindA.json.token, p_student_key: siblingSeat },
-          });
-          assert.ok(isDenied(crossRead), `Expected Student A reading ${siblingSeat} rejected: ${crossRead.text}`);
+        assert.ok(
+          isDenied(tamperGradeClass),
+          `Expected grade/class tampering to 4-2 rejected (42501), got ${tamperGradeClass.status}: ${tamperGradeClass.text}`
+        );
 
-          const tamperGradeClass = await restCall('rpc/priori_student_upsert_record', {
-            method: 'POST',
-            body: {
-              p_token: bindA.json.token,
-              p_student_key: testSeat,
-              p_paper_id: '114-math-g3',
-              p_grade: '4',
-              p_class_num: '2',
-              p_seat: testSeat.slice(4, 6),
-              p_score: 100,
-              p_elapsed: 5,
-              p_payload: { studentKey: testSeat, paperId: '114-math-g3' },
-            },
-          });
-          assert.ok(
-            isDenied(tamperGradeClass),
-            `Expected grade/class tampering to 4-2 rejected (42501), got ${tamperGradeClass.status}: ${tamperGradeClass.text}`
+        const hijackTry = await restCall('rpc/priori_student_login_seat', {
+          method: 'POST',
+          body: { p_student_key: testSeat, p_device_secret: 'evil_dev_' + 'x'.repeat(24) },
+        });
+        assert.equal(hijackTry.json?.authorized, false);
+        assert.equal(hijackTry.json?.status, 'pin_required');
+        assert.ok(!hijackTry.json?.token);
+        console.log(`✓ Live student isolation & directory tamper rejection verified on ${testSeat}`);
+      } finally {
+        const relRes = await restCall('rpc/priori_student_release_wrong_seat', {
+          method: 'POST',
+          body: { p_token: bindA.json.token },
+        });
+        if (relRes.status !== 200 || relRes.json?.released !== true) {
+          releaseErr = new Error(
+            `Test binding cleanup FAILED for ${testSeat} (must return released=true, got status=${relRes.status} body=${relRes.text})`
           );
-
-          const hijackTry = await restCall('rpc/priori_student_login_seat', {
-            method: 'POST',
-            body: { p_student_key: testSeat, p_device_secret: 'evil_dev_' + 'x'.repeat(24) },
-          });
-          assert.equal(hijackTry.json?.authorized, false);
-          assert.equal(hijackTry.json?.status, 'pin_required');
-          assert.ok(!hijackTry.json?.token);
-          console.log(`✓ Live student isolation & directory tamper rejection verified on ${testSeat}`);
-        } finally {
-          await restCall('rpc/priori_student_release_wrong_seat', {
-            method: 'POST',
-            body: { p_token: bindA.json.token },
-          });
         }
       }
+      if (releaseErr) throw releaseErr;
+      console.log(`✓ Confirmed test binding cleanup released=true on ${testSeat}`);
     } finally {
       await restCall('rpc/priori_teacher_logout', { method: 'POST', body: { p_token: adminTok } });
     }
   } else {
-    console.log('ℹ️ Tip: set PRIORI_TEST_STUDENT_ISOLATION=1 and PRIORI_TEACHER_PASSWORD=... to verify live activation & tamper rejection.');
+    console.log('ℹ️ Read-only audit mode. For mutating isolation tests, run against a test DB with PRIORI_TEST_STUDENT_ISOLATION=1 PRIORI_TEST_SEAT=000099 (or node scripts/test_priori_sql_pg.mjs).');
   }
 
   // 7. Optional authenticated teacher & single-class isolation roundtrip

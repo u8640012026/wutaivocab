@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   ArrowLeft,
   Lock,
@@ -154,6 +154,7 @@ function summarizeQuestionText(q, maxLen = 24) {
 
 export function PrioriTeacherDashboard({ onBack }) {
   const [teacherSession, setTeacherSession] = useState(() => getPrioriTeacherSession());
+  const sessionEpochRef = useRef(0);
   const isAuthed = Boolean(teacherSession);
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
@@ -227,26 +228,58 @@ export function PrioriTeacherDashboard({ onBack }) {
     [localSeatNames]
   );
 
+  const resetTeacherWorkspaceState = useCallback(() => {
+    sessionEpochRef.current += 1;
+    setRealRecordsByPaper({});
+    setCloudError('');
+    setBindingNotice('');
+    setBindingsByStudent({});
+    setIssuedClassCodes(null);
+    setRosterEnvelope(null);
+    setRosterEntries([]);
+    setIsRosterModalOpen(false);
+    setIsPrintModalOpen(false);
+    setPrintTargetPaperId('');
+    setInspectedQuestionId(null);
+    setInspectedCell(null);
+    setSearchQuery('');
+    setSelectedGrade('3');
+    setSelectedClass('1');
+    setSelectedPaperGrade('3');
+    setIsLoading(false);
+  }, []);
+
+  const expireTeacherSession = useCallback(
+    (message = '教師伺服器憑證已失效或過期，請重新驗證登入。') => {
+      clearPrioriTeacherSession();
+      resetTeacherWorkspaceState();
+      setTeacherSession(null);
+      setPassword('');
+      setAuthError(message);
+    },
+    [resetTeacherWorkspaceState]
+  );
+
   const loadAllData = useCallback(async () => {
     if (!teacherSession) return;
+    const epoch = sessionEpochRef.current;
+    const activeToken = teacherSession.token;
+    const activeAllowed = teacherSession.allowedClasses;
     setIsLoading(true);
     try {
       const [recRes, rosRes, bindRes] = await Promise.all([
         fetchAllPrioriTeacherRecordsWithMeta(null, {
-          teacherToken: teacherSession.token,
-          allowedClasses: teacherSession.allowedClasses,
+          teacherToken: activeToken,
+          allowedClasses: activeAllowed,
         }),
-        loadEncryptedRosterEnvelope(
-          teacherSession.token,
-          teacherSession.allowedClasses
-        ),
-        fetchPrioriStudentBindingsServer(teacherSession.token),
+        loadEncryptedRosterEnvelope(activeToken, activeAllowed),
+        fetchPrioriStudentBindingsServer(activeToken),
       ]);
 
+      if (epoch !== sessionEpochRef.current) return;
+
       if (recRes.unauthorized || rosRes.unauthorized || bindRes.unauthorized) {
-        clearPrioriTeacherSession();
-        setTeacherSession(null);
-        setAuthError('教師伺服器憑證已失效或過期，請重新驗證登入。');
+        expireTeacherSession('教師伺服器憑證已失效或過期，請重新驗證登入。');
         return;
       }
 
@@ -261,9 +294,11 @@ export function PrioriTeacherDashboard({ onBack }) {
         setBindingsByStudent(nextBindings);
       }
     } finally {
-      setIsLoading(false);
+      if (epoch === sessionEpochRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [teacherSession]);
+  }, [teacherSession, expireTeacherSession]);
 
   useEffect(() => {
     if (isAuthed) {
@@ -274,22 +309,28 @@ export function PrioriTeacherDashboard({ onBack }) {
   const handleLogin = async (e) => {
     e.preventDefault();
     if (isLoggingIn) return;
+    const loginAttemptEpoch = sessionEpochRef.current;
     setIsLoggingIn(true);
     setAuthError('');
     try {
       const res = await loginPrioriTeacherServer(password);
+      if (loginAttemptEpoch !== sessionEpochRef.current) return;
       if (res.ok && res.session) {
-        setTeacherSession(res.session);
-        setAuthError('');
-        setPassword('');
+        resetTeacherWorkspaceState();
         const allowed = res.session.allowedClasses || ['*'];
         if (!allowed.includes('*') && allowed.length > 0) {
           const [g, c] = String(allowed[0]).split('-');
           if (g && c) {
             setSelectedGrade(g);
             setSelectedClass(c);
+            setSelectedPaperGrade(
+              PRIORI_PAPERS.some((p) => String(p.grade) === String(g)) ? String(g) : '3'
+            );
           }
         }
+        setTeacherSession(res.session);
+        setAuthError('');
+        setPassword('');
       } else {
         setAuthError(res.error || '教師密碼錯誤，請再試一次。');
       }
@@ -300,23 +341,25 @@ export function PrioriTeacherDashboard({ onBack }) {
 
   const handleLogout = async () => {
     const token = teacherSession?.token || '';
-    await logoutPrioriTeacherServer(token);
+    clearPrioriTeacherSession();
+    resetTeacherWorkspaceState();
     setTeacherSession(null);
     setPassword('');
-    setRosterEntries([]);
-    setInspectedCell(null);
+    setAuthError('');
+    await logoutPrioriTeacherServer(token);
   };
 
   const handleIssueStudentActivationCode = useCallback(
     async (row) => {
       const sk = row?.studentKey;
       if (!sk || !/^\d{6}$/.test(sk) || sk === '999999') return;
+      const epoch = sessionEpochRef.current;
+      const activeToken = teacherSession?.token || '';
       const label = row.rosterName || row.localName || `${row.seatStr || sk}`;
-      const res = await issuePrioriActivationCodeServer(teacherSession?.token || '', sk);
+      const res = await issuePrioriActivationCodeServer(activeToken, sk);
+      if (epoch !== sessionEpochRef.current) return;
       if (res.unauthorized) {
-        clearPrioriTeacherSession();
-        setTeacherSession(null);
-        setAuthError('教師伺服器憑證已失效或過期，請重新驗證登入。');
+        expireTeacherSession('教師伺服器憑證已失效或過期，請重新驗證登入。');
         return;
       }
       if (res.ok && res.activationCode) {
@@ -337,64 +380,71 @@ export function PrioriTeacherDashboard({ onBack }) {
         setBindingNotice(`發放啟用碼失敗：${res.error || '請確認教師權限或座號狀態'}`);
       }
     },
-    [teacherSession?.token]
+    [teacherSession?.token, expireTeacherSession]
   );
 
-  const handleIssueClassActivationCodes = useCallback(async () => {
-    if (
-      selectedGrade === 'demo' ||
-      selectedClass === 'all' ||
-      selectedClass === 'demo'
-    ) {
-      return;
-    }
-    const res = await issuePrioriClassActivationCodesServer(
-      teacherSession?.token || '',
-      selectedGrade,
-      selectedClass
-    );
-    if (res.unauthorized) {
-      clearPrioriTeacherSession();
-      setTeacherSession(null);
-      setAuthError('教師伺服器憑證已失效或過期，請重新驗證登入。');
-      return;
-    }
-    if (res.ok) {
-      const items = res.items || [];
-      if (items.length === 0) {
-        setIssuedClassCodes(null);
-        setBindingNotice(
-          `${selectedGrade}年${selectedClass}班目前所有座號皆已完成裝置啟用，無需新發啟用碼。`
-        );
-      } else {
-        setBindingsByStudent((prev) => {
-          const next = { ...prev };
-          items.forEach((item) => {
-            if (item?.student_key) {
-              next[item.student_key] = {
-                ...(next[item.student_key] || {}),
-                student_key: item.student_key,
-                status: 'awaiting_activation',
-                device_count: 0,
-                activation_expires_at: item.expires_at || null,
-              };
-            }
-          });
-          return next;
-        });
-        setIssuedClassCodes({
-          grade: selectedGrade,
-          classNum: selectedClass,
-          items,
-        });
-        setBindingNotice(
-          `已為 ${selectedGrade}年${selectedClass}班共 ${items.length} 位尚未綁定學生產生一次性 6 碼啟用碼，請見下方啟用碼清單。`
-        );
+  const handleIssueClassActivationCodes = useCallback(
+    async (reissueExisting = false) => {
+      if (
+        selectedGrade === 'demo' ||
+        selectedClass === 'all' ||
+        selectedClass === 'demo'
+      ) {
+        return;
       }
-    } else {
-      setBindingNotice(`整班發放啟用碼失敗：${res.error || '請確認教師權限'}`);
-    }
-  }, [teacherSession?.token, selectedGrade, selectedClass]);
+      const epoch = sessionEpochRef.current;
+      const activeToken = teacherSession?.token || '';
+      const targetGrade = selectedGrade;
+      const targetClass = selectedClass;
+      const res = await issuePrioriClassActivationCodesServer(
+        activeToken,
+        targetGrade,
+        targetClass,
+        reissueExisting
+      );
+      if (epoch !== sessionEpochRef.current) return;
+      if (res.unauthorized) {
+        expireTeacherSession('教師伺服器憑證已失效或過期，請重新驗證登入。');
+        return;
+      }
+      if (res.ok) {
+        const items = res.items || [];
+        if (items.length === 0) {
+          setIssuedClassCodes(null);
+          setBindingNotice(
+            `${targetGrade}年${targetClass}班目前沒有需要新發啟用碼的座號（已綁定或尚持有未過期啟用碼者已自動保留）。`
+          );
+        } else {
+          setBindingsByStudent((prev) => {
+            const next = { ...prev };
+            items.forEach((item) => {
+              if (item?.student_key) {
+                next[item.student_key] = {
+                  ...(next[item.student_key] || {}),
+                  student_key: item.student_key,
+                  status: 'awaiting_activation',
+                  device_count: 0,
+                  activation_expires_at: item.expires_at || null,
+                };
+              }
+            });
+            return next;
+          });
+          setIssuedClassCodes({
+            grade: targetGrade,
+            classNum: targetClass,
+            items,
+          });
+          setBindingNotice(
+            `已為 ${targetGrade}年${targetClass}班共 ${items.length} 位尚未領取有效啟用碼的學生產生一次性 6 碼啟用碼，請見下方啟用碼清單。`
+          );
+        }
+      } else {
+        setBindingNotice(`整班發放啟用碼失敗：${res.error || '請確認教師權限'}`);
+      }
+    },
+    [teacherSession?.token, selectedGrade, selectedClass, expireTeacherSession]
+  );
 
   const handleResetStudentBinding = useCallback(
     async (row) => {
@@ -410,11 +460,12 @@ export function PrioriTeacherDashboard({ onBack }) {
       ) {
         return;
       }
-      const res = await resetPrioriStudentBindingServer(teacherSession?.token || '', sk);
+      const epoch = sessionEpochRef.current;
+      const activeToken = teacherSession?.token || '';
+      const res = await resetPrioriStudentBindingServer(activeToken, sk);
+      if (epoch !== sessionEpochRef.current) return;
       if (res.unauthorized) {
-        clearPrioriTeacherSession();
-        setTeacherSession(null);
-        setAuthError('教師伺服器憑證已失效或過期，請重新驗證登入。');
+        expireTeacherSession('教師伺服器憑證已失效或過期，請重新驗證登入。');
         return;
       }
       if (res.ok) {
@@ -437,7 +488,7 @@ export function PrioriTeacherDashboard({ onBack }) {
         setBindingNotice(`重設失敗：${res.error || '請確認教師權限'}`);
       }
     },
-    [teacherSession?.token]
+    [teacherSession?.token, expireTeacherSession]
   );
 
   // 依目前選取切換「真實班級紀錄」或「內建示範班級（假資料）」
@@ -1360,16 +1411,39 @@ export function PrioriTeacherDashboard({ onBack }) {
                 {selectedGrade !== 'demo' &&
                   selectedClass !== 'all' &&
                   selectedClass !== 'demo' && (
-                    <button
-                      type="button"
-                      id="priori-teacher-issue-class-codes-btn"
-                      onClick={handleIssueClassActivationCodes}
-                      className="px-2.5 py-1 rounded-xl bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 border border-teal-300 dark:border-teal-700 text-[11px] font-black text-teal-800 dark:text-teal-200 inline-flex items-center gap-1 transition cursor-pointer"
-                      title="為本班尚未首次綁定的所有座號批次產生一次性 6 碼啟用碼"
-                    >
-                      <KeyRound className="w-3 h-3" />
-                      <span>發放本班未啟用碼</span>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        id="priori-teacher-issue-class-codes-btn"
+                        onClick={() => handleIssueClassActivationCodes(false)}
+                        className="px-2.5 py-1 rounded-xl bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 border border-teal-300 dark:border-teal-700 text-[11px] font-black text-teal-800 dark:text-teal-200 inline-flex items-center gap-1 transition cursor-pointer"
+                        title="僅為本班尚未有任何有效啟用碼的未綁定座號產生 6 碼啟用碼（不作廢已發出且仍有效之啟用碼）"
+                      >
+                        <KeyRound className="w-3 h-3" />
+                        <span>發放本班未啟用碼</span>
+                      </button>
+                      <button
+                        type="button"
+                        id="priori-teacher-reissue-class-codes-btn"
+                        onClick={() => {
+                          if (
+                            typeof window !== 'undefined' &&
+                            typeof window.confirm === 'function' &&
+                            !window.confirm(
+                              `確定要重新產生並覆蓋「${selectedGrade}年${selectedClass}班」所有尚未完成綁定（含先前已發但尚未使用）座號的 6 碼啟用碼嗎？\n（已綁定完成的學生不受影響；僅作廢尚未啟用的舊啟用碼）`
+                            )
+                          ) {
+                            return;
+                          }
+                          handleIssueClassActivationCodes(true);
+                        }}
+                        className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-[11px] font-black text-amber-800 dark:text-amber-200 inline-flex items-center gap-1 transition cursor-pointer"
+                        title="僅限確定舊紙條遺失時使用：為本班尚未綁定的座號重新發碼（會作廢尚未啟用之舊碼）"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>重發待啟用碼</span>
+                      </button>
+                    </>
                   )}
                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
                   {formatGradeClassTitle(selectedGrade, selectedClass)}・共 {matrixRows.length} 人（座號升冪）

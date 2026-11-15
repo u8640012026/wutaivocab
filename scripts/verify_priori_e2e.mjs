@@ -305,11 +305,20 @@ class CDP {
         const maxSeat = headcounts[clsKey] || 0;
         const expiresAt = new Date(Date.now() + 7 * 86400 * 1000).toISOString();
         const issued = [];
+        const reissue = Boolean(payload?.p_reissue_existing);
         for (let s = 1; s <= maxSeat; s += 1) {
           const seatStr = String(s).padStart(2, '0');
           const sk = `${g.padStart(2, '0')}${c.padStart(2, '0')}${seatStr}`;
           const existing = this.studentBindings.get(sk);
           if (existing?.pin && existing.deviceSecrets?.size > 0) continue;
+          if (
+            !reissue &&
+            existing?.activationCode &&
+            existing.activationExpiresAt &&
+            new Date(existing.activationExpiresAt).getTime() > Date.now()
+          ) {
+            continue;
+          }
           const activationCode = String(100000 + ((this.nextRowSeq++ * 7919) % 900000));
           this.studentBindings.set(sk, {
             pin: null,
@@ -1843,24 +1852,81 @@ async function run() {
         );
         const masteryText = seat05RowMastery?.innerText || '';
 
-        // Bulk-issue remaining unbound seats in Class 3-1 (6 total - 1 bound = 5 seats)
+        // 1) Non-destructive bulk class issue: first issue single code for 030101, then bulk issue 3-1 skips both bound 030105 and awaiting 030101 -> 4 items!
+        document.querySelector('button[data-binding-action="issue"][data-student-key="030101"]')?.click();
+        await new Promise((r) => setTimeout(r, 250));
+        const singleNoticeText = document.getElementById('priori-teacher-binding-notice')?.innerText || '';
+        const single030101Code = singleNoticeText.match(/啟用碼[：:]\\s*(\\d{6})/)?.[1] || '';
+
         document.getElementById('priori-teacher-issue-class-codes-btn')?.click();
         await new Promise((r) => setTimeout(r, 300));
         const classCodesPanelText = document.getElementById('priori-teacher-class-activation-codes')?.innerText || '';
+        const skipped030101 = !classCodesPanelText.includes('030101');
+
+        // 2) Switch to 3-2 as Admin & issue 3-2 class codes -> Logout -> Log in as 3-1 teacher in same SPA state -> MUST NOT see 3-2 codes or notice!
+        setSelect(classSel, '2');
+        await new Promise((r) => setTimeout(r, 200));
+        document.getElementById('priori-teacher-issue-class-codes-btn')?.click();
+        await new Promise((r) => setTimeout(r, 300));
+        const has32PanelBeforeLogout = (document.getElementById('priori-teacher-class-activation-codes')?.innerText || '').includes('3年2班');
+
+        Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').trim() === '登出')?.click();
+        await new Promise((r) => setTimeout(r, 250));
+        const pwAfterLogout = document.getElementById('priori-teacher-password');
+        let clearedAfterSwitchLogin = false;
+        if (pwAfterLogout) {
+          setInput(pwAfterLogout, 'ci-mock-class31-pw');
+          Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
+          const deadline = Date.now() + 5000;
+          while (Date.now() < deadline) {
+            if (document.querySelector('section[aria-label="班級成績總覽矩陣"]')) break;
+            await new Promise((r) => setTimeout(r, 120));
+          }
+          await new Promise((r) => setTimeout(r, 250));
+          clearedAfterSwitchLogin =
+            !document.getElementById('priori-teacher-class-activation-codes') &&
+            !document.getElementById('priori-teacher-binding-notice') &&
+            !(document.body.innerText || '').includes('3年2班');
+        }
 
         return {
           ok:
             initialText.includes('8 分') &&
             initialText.includes('已綁 2 台') &&
             masteryText.includes('8 分') &&
-            classCodesPanelText.includes('5 位'),
+            Boolean(single030101Code) &&
+            classCodesPanelText.includes('4 位') &&
+            skipped030101 &&
+            has32PanelBeforeLogout &&
+            clearedAfterSwitchLogin,
           initialText,
           masteryText,
           classCodesPanelText,
+          single030101Code,
+          skipped030101,
+          has32PanelBeforeLogout,
+          clearedAfterSwitchLogin,
         };
       })()
     `);
-    assert.equal(teacherMerged?.ok, true, `Teacher seat 05 staggered merge failed: ${JSON.stringify(teacherMerged)}`);
+    assert.equal(teacherMerged?.ok, true, `Teacher seat 05 staggered merge / logout isolation failed: ${JSON.stringify(teacherMerged)}`);
+
+    // Re-verify 030101's pre-bulk single activation code was NOT invalidated by bulk class issuance!
+    const verify030101Unbroken = client.handleMockSupabase({
+      url: 'https://fqkdkmcqjswufzbvkram.supabase.co/rest/v1/rpc/priori_student_login_seat',
+      method: 'POST',
+      postData: JSON.stringify({
+        p_student_key: '030101',
+        p_device_secret: 'stu_030101_verify_secret_' + '1'.repeat(16),
+        p_transfer_pin: '1122',
+        p_activation_code: teacherMerged.single030101Code,
+      }),
+    });
+    assert.equal(
+      JSON.parse(verify030101Unbroken.body).authorized,
+      true,
+      `Existing single activation code for 030101 must remain valid after non-reissue bulk class issuance: ${verify030101Unbroken.body}`
+    );
 
     // Verify zero Priori writes or queries hit public leaderboard table
     const leakedLeaderboardReqs = client.mockRequests.filter(
