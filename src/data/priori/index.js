@@ -50,6 +50,54 @@ import {
   PRIORI_115_MATH_G3_META,
   PRIORI_115_MATH_G3_QUESTIONS,
 } from './priori115MathG3.js';
+import {
+  PRIORI_113_MATH_G3_META,
+  PRIORI_113_MATH_G3_QUESTIONS,
+} from './priori113MathG3.js';
+import {
+  PRIORI_113_MATH_G4_META,
+  PRIORI_113_MATH_G4_QUESTIONS,
+} from './priori113MathG4.js';
+import {
+  PRIORI_113_MATH_G5_META,
+  PRIORI_113_MATH_G5_QUESTIONS,
+} from './priori113MathG5.js';
+import {
+  PRIORI_113_MATH_G6_META,
+  PRIORI_113_MATH_G6_QUESTIONS,
+} from './priori113MathG6.js';
+import {
+  PRIORI_113_CHINESE_G3_META,
+  PRIORI_113_CHINESE_G3_QUESTIONS,
+} from './priori113ChineseG3.js';
+import {
+  PRIORI_113_CHINESE_G4_META,
+  PRIORI_113_CHINESE_G4_QUESTIONS,
+} from './priori113ChineseG4.js';
+import {
+  PRIORI_113_CHINESE_G5_META,
+  PRIORI_113_CHINESE_G5_QUESTIONS,
+} from './priori113ChineseG5.js';
+import {
+  PRIORI_113_CHINESE_G6_META,
+  PRIORI_113_CHINESE_G6_QUESTIONS,
+} from './priori113ChineseG6.js';
+import {
+  PRIORI_113_ENGLISH_G3_META,
+  PRIORI_113_ENGLISH_G3_QUESTIONS,
+} from './priori113EnglishG3.js';
+import {
+  PRIORI_113_ENGLISH_G4_META,
+  PRIORI_113_ENGLISH_G4_QUESTIONS,
+} from './priori113EnglishG4.js';
+import {
+  PRIORI_113_ENGLISH_G5_META,
+  PRIORI_113_ENGLISH_G5_QUESTIONS,
+} from './priori113EnglishG5.js';
+import {
+  PRIORI_113_ENGLISH_G6_META,
+  PRIORI_113_ENGLISH_G6_QUESTIONS,
+} from './priori113EnglishG6.js';
 
 export {
   PRIORI_114_MATH_G3_META,
@@ -78,6 +126,30 @@ export {
   PRIORI_114_ENGLISH_G6_QUESTIONS,
   PRIORI_115_MATH_G3_META,
   PRIORI_115_MATH_G3_QUESTIONS,
+  PRIORI_113_MATH_G3_META,
+  PRIORI_113_MATH_G3_QUESTIONS,
+  PRIORI_113_MATH_G4_META,
+  PRIORI_113_MATH_G4_QUESTIONS,
+  PRIORI_113_MATH_G5_META,
+  PRIORI_113_MATH_G5_QUESTIONS,
+  PRIORI_113_MATH_G6_META,
+  PRIORI_113_MATH_G6_QUESTIONS,
+  PRIORI_113_CHINESE_G3_META,
+  PRIORI_113_CHINESE_G3_QUESTIONS,
+  PRIORI_113_CHINESE_G4_META,
+  PRIORI_113_CHINESE_G4_QUESTIONS,
+  PRIORI_113_CHINESE_G5_META,
+  PRIORI_113_CHINESE_G5_QUESTIONS,
+  PRIORI_113_CHINESE_G6_META,
+  PRIORI_113_CHINESE_G6_QUESTIONS,
+  PRIORI_113_ENGLISH_G3_META,
+  PRIORI_113_ENGLISH_G3_QUESTIONS,
+  PRIORI_113_ENGLISH_G4_META,
+  PRIORI_113_ENGLISH_G4_QUESTIONS,
+  PRIORI_113_ENGLISH_G5_META,
+  PRIORI_113_ENGLISH_G5_QUESTIONS,
+  PRIORI_113_ENGLISH_G6_META,
+  PRIORI_113_ENGLISH_G6_QUESTIONS,
 };
 
 export const PRIORI_SUBJECTS = [
@@ -168,6 +240,66 @@ export const PRIORI_PAPERS = [
   {
     ...PRIORI_114_ENGLISH_G6_META,
     questions: PRIORI_114_ENGLISH_G6_QUESTIONS,
+    status: 'published',
+  },
+  {
+    ...PRIORI_113_MATH_G3_META,
+    questions: PRIORI_113_MATH_G3_QUESTIONS,
+    status: 'published',
+  },
+  {
+    ...PRIORI_113_MATH_G4_META,
+    questions: PRIORI_113_MATH_G4_QUESTIONS,
+    status: 'published',
+  },
+  {
+    ...PRIORI_113_MATH_G5_META,
+    questions: PRIORI_113_MATH_G5_QUESTIONS,
+    status: 'published',
+  },
+  {
+    ...PRIORI_113_MATH_G6_META,
+    questions: PRIORI_113_MATH_G6_QUESTIONS,
+    status: 'published',
+  },
+  {
+    ...PRIORI_113_CHINESE_G3_META,
+    questions: PRIORI_113_CHINESE_G3_QUESTIONS,
+    status: 'published',
+  },
+  {
+    ...PRIORI_113_CHINESE_G4_META,
+    questions: PRIORI_113_CHINESE_G4_QUESTIONS,
+    status: 'published',
+  },
+  {
+    ...PRIORI_113_CHINESE_G5_META,
+    questions: PRIORI_113_CHINESE_G5_QUESTIONS,
+    status: 'published',
+  },
+  {
+    ...PRIORI_113_CHINESE_G6_META,
+    questions: PRIORI_113_CHINESE_G6_QUESTIONS,
+    status: 'published',
+  },
+  {
+    ...PRIORI_113_ENGLISH_G3_META,
+    questions: PRIORI_113_ENGLISH_G3_QUESTIONS,
+    status: 'published',
+  },
+  {
+    ...PRIORI_113_ENGLISH_G4_META,
+    questions: PRIORI_113_ENGLISH_G4_QUESTIONS,
+    status: 'published',
+  },
+  {
+    ...PRIORI_113_ENGLISH_G5_META,
+    questions: PRIORI_113_ENGLISH_G5_QUESTIONS,
+    status: 'published',
+  },
+  {
+    ...PRIORI_113_ENGLISH_G6_META,
+    questions: PRIORI_113_ENGLISH_G6_QUESTIONS,
     status: 'published',
   },
 ];

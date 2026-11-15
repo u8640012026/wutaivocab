@@ -1417,6 +1417,45 @@ async function run() {
     assert.ok(rpcUrls.includes('priori_teacher_list_records'), `Missing teacher list RPC call: ${JSON.stringify(rpcUrls)}`);
     console.log('✓ Test I (Isolated RPC cross-sync -> merged 8 分 / 2 題 -> Server Teacher auth & zero leaderboard leak verified) passed');
 
+    // Test J: Year-113 G3–G6 Hub & Sampling Verification (113 Chinese G6 / 113 English G3 / 113 Math G5 / Teacher 113)
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&paper=113-chinese-g6` });
+    await sleep(600);
+    const check113ChiG6 = await client.eval(`
+      (() => {
+        const bodyText = document.body.innerText || '';
+        const noScratchpad = !Array.from(document.querySelectorAll('button')).some((b) => (b.innerText || '').trim() === '計算紙');
+        return { ok: bodyText.includes('113 年') && bodyText.includes('六年級國語') && noScratchpad, noScratchpad };
+      })()
+    `);
+    assert.equal(check113ChiG6?.ok, true, `113-chinese-g6 UI check failed: ${JSON.stringify(check113ChiG6)}`);
+
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&paper=113-english-g3` });
+    await sleep(600);
+    const check113EngG3 = await client.eval(`
+      (async () => {
+        const bodyText = document.body.innerText || '';
+        const hasAudioBtn = Array.from(document.querySelectorAll('button')).some((b) => (b.innerText || '').includes('聽力') || (b.innerText || '').includes('播放'));
+        const mp3Res = await fetch('/audio/priori/113/eng-g3/q01.mp3');
+        const noScratchpad = !Array.from(document.querySelectorAll('button')).some((b) => (b.innerText || '').trim() === '計算紙');
+        return { ok: bodyText.includes('113 年') && hasAudioBtn && mp3Res.ok && noScratchpad, hasAudioBtn, mp3Status: mp3Res.status, noScratchpad };
+      })()
+    `);
+    assert.equal(check113EngG3?.ok, true, `113-english-g3 UI check failed: ${JSON.stringify(check113EngG3)}`);
+
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&paper=113-math-g5` });
+    await sleep(600);
+    const check113MathG5 = await client.eval(`
+      (() => {
+        const bodyText = document.body.innerText || '';
+        const hasScratchpad = Array.from(document.querySelectorAll('button')).some((b) => (b.innerText || '').trim() === '計算紙');
+        const imgEl = document.querySelector('img[src*="/assets/priori/113/math-g5/q01_fig.webp"]') || document.querySelector('img[src*="/assets/priori/113/math-g5/q01.webp"]');
+        const imgOk = !!imgEl && imgEl.complete && imgEl.naturalWidth > 0;
+        return { ok: bodyText.includes('113 年') && hasScratchpad && imgOk, hasScratchpad, imgOk, src: imgEl?.getAttribute('src') || null };
+      })()
+    `);
+    assert.equal(check113MathG5?.ok, true, `113-math-g5 UI check failed: ${JSON.stringify(check113MathG5)}`);
+    console.log('✓ Test J (Year-113 G3–G6 Chinese/English/Math direct entry, audio, & scratchpad rules verified) passed');
+
     assert.equal(client.exceptions.length, 0, `Page exceptions: ${client.exceptions.join('; ')}`);
     assert.equal(client.consoleErrors.length, 0, `Console errors: ${client.consoleErrors.join('; ')}`);
     console.log('\n🎉 ALL PRIORI ROUTE 1 E2E VERIFICATIONS PASSED WITH 0 CONSOLE ERRORS & 0 EXCEPTIONS!');
