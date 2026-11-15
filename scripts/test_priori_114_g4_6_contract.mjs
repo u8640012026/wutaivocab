@@ -203,6 +203,20 @@ async function run() {
         passages.add(q.passage.image);
         checkedImages.add(q.passage.image);
       }
+      if (q.passage) {
+        const rawLen = (q.passage.paragraphs || []).join('').replace(/\s+/g, '').length;
+        const ttsLen = (q.passage.ttsText || '').replace(/\s+/g, '').length;
+        assert.ok(
+          ttsLen >= Math.floor(rawLen * 0.9),
+          `${q.id} passage.ttsText must read verbatim original passage (ttsLen=${ttsLen} < 0.9 * rawLen=${rawLen})`
+        );
+        for (const spoiler of ['跑廁所', '心存希望']) {
+          assert.ok(
+            !(q.passage.ttsText || '').includes(spoiler),
+            `${q.id} passage.ttsText contains interpretive spoiler "${spoiler}"`
+          );
+        }
+      }
       if (q.media?.audioSrc) {
         audioCount += 1;
         assert.equal(q.media.audioSourceType, 'official_mp3');

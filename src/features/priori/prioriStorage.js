@@ -5,6 +5,22 @@ import {
   isGuestStudent,
 } from '../../utils/studentIdHelper';
 import { PRIORI_PAPERS, PRIORI_PAPER_MAP } from '../../data/priori';
+import {
+  parseAlphabetPairAnswer,
+  formatAlphabetPairValue,
+  hasPrioriAnswer,
+  isPrioriAnswerCorrect,
+  summarizePrioriPaperState,
+  mergePrioriPaperRecordWithPaper,
+} from './prioriDrill';
+
+export {
+  parseAlphabetPairAnswer,
+  formatAlphabetPairValue,
+  hasPrioriAnswer,
+  isPrioriAnswerCorrect,
+  summarizePrioriPaperState,
+};
 
 const STORAGE_PREFIX = 'wutai_priori_v1_';
 const STUDENT_META_INDEX_KEY = 'wutai_priori_student_meta_v1';
@@ -44,63 +60,6 @@ function saveStudentMetaIndex(studentKey, meta) {
     };
     localStorage.setItem(STUDENT_META_INDEX_KEY, JSON.stringify(index));
   } catch {}
-}
-
-/**
- * 解析大小寫字母配對作答字串或物件
- */
-export function parseAlphabetPairAnswer(raw) {
-  if (!raw) return { upper: '', lower: '' };
-  if (typeof raw === 'object' && !Array.isArray(raw)) {
-    return {
-      upper: String(raw.upper || '').trim().slice(0, 1),
-      lower: String(raw.lower || '').trim().slice(0, 1),
-    };
-  }
-  const str = String(raw).trim();
-  if (!str) return { upper: '', lower: '' };
-  if (str.includes(',')) {
-    const [u = '', l = ''] = str.split(',');
-    return {
-      upper: u.trim().slice(0, 1),
-      lower: l.trim().slice(0, 1),
-    };
-  }
-  const letters = str.replace(/\s+/g, '');
-  return {
-    upper: letters.slice(0, 1),
-    lower: letters.slice(1, 2),
-  };
-}
-
-export function formatAlphabetPairValue(upper = '', lower = '') {
-  const u = String(upper || '').trim().slice(0, 1);
-  const l = String(lower || '').trim().slice(0, 1);
-  if (!u && !l) return '';
-  return `${u}, ${l}`;
-}
-
-export function hasPrioriAnswer(question, rawAnswer) {
-  if (!question) return false;
-  if (question.questionType === 'alphabet-pair') {
-    const { upper, lower } = parseAlphabetPairAnswer(rawAnswer);
-    return Boolean(upper && lower);
-  }
-  return rawAnswer !== undefined && rawAnswer !== null && rawAnswer !== '';
-}
-
-export function isPrioriAnswerCorrect(question, rawAnswer) {
-  if (!question) return false;
-  if (question.questionType === 'alphabet-pair') {
-    const { upper, lower } = parseAlphabetPairAnswer(rawAnswer);
-    if (!upper || !lower) return false;
-    const expectedUpper =
-      question.expectedUpper || parseAlphabetPairAnswer(question.answer).upper;
-    const expectedLower =
-      question.expectedLower || parseAlphabetPairAnswer(question.answer).lower;
-    return upper === expectedUpper && lower === expectedLower;
-  }
-  return rawAnswer === question.answer;
 }
 
 export function formatPrioriAnswerLabel(question, rawAnswer, withText = true) {
@@ -212,74 +171,15 @@ export function rememberSeatOnThisIpad(student, displayName) {
 }
 
 /**
- * 合併單卷新舊／跨裝置作答紀錄（保留初次測驗快照與較新精熟進度，避免舊機覆蓋新機）
+ * 合併單卷新舊／跨裝置作答紀錄（保留初次測驗快照與較新精熟進度，避免舊機或未作答題覆蓋實作答，並重算總分與精熟數）
  */
 export function mergePrioriPaperRecord(localRec, cloudRec) {
-  if (!localRec && !cloudRec) return null;
-  if (!localRec) return cloudRec;
-  if (!cloudRec) return localRec;
-
-  const localTs = new Date(localRec.updatedAt || localRec.completedAt || 0).getTime();
-  const cloudTs = new Date(cloudRec.updatedAt || cloudRec.completedAt || 0).getTime();
-  const newer = cloudTs >= localTs ? cloudRec : localRec;
-  const older = cloudTs >= localTs ? localRec : cloudRec;
-
-  // 初測快照優先取較早一次的初測紀錄，永遠不被後續補練覆蓋
-  const firstCandidate =
-    older.firstAnswers && Object.keys(older.firstAnswers).length > 0
-      ? older
-      : newer.firstAnswers && Object.keys(newer.firstAnswers).length > 0
-      ? newer
-      : older;
-
-  const mergedFirstScore =
-    typeof older.firstScore === 'number'
-      ? older.firstScore
-      : typeof newer.firstScore === 'number'
-      ? newer.firstScore
-      : older.latestScore ?? 0;
-
-  const mergedStreaks = {
-    ...(older.streaks || {}),
-    ...(newer.streaks || {}),
-  };
-
-  const mergedScratchpad = { ...(older.scratchpad || {}) };
-  for (const [qid, strokes] of Object.entries(newer.scratchpad || {})) {
-    if (Array.isArray(strokes) && strokes.length > 0) {
-      mergedScratchpad[qid] = strokes;
-    }
-  }
-
-  const mergedLatestAnswers = {
-    ...(older.latestAnswers || {}),
-    ...(newer.latestAnswers || {}),
-  };
-
-  const mergedQCounts = { ...(older.questionAttemptCounts || {}) };
-  for (const [qid, cnt] of Object.entries(newer.questionAttemptCounts || {})) {
-    mergedQCounts[qid] = Math.max(Number(mergedQCounts[qid]) || 0, Number(cnt) || 0);
-  }
-
-  return {
-    ...newer,
-    firstScore: mergedFirstScore,
-    firstAnswers: firstCandidate.firstAnswers || null,
-    firstCorrectCount:
-      typeof firstCandidate.firstCorrectCount === 'number'
-        ? firstCandidate.firstCorrectCount
-        : older.firstCorrectCount,
-    firstSubmittedAt: firstCandidate.firstSubmittedAt || older.firstSubmittedAt || older.completedAt,
-    latestAnswers: mergedLatestAnswers,
-    streaks: mergedStreaks,
-    scratchpad: mergedScratchpad,
-    questionAttemptCounts: mergedQCounts,
-    attemptsCount: Math.max(Number(localRec.attemptsCount) || 1, Number(cloudRec.attemptsCount) || 1),
-    drillAttemptsCount: Math.max(
-      Number(localRec.drillAttemptsCount) || 0,
-      Number(cloudRec.drillAttemptsCount) || 0
-    ),
-  };
+  const paperId = cloudRec?.paperId || localRec?.paperId;
+  return mergePrioriPaperRecordWithPaper(
+    localRec,
+    cloudRec,
+    (paperId && PRIORI_PAPER_MAP[paperId]) || null
+  );
 }
 
 /**

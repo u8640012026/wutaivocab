@@ -66,6 +66,79 @@ class CDP {
     this.pending = new Map();
     this.exceptions = [];
     this.consoleErrors = [];
+    this.mockRows = [];
+    this.mockRequests = [];
+    this.nextRowSeq = 1;
+    this.blockCloudReads = false;
+  }
+  handleMockSupabase(req) {
+    const rawUrl = req.url || '';
+    const method = req.method || 'GET';
+    const accept = req.headers?.Accept || req.headers?.accept || '';
+    const wantsSingle = accept.includes('vnd.pgrst.object+json');
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(rawUrl);
+    } catch {
+      return { status: 200, body: wantsSingle ? 'null' : '[]' };
+    }
+    if (!parsedUrl.pathname.includes('/leaderboard')) {
+      return { status: 200, body: wantsSingle ? 'null' : '[]' };
+    }
+
+    const sp = parsedUrl.searchParams;
+    const matchFilter = (row) => {
+      for (const [k, expr] of sp.entries()) {
+        if (k === 'select' || k === 'order' || k === 'limit') continue;
+        if (expr.startsWith('eq.')) {
+          if (String(row[k]) !== expr.slice(3)) return false;
+        } else if (expr.startsWith('like.')) {
+          const pat = expr.slice(5).replace(/[-/\\^$+?.()|[\]{}]/g, '\\$&').replaceAll('*', '.*').replaceAll('%', '.*');
+          if (!new RegExp(`^${pat}$`).test(String(row[k] || ''))) return false;
+        }
+      }
+      return true;
+    };
+
+    if (method === 'GET') {
+      if (this.blockCloudReads) {
+        return { status: 200, body: wantsSingle ? 'null' : '[]' };
+      }
+      const hits = this.mockRows.filter(matchFilter);
+      if (wantsSingle) {
+        return { status: 200, body: JSON.stringify(hits[0] || null) };
+      }
+      return { status: 200, body: JSON.stringify(hits) };
+    }
+
+    let payload = null;
+    try {
+      payload = req.postData ? JSON.parse(req.postData) : null;
+    } catch {}
+
+    if (method === 'POST') {
+      const items = Array.isArray(payload) ? payload : payload ? [payload] : [];
+      const inserted = items.map((item) => ({
+        id: `mock-${this.nextRowSeq++}`,
+        created_at: item.created_at || new Date().toISOString(),
+        ...item,
+      }));
+      this.mockRows.push(...inserted);
+      return { status: 201, body: JSON.stringify(wantsSingle ? inserted[0] : inserted) };
+    }
+
+    if (method === 'PATCH') {
+      const updated = [];
+      for (const row of this.mockRows) {
+        if (matchFilter(row)) {
+          Object.assign(row, payload || {});
+          updated.push(row);
+        }
+      }
+      return { status: 200, body: JSON.stringify(wantsSingle ? (updated[0] || null) : updated) };
+    }
+
+    return { status: 200, body: wantsSingle ? 'null' : '[]' };
   }
   async connect() {
     await new Promise((resolve, reject) => {
@@ -80,10 +153,10 @@ class CDP {
         if (msg.error) reject(new Error(msg.error.message || JSON.stringify(msg.error)));
         else resolve(msg.result);
       } else if (msg.method === 'Fetch.requestPaused') {
-        // Isolate E2E from live Supabase so CI never mutates or depends on production cloud data
-        const hdrs = msg.params.request?.headers || {};
+        // Isolate E2E from live Supabase using an in-memory PostgREST mock
+        const req = msg.params.request || {};
+        const hdrs = req.headers || {};
         const origin = hdrs.Origin || hdrs.origin || '*';
-        const accept = hdrs.Accept || hdrs.accept || '';
         const requestedHeaders = hdrs['Access-Control-Request-Headers'] || hdrs['access-control-request-headers'];
         const corsHeaders = [
           { name: 'Access-Control-Allow-Origin', value: origin },
@@ -94,19 +167,20 @@ class CDP {
           },
           { name: 'Content-Type', value: 'application/json' },
         ];
-        if (msg.params.request?.method === 'OPTIONS') {
+        if (req.method === 'OPTIONS') {
           this.send('Fetch.fulfillRequest', {
             requestId: msg.params.requestId,
             responseCode: 204,
             responseHeaders: corsHeaders,
           }).catch(() => {});
         } else {
-          const emptyJson = accept.includes('vnd.pgrst.object+json') ? 'null' : '[]';
+          const mockRes = this.handleMockSupabase(req);
+          this.mockRequests.push({ method: req.method, url: req.url, status: mockRes.status });
           this.send('Fetch.fulfillRequest', {
             requestId: msg.params.requestId,
-            responseCode: 200,
+            responseCode: mockRes.status,
             responseHeaders: corsHeaders,
-            body: Buffer.from(emptyJson).toString('base64'),
+            body: Buffer.from(mockRes.body).toString('base64'),
           }).catch(() => {});
         }
       } else if (msg.method === 'Runtime.exceptionThrown') {
@@ -1004,6 +1078,190 @@ async function run() {
     assert.equal(mobileCheck?.ok, true, `Mobile portrait layout failed: ${JSON.stringify(mobileCheck)}`);
     await client.screenshot('priori_mobile_quiz.png');
     console.log('✓ Test H (Mobile portrait 375x812 vertical stacking & zero overflow) passed');
+
+    // Test I: Two-Device Staggered Cross-Sync -> Recomputed Summary (8 分 / 2 題) -> Hub & Teacher Verification
+    await client.send('Emulation.setDeviceMetricsOverride', {
+      width: 1024,
+      height: 768,
+      deviceScaleFactor: 2,
+      mobile: false,
+    });
+    await client.send('Page.addScriptToEvaluateOnNewDocument', {
+      source: `window.__CI__ = false;`,
+    });
+    client.mockRows = [];
+    client.blockCloudReads = false;
+
+    const resetLocalPrioriForSeat = async (seatId = '030105') => {
+      await client.eval(`
+        (() => {
+          Object.keys(localStorage)
+            .filter((k) => k.startsWith('wutai_priori'))
+            .forEach((k) => localStorage.removeItem(k));
+          localStorage.setItem('wutai_last_student_id', ${JSON.stringify(seatId)});
+        })()
+      `);
+    };
+
+    const start114MathAndAnswer = async (qNum, optIdx) => {
+      const res = await client.eval(`
+        (async () => {
+          const deadline = Date.now() + 6000;
+          let startBtn = null;
+          while (Date.now() < deadline) {
+            startBtn = Array.from(document.querySelectorAll('button')).find((b) => {
+              const t = b.innerText || '';
+              if (!t.includes('開始測驗') && !t.includes('再練一次')) return false;
+              const rowText = b.closest('div.rounded-2xl')?.innerText || '';
+              return rowText.includes('114 年') && rowText.includes('三年級數學科');
+            });
+            if (startBtn) break;
+            await new Promise((r) => setTimeout(r, 120));
+          }
+          if (!startBtn) return { ok: false, reason: 'Missing 114-math-g3 start button' };
+          startBtn.click();
+          await new Promise((r) => setTimeout(r, 300));
+
+          if (${qNum} !== 1) {
+            document.querySelector('button[aria-label="跳到第 ${qNum} 題"]')?.click();
+            await new Promise((r) => setTimeout(r, 150));
+          }
+          const radios = Array.from(document.querySelectorAll('[role="radio"]'));
+          if (!radios[${optIdx}]) return { ok: false, reason: 'Missing radio option ${optIdx}' };
+          radios[${optIdx}].click();
+          await new Promise((r) => setTimeout(r, 150));
+          return { ok: true };
+        })()
+      `);
+      assert.equal(res?.ok, true, `Two-device quiz step failed: ${JSON.stringify(res)}`);
+    };
+
+    const submitQuiz = async () => {
+      await client.eval(`
+        (async () => {
+          document.querySelector('button[aria-label="跳到第 25 題"]')?.click();
+          await new Promise((r) => setTimeout(r, 150));
+          Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('交卷核對'))?.click();
+          await new Promise((r) => setTimeout(r, 180));
+          Array.from(document.querySelectorAll('[role="dialog"] button')).find((b) => (b.innerText || '').includes('確定交卷'))?.click();
+          await new Promise((r) => setTimeout(r, 400));
+        })()
+      `);
+    };
+
+    // Device 1: Logged in as 3年甲班 05號 ('030105'), solves Q1 right (option index 3) and submits
+    await resetLocalPrioriForSeat('030105');
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori` });
+    await sleep(600);
+    await start114MathAndAnswer(1, 3);
+    await submitQuiz();
+    for (let i = 0; i < 20; i++) {
+      if (client.mockRows.some((r) => r.device_id === 'priori_030105_114-math-g3')) break;
+      await sleep(100);
+    }
+    const afterDev1Row = client.mockRows.find((r) => r.device_id === 'priori_030105_114-math-g3');
+    if (!afterDev1Row) {
+      const dev1Diag = await client.eval(`({
+        ci: window.__CI__,
+        lastId: localStorage.getItem('wutai_last_student_id'),
+        prioriKeys: Object.keys(localStorage).filter(k => k.includes('priori')),
+        bodyHead: (document.body.innerText || '').slice(0, 500),
+      })`);
+      assert.fail(`Expected Device 1 record synced to Supabase mock; dev1Diag=${JSON.stringify(dev1Diag)}; reqs=${JSON.stringify(client.mockRequests.slice(-10))}; mockRows=${JSON.stringify(client.mockRows)}`);
+    }
+    assert.equal(afterDev1Row.score, 4, `Expected Device 1 cloud score 4, got ${afterDev1Row.score}; row=${JSON.stringify(afterDev1Row)}`);
+
+    // Device 2 (staggered): starts offline before cloud pull, solves Q2 right (option index 1), reconnects & submits
+    await resetLocalPrioriForSeat('030105');
+    client.blockCloudReads = true;
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori` });
+    await sleep(600);
+    await start114MathAndAnswer(2, 1);
+    client.blockCloudReads = false;
+    await submitQuiz();
+
+    let mergedRow = null;
+    for (let i = 0; i < 25; i++) {
+      const row = client.mockRows.find((r) => r.device_id === 'priori_030105_114-math-g3');
+      if (row && row.score === 8) {
+        mergedRow = row;
+        break;
+      }
+      await sleep(120);
+    }
+    assert.ok(mergedRow, `Expected cloud record merged to score 8; rows=${JSON.stringify(client.mockRows)}`);
+
+    // Hub reflects recomputed 8 分 on fresh reload & hydrated record has score=8, firstScore=8, correctCount=2
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori` });
+    await sleep(700);
+    const hubMerged = await client.eval(`
+      (() => {
+        const row114 = Array.from(document.querySelectorAll('div.rounded-2xl')).find((el) => {
+          const t = el.innerText || '';
+          return t.includes('114 年') && t.includes('三年級數學科');
+        });
+        const text = row114?.innerText || '';
+        const localAll = JSON.parse(localStorage.getItem('wutai_priori_v1_030105') || '{}');
+        const rec = localAll['114-math-g3'] || null;
+        return {
+          ok: text.includes('8 分') && rec?.score === 8 && rec?.firstScore === 8 && rec?.correctCount === 2 && rec?.firstCorrectCount === 2,
+          text,
+          recSummary: rec ? { score: rec.score, firstScore: rec.firstScore, correctCount: rec.correctCount, firstCorrectCount: rec.firstCorrectCount, masteredCount: rec.masteredCount } : null,
+        };
+      })()
+    `);
+    assert.equal(hubMerged?.ok, true, `Expected Hub 114-math-g3 strip to show 8 分: ${JSON.stringify(hubMerged)}`);
+
+    // Teacher Dashboard 3年甲班 Seat 05 shows 8 分 in BOTH 初測成績（預設） and 精熟後成果
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&tab=teacher` });
+    await sleep(700);
+    const teacherMerged = await client.eval(`
+      (async () => {
+        const setInput = (el, val) => {
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+          setter.call(el, val);
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+        const setSelect = (el, val) => {
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+          setter.call(el, val);
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        const pwInput = document.getElementById('priori-teacher-password');
+        if (pwInput) {
+          setInput(pwInput, 'wt7902230');
+          Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
+          await new Promise((r) => setTimeout(r, 350));
+        }
+        const gradeSel = document.querySelector('select[aria-label="篩選年級"]');
+        const classSel = document.querySelector('select[aria-label="篩選班級"]');
+        setSelect(gradeSel, '3');
+        await new Promise((r) => setTimeout(r, 150));
+        setSelect(classSel, '1');
+        await new Promise((r) => setTimeout(r, 250));
+
+        const matrix = document.querySelector('section[aria-label="班級成績總覽矩陣"]');
+        const seat05RowInitial = Array.from(matrix?.querySelectorAll('tbody tr') || []).find((tr) =>
+          (tr.innerText || '').includes('05 號')
+        );
+        const initialText = seat05RowInitial?.innerText || '';
+
+        Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').trim() === '精熟後成果')?.click();
+        await new Promise((r) => setTimeout(r, 200));
+        const seat05RowMastery = Array.from(matrix?.querySelectorAll('tbody tr') || []).find((tr) =>
+          (tr.innerText || '').includes('05 號')
+        );
+        const masteryText = seat05RowMastery?.innerText || '';
+
+        return {
+          ok: initialText.includes('8 分') && masteryText.includes('8 分'),
+          initialText,
+          masteryText,
+        };
+      })()
+    `);
+    assert.equal(teacherMerged?.ok, true, `Teacher seat 05 staggered merge failed: ${JSON.stringify(teacherMerged)}`);
+    console.log('✓ Test I (Two-device staggered cross-sync -> merged 8 分 / 2 題 -> Hub & Teacher verified) passed');
 
     assert.equal(client.exceptions.length, 0, `Page exceptions: ${client.exceptions.join('; ')}`);
     assert.equal(client.consoleErrors.length, 0, `Console errors: ${client.consoleErrors.join('; ')}`);

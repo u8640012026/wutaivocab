@@ -4,7 +4,9 @@ import {
   buildPrioriDrillCohort,
   stepPrioriDrillQueue,
   normalizePrioriDrillLimit,
+  mergePrioriPaperRecordWithPaper,
 } from '../src/features/priori/prioriDrill.js';
+import { PRIORI_PAPER_MAP } from '../src/data/priori/index.js';
 
 assert.equal(PRIORI_DRILL_DEFAULT_LIMIT, 20);
 assert.equal(normalizePrioriDrillLimit(10), 10);
@@ -103,4 +105,74 @@ const packed25 = buildPrioriDrillCohort(twentyFiveWrong, {}, 20);
 assert.equal(packed25.cohort.length, 10, 'Should pack 10 zero-streak questions into a 20-attempt round');
 assert.equal(packed25.overflowCount, 15);
 
-console.log('✅ PRIORI drill cap (10/20), no-padding, and early mastery exit contract passed!');
+// Case 5: Cross-device staggered completion recomputes totals, scores & masteredCount (GPT finding #1)
+const mathPaper = PRIORI_PAPER_MAP['114-math-g3'];
+const q1 = mathPaper.questions[0];
+const q2 = mathPaper.questions[1];
+
+const dev1Rec = {
+  paperId: '114-math-g3',
+  score: 4,
+  latestScore: 4,
+  firstScore: 4,
+  correctCount: 1,
+  firstCorrectCount: 1,
+  masteredCount: 1,
+  totalCount: 25,
+  firstAnswers: { [q1.id]: q1.answer, [q2.id]: null },
+  latestAnswers: { [q1.id]: q1.answer, [q2.id]: null },
+  streaks: { [q1.id]: 2, [q2.id]: 0 },
+  questionAttemptCounts: { [q1.id]: 1 },
+  updatedAt: '2026-11-15T10:00:00.000Z',
+};
+
+const dev2Rec = {
+  paperId: '114-math-g3',
+  score: 4,
+  latestScore: 4,
+  firstScore: 4,
+  correctCount: 1,
+  firstCorrectCount: 1,
+  masteredCount: 1,
+  totalCount: 25,
+  firstAnswers: { [q1.id]: null, [q2.id]: q2.answer },
+  latestAnswers: { [q1.id]: null, [q2.id]: q2.answer },
+  streaks: { [q1.id]: 0, [q2.id]: 2 },
+  questionAttemptCounts: { [q2.id]: 1 },
+  updatedAt: '2026-11-15T10:05:00.000Z',
+};
+
+const mergedStaggered = mergePrioriPaperRecordWithPaper(dev1Rec, dev2Rec, mathPaper);
+assert.equal(mergedStaggered.score, 8, 'Staggered merge must recompute score = 8');
+assert.equal(mergedStaggered.latestScore, 8, 'Staggered merge must recompute latestScore = 8');
+assert.equal(mergedStaggered.correctCount, 2, 'Staggered merge must recompute correctCount = 2');
+assert.equal(mergedStaggered.masteredCount, 2, 'Staggered merge must recompute masteredCount = 2');
+assert.equal(mergedStaggered.masteredIds.length, 2);
+assert.equal(mergedStaggered.firstScore, 8, 'Staggered merge must backfill missing firstAnswers for Q2 -> 8');
+assert.equal(mergedStaggered.firstCorrectCount, 2);
+
+// Case 6: Later device actively submits wrong answer for Q1 -> latestScore updates & streak resets, while frozen firstScore preserves Q1 initial right
+const wrongOverrideQ1 = (q1.answer + 1) % 4;
+const dev2WrongRec = {
+  paperId: '114-math-g3',
+  score: 4,
+  latestScore: 4,
+  firstScore: 4,
+  correctCount: 1,
+  firstCorrectCount: 1,
+  masteredCount: 1,
+  totalCount: 25,
+  firstAnswers: { [q1.id]: wrongOverrideQ1, [q2.id]: q2.answer },
+  latestAnswers: { [q1.id]: wrongOverrideQ1, [q2.id]: q2.answer },
+  streaks: { [q1.id]: 0, [q2.id]: 2 },
+  updatedAt: '2026-11-15T10:10:00.000Z',
+};
+const mergedAfterWrong = mergePrioriPaperRecordWithPaper(dev1Rec, dev2WrongRec, mathPaper);
+assert.equal(mergedAfterWrong.latestScore, 4, 'Active newer wrong attempt on Q1 updates latestScore to 4 (Q2 only)');
+assert.equal(mergedAfterWrong.correctCount, 1);
+assert.equal(mergedAfterWrong.masteredCount, 1);
+assert.equal(mergedAfterWrong.streaks[q1.id], 0);
+assert.equal(mergedAfterWrong.firstAnswers[q1.id], q1.answer, 'Initial firstAnswers[Q1] remains frozen');
+assert.equal(mergedAfterWrong.firstScore, 8, 'Frozen firstScore retains Q1 initial answer + Q2');
+
+console.log('✅ PRIORI drill cap (10/20), early exit, & cross-device staggered merge contracts passed!');

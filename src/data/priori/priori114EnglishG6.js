@@ -107,10 +107,10 @@ const LISTENING_PIC_SPECS = [
   },
   {
     num: 7,
-    concept: '聽辨校園與居家對話情境',
+    concept: '聽辨警示常用語（Watch out.）',
     steps: [
-      '圖片依序為走廊交談、送生日禮物與女孩陪小貓睡覺。',
-      '播放官方聽力對話，比對最相符的情境畫面。',
+      '圖片依序為提醒小心前方坑洞（Watch out.）、送生日禮物與女孩請安靜。',
+      '官方音檔念的是 "Watch out."（小心／當心）。',
       '對照官方標準答案，本題正解為圖 (1)。',
     ],
   },
@@ -119,7 +119,7 @@ const LISTENING_PIC_SPECS = [
     concept: '聽辨科目喜好句型（Chinese / math O-X 表）',
     steps: [
       '先分辨表格內國語課（Chinese）與數學課（math）分別是喜歡（O）還是不喜歡（X）。',
-      '核對官方音檔中提到喜歡與不喜歡的科目。',
+      '核對官方音檔中提到的句子："I don\'t like Chinese. I like math."。',
       '對照官方標準答案，本題正解為圖 (3)。',
     ],
   },
@@ -128,16 +128,16 @@ const LISTENING_PIC_SPECS = [
     concept: '聽辨人物與地點行進方向（park）',
     steps: [
       '比較三張公園圖中女孩或男孩的位置與行進動作。',
-      '聽清音檔說的人稱（he / she）及是否正在前往公園或已在公園裡。',
+      '聽清音檔說的問答："What is he doing?" "He is going to the park."。',
       '對照官方標準答案，本題正解為圖 (3)。',
     ],
   },
   {
     num: 10,
-    concept: '聽辨進行式動作與居家地點組合',
+    concept: '聽辨正在進行的動作與居家地點（watching birds in the bedroom）',
     steps: [
-      '圖片依序是：在床上看電視、在床上看書、在客廳沙發看電視。',
-      '同時聽清音檔的動作（watching TV / reading a book）與地點（on the bed / in the living room）。',
+      '圖片依序是：在臥室床上看電視、在臥室床上拿望遠鏡向窗外賞鳥、在客廳沙發看電視裡的鳥。',
+      '官方音檔念的是 "Tom is in the bedroom. He is watching birds."（Tom 在臥室裡賞鳥）。',
       '對照官方標準答案，本題正解為圖 (2)。',
     ],
   },
