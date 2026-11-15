@@ -90,9 +90,38 @@ function formatShortClassName(classNum) {
 }
 
 function formatGradeClassTitle(grade, classNum) {
+  if (grade === 'demo' || classNum === 'demo') return '🧪 示範班級（假資料）';
   if (classNum === 'all') return `${grade} 年級全部班級`;
   if (classNum === 'guest') return '訪客練習';
   return `${grade} 年${formatShortClassName(classNum)}`;
+}
+
+function getRecordFirstAnswersMap(rec) {
+  if (!rec) return {};
+  if (rec.firstAnswers && Object.keys(rec.firstAnswers).length > 0) {
+    return rec.firstAnswers;
+  }
+  return rec.latestAnswers || {};
+}
+
+function getQuestionAttemptCount(rec, questionId) {
+  if (!rec) return 0;
+  const fromMap = Number(rec.questionAttemptCounts?.[questionId]);
+  if (Number.isFinite(fromMap) && fromMap > 0) return fromMap;
+  const hasLatest =
+    rec.latestAnswers &&
+    rec.latestAnswers[questionId] !== undefined &&
+    rec.latestAnswers[questionId] !== null &&
+    rec.latestAnswers[questionId] !== '';
+  return hasLatest ? 1 : 0;
+}
+
+function getDrillAttemptsCount(rec) {
+  if (!rec) return 0;
+  if (Number.isFinite(Number(rec.drillAttemptsCount))) {
+    return Math.max(0, Number(rec.drillAttemptsCount));
+  }
+  return Math.max(0, (Number(rec.attemptsCount) || 1) - 1);
 }
 
 function extractSeatAndNickname(rec) {
@@ -151,12 +180,12 @@ export function PrioriTeacherDashboard({ onBack }) {
   const [printTargetPaperId, setPrintTargetPaperId] = useState('');
   const [printShowAnswerKey, setPrintShowAnswerKey] = useState(true);
 
-  // 全卷資料與加密名冊狀態
+  // 全卷資料與加密名冊狀態（示範班級已內建於年級／班級下拉選單，空班預設保持乾淨）
   const [realRecordsByPaper, setRealRecordsByPaper] = useState({});
   const [cloudError, setCloudError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showDemo, setShowDemo] = useState(false);
-  const [demoAutoChecked, setDemoAutoChecked] = useState(false);
+  const [scoreViewMode, setScoreViewMode] = useState('initial'); // 'initial' (預設初測) | 'mastery' (精熟後)
+  const isDemoView = selectedGrade === 'demo' || selectedClass === 'demo';
 
   // 加密名冊狀態（明文只留在記憶體）
   const [rosterEnvelope, setRosterEnvelope] = useState(null);
@@ -205,19 +234,10 @@ export function PrioriTeacherDashboard({ onBack }) {
       setRealRecordsByPaper(recordsByPaperId || {});
       setCloudError(recErr || rosErr || '');
       if (envelope) setRosterEnvelope(envelope);
-
-      const totalRealCount = Object.values(recordsByPaperId || {}).reduce(
-        (sum, list) => sum + list.length,
-        0
-      );
-      if (!demoAutoChecked) {
-        setShowDemo(totalRealCount === 0);
-        setDemoAutoChecked(true);
-      }
     } finally {
       setIsLoading(false);
     }
-  }, [demoAutoChecked]);
+  }, []);
 
   useEffect(() => {
     if (isAuthed) {
@@ -249,7 +269,7 @@ export function PrioriTeacherDashboard({ onBack }) {
     setInspectedCell(null);
   };
 
-  // 合併真實與示範紀錄（依 paperId 分桶）
+  // 依目前選取切換「真實班級紀錄」或「內建示範班級（假資料）」
   const combinedByPaper = useMemo(() => {
     const out = {};
     const allPaperIds = new Set([
@@ -257,14 +277,12 @@ export function PrioriTeacherDashboard({ onBack }) {
       ...Object.keys(realRecordsByPaper),
     ]);
     for (const pid of allPaperIds) {
-      const realList = realRecordsByPaper[pid] || [];
-      const demoList = showDemo
+      out[pid] = isDemoView
         ? PRIORI_DEMO_CLASS_RECORDS.filter((d) => d.paperId === pid)
-        : [];
-      out[pid] = [...realList, ...demoList];
+        : realRecordsByPaper[pid] || [];
     }
     return out;
-  }, [realRecordsByPaper, showDemo]);
+  }, [realRecordsByPaper, isDemoView]);
 
   // 解密名冊索引（key: `${grade}-${classNum}-${seat}`）
   const rosterLookup = useMemo(() => {
@@ -278,20 +296,27 @@ export function PrioriTeacherDashboard({ onBack }) {
     return map;
   }, [rosterEntries]);
 
+  const effectiveGradeForOptions = selectedGrade === 'demo' ? '3' : selectedGrade;
+
   // 動態收集所有出現過的班別（預設含學校實際甲乙班）
   const availableClasses = useMemo(() => {
     const set = new Set(['1', '2']);
-    for (const entry of rosterEntries) {
-      if (normNumStr(entry.grade) === String(selectedGrade)) {
-        set.add(normNumStr(entry.classNum, '1'));
+    if (!isDemoView) {
+      for (const entry of rosterEntries) {
+        if (normNumStr(entry.grade) === String(effectiveGradeForOptions)) {
+          set.add(normNumStr(entry.classNum, '1'));
+        }
       }
-    }
-    for (const list of Object.values(combinedByPaper)) {
-      for (const rec of list) {
-        if (normNumStr(rec.studentGrade, '3') === String(selectedGrade) && rec.studentClass) {
-          set.add(
-            rec.studentClass === 'guest' ? 'guest' : normNumStr(rec.studentClass, '1')
-          );
+      for (const list of Object.values(realRecordsByPaper)) {
+        for (const rec of list) {
+          if (
+            normNumStr(rec.studentGrade, '3') === String(effectiveGradeForOptions) &&
+            rec.studentClass
+          ) {
+            set.add(
+              rec.studentClass === 'guest' ? 'guest' : normNumStr(rec.studentClass, '1')
+            );
+          }
         }
       }
     }
@@ -300,21 +325,21 @@ export function PrioriTeacherDashboard({ onBack }) {
       if (b === 'guest') return -1;
       return a.localeCompare(b, undefined, { numeric: true });
     });
-  }, [combinedByPaper, rosterEntries, selectedGrade]);
+  }, [effectiveGradeForOptions, isDemoView, realRecordsByPaper, rosterEntries]);
 
-  // ── 建置「全班座號升冪基準名單」（含各班人數基準座號、加密名冊、本機輸入姓名與作答紀錄） ──
+  // ── 建置「全班座號升冪基準名單」（示範班級只列內建示範生；真實班級依各班人數與加密名冊展開） ──
   const classRosterRows = useMemo(() => {
     const rowMap = new Map();
 
     const ensureRow = (gradeVal, classVal, seatVal, skHint, nickHint, nameOverride = '') => {
-      const g = normNumStr(gradeVal, String(selectedGrade));
+      const g = normNumStr(gradeVal, String(effectiveGradeForOptions));
       const c = classVal === 'guest' ? 'guest' : normNumStr(classVal, '1');
       const seatNum = parseInt(normNumStr(seatVal, '99'), 10) || 99;
       const seatStr = String(seatNum).padStart(2, '0');
       const rowKey = c === 'guest' ? `guest:${skHint}` : `${g}-${c}-${seatStr}`;
 
       if (!rowMap.has(rowKey)) {
-        const rosterMatch = rosterLookup.get(`${g}-${c}-${seatStr}`);
+        const rosterMatch = isDemoView ? null : rosterLookup.get(`${g}-${c}-${seatStr}`);
         rowMap.set(rowKey, {
           rowKey,
           grade: g,
@@ -323,7 +348,7 @@ export function PrioriTeacherDashboard({ onBack }) {
           seatPad: seatStr,
           seatStr: c === 'guest' ? '訪客' : `${seatStr} 號`,
           rosterName: nameOverride || rosterMatch?.name || '',
-          localName: localSeatNames[rowKey] || '',
+          localName: isDemoView ? '' : localSeatNames[rowKey] || '',
           nickname: nickHint || '',
           studentKey: skHint || '',
           recordsByPaper: {},
@@ -337,27 +362,29 @@ export function PrioriTeacherDashboard({ onBack }) {
       return rowMap.get(rowKey);
     };
 
-    // 0. 依全校公開各班人數先展開 1..N 座號骨架（無任何學生姓名的公開人數基準）
-    const targetClasses =
-      selectedClass === 'all'
-        ? availableClasses.filter((c) => c !== 'guest')
-        : selectedClass !== 'guest'
-        ? [selectedClass]
-        : [];
-    for (const c of targetClasses) {
-      const headcount = getClassHeadcount(selectedGrade, c);
-      for (let seatNo = 1; seatNo <= headcount; seatNo += 1) {
-        ensureRow(selectedGrade, c, seatNo, '', '');
+    if (!isDemoView) {
+      // 0. 依全校公開各班人數先展開 1..N 座號骨架（無任何學生姓名的公開人數基準）
+      const targetClasses =
+        selectedClass === 'all'
+          ? availableClasses.filter((c) => c !== 'guest')
+          : selectedClass !== 'guest'
+          ? [selectedClass]
+          : [];
+      for (const c of targetClasses) {
+        const headcount = getClassHeadcount(selectedGrade, c);
+        for (let seatNo = 1; seatNo <= headcount; seatNo += 1) {
+          ensureRow(selectedGrade, c, seatNo, '', '');
+        }
       }
-    }
 
-    // 1. 納入解密名冊中屬於該年級／班級的每位學生
-    for (const entry of rosterEntries) {
-      const g = normNumStr(entry.grade);
-      const c = normNumStr(entry.classNum, '1');
-      if (g !== String(selectedGrade)) continue;
-      if (selectedClass !== 'all' && c !== String(selectedClass)) continue;
-      ensureRow(g, c, entry.seat, entry.studentKey, '', entry.name);
+      // 1. 納入解密名冊中屬於該年級／班級的每位學生
+      for (const entry of rosterEntries) {
+        const g = normNumStr(entry.grade);
+        const c = normNumStr(entry.classNum, '1');
+        if (g !== String(selectedGrade)) continue;
+        if (selectedClass !== 'all' && c !== String(selectedClass)) continue;
+        ensureRow(g, c, entry.seat, entry.studentKey, '', entry.name);
+      }
     }
 
     // 2. 合併各試卷學生作答紀錄
@@ -365,11 +392,20 @@ export function PrioriTeacherDashboard({ onBack }) {
       for (const rec of list) {
         const g = normNumStr(rec.studentGrade, '3');
         const c = rec.studentClass === 'guest' ? 'guest' : normNumStr(rec.studentClass, '1');
-        if (g !== String(selectedGrade)) continue;
-        if (selectedClass !== 'all' && c !== String(selectedClass)) continue;
+        if (!isDemoView) {
+          if (g !== String(selectedGrade)) continue;
+          if (selectedClass !== 'all' && c !== String(selectedClass)) continue;
+        }
 
         const { seat, nickname } = extractSeatAndNickname(rec);
-        const row = ensureRow(g, c, seat, rec.studentKey, nickname);
+        const row = ensureRow(
+          g,
+          c,
+          seat,
+          rec.studentKey,
+          rec.isDemo ? '' : nickname,
+          rec.isDemo ? rec.displayName || '' : ''
+        );
         row.recordsByPaper[paperId] = rec;
       }
     }
@@ -385,6 +421,8 @@ export function PrioriTeacherDashboard({ onBack }) {
   }, [
     availableClasses,
     combinedByPaper,
+    effectiveGradeForOptions,
+    isDemoView,
     localSeatNames,
     rosterEntries,
     rosterLookup,
@@ -454,27 +492,43 @@ export function PrioriTeacherDashboard({ onBack }) {
     const list = combinedByPaper[activePaper.paperId] || [];
     return list
       .filter((r) => {
+        if (isDemoView) return true;
         const gNorm = normNumStr(r.studentGrade, '3');
         if (gNorm !== String(selectedGrade)) return false;
         const cNorm = r.studentClass === 'guest' ? 'guest' : normNumStr(r.studentClass, '1');
         if (selectedClass !== 'all' && cNorm !== String(selectedClass)) return false;
         return true;
       })
-      .sort((a, b) => Number(a.studentSeat || 99) - Number(b.studentSeat || 99));
-  }, [activePaper, combinedByPaper, selectedClass, selectedGrade]);
+      .sort((a, b) => {
+        if (String(a.studentClass || '') !== String(b.studentClass || '')) {
+          return String(a.studentClass || '').localeCompare(String(b.studentClass || ''), undefined, {
+            numeric: true,
+          });
+        }
+        return Number(a.studentSeat || 99) - Number(b.studentSeat || 99);
+      });
+  }, [activePaper, combinedByPaper, isDemoView, selectedClass, selectedGrade]);
 
   const classAnalytics = useMemo(() => {
     if (!activePaper) {
       return {
         studentCount: 0,
+        expectedStudentCount: 0,
         avgFirstScore: 0,
         avgLatestScore: 0,
+        avgFirstAccuracyPct: 0,
         avgMasteryPct: 0,
         weakQuestionCount: 0,
         questionStats: [],
       };
     }
     const nStudents = questionTabRecords.length;
+    const expectedStudentCount = isDemoView
+      ? Math.max(nStudents, classRosterRows.length)
+      : Math.max(
+          nStudents,
+          classRosterRows.filter((r) => r.classNum !== 'guest').length || nStudents
+        );
     const totalQ = activePaper.questions.length;
     const avgFirstScore =
       nStudents > 0
@@ -490,6 +544,98 @@ export function PrioriTeacherDashboard({ onBack }) {
               nStudents
           )
         : 0;
+
+    let totalFirstAnswered = 0;
+    let totalFirstCorrect = 0;
+
+    const questionStats = activePaper.questions.map((q) => {
+      const optLen = Array.isArray(q.options) ? q.options.length : 0;
+      const firstOptionCounts = Array(optLen).fill(0);
+      const latestOptionCounts = Array(optLen).fill(0);
+      const wrongInputs = [];
+
+      let firstAnsweredCount = 0;
+      let firstCorrectCount = 0;
+      let latestAnsweredCount = 0;
+      let latestCorrectCount = 0;
+      let masteredCount = 0;
+      let scratchpadCount = 0;
+      let drillStudentsCount = 0;
+
+      for (const stu of questionTabRecords) {
+        const firstMap = getRecordFirstAnswersMap(stu);
+        const firstChosen = firstMap?.[q.id];
+        const hasFirst =
+          firstChosen !== undefined && firstChosen !== null && firstChosen !== '';
+        if (hasFirst) {
+          firstAnsweredCount += 1;
+          totalFirstAnswered += 1;
+          if (typeof firstChosen === 'number' && firstChosen >= 0 && firstChosen < optLen) {
+            firstOptionCounts[firstChosen] += 1;
+          }
+          if (isPrioriAnswerCorrect(q, firstChosen)) {
+            firstCorrectCount += 1;
+            totalFirstCorrect += 1;
+          }
+        }
+
+        const latestChosen = stu.latestAnswers?.[q.id];
+        const hasLatest =
+          latestChosen !== undefined && latestChosen !== null && latestChosen !== '';
+        if (hasLatest) {
+          latestAnsweredCount += 1;
+          if (typeof latestChosen === 'number' && latestChosen >= 0 && latestChosen < optLen) {
+            latestOptionCounts[latestChosen] += 1;
+          }
+          if (isPrioriAnswerCorrect(q, latestChosen)) {
+            latestCorrectCount += 1;
+          } else if (q.questionType === 'alphabet-pair') {
+            wrongInputs.push(formatPrioriAnswerLabel(q, latestChosen, false));
+          }
+        }
+
+        if ((stu.streaks?.[q.id] || 0) >= 2) masteredCount += 1;
+        if (Array.isArray(stu.scratchpad?.[q.id]) && stu.scratchpad[q.id].length > 0) {
+          scratchpadCount += 1;
+        }
+        if (getQuestionAttemptCount(stu, q.id) > 1) {
+          drillStudentsCount += 1;
+        }
+      }
+
+      const firstCorrectRate =
+        firstAnsweredCount > 0 ? Math.round((firstCorrectCount / firstAnsweredCount) * 100) : 0;
+      const latestCorrectRate =
+        latestAnsweredCount > 0
+          ? Math.round((latestCorrectCount / latestAnsweredCount) * 100)
+          : 0;
+      const masteryRate =
+        latestAnsweredCount > 0 ? Math.round((masteredCount / latestAnsweredCount) * 100) : 0;
+
+      return {
+        question: q,
+        firstAnsweredCount,
+        firstCorrectCount,
+        firstCorrectRate,
+        latestAnsweredCount,
+        latestCorrectCount,
+        latestCorrectRate,
+        masteredCount,
+        masteryRate,
+        scratchpadCount,
+        drillStudentsCount,
+        firstOptionCounts,
+        latestOptionCounts,
+        wrongInputs,
+        // 向後相容目前檢視欄位的動態統計
+        optionCounts: scoreViewMode === 'initial' ? firstOptionCounts : latestOptionCounts,
+        correctCount: scoreViewMode === 'initial' ? firstCorrectCount : latestCorrectCount,
+        correctRate: scoreViewMode === 'initial' ? firstCorrectRate : masteryRate,
+      };
+    });
+
+    const avgFirstAccuracyPct =
+      totalFirstAnswered > 0 ? Math.round((totalFirstCorrect / totalFirstAnswered) * 100) : 0;
     const avgMasteryPct =
       nStudents > 0 && totalQ > 0
         ? Math.round(
@@ -499,56 +645,26 @@ export function PrioriTeacherDashboard({ onBack }) {
           )
         : 0;
 
-    const questionStats = activePaper.questions.map((q) => {
-      const optLen = Array.isArray(q.options) ? q.options.length : 0;
-      const optionCounts = Array(optLen).fill(0);
-      const wrongInputs = [];
-      let correctCount = 0;
-      let masteredCount = 0;
-      let scratchpadCount = 0;
-
-      for (const stu of questionTabRecords) {
-        const chosen = stu.latestAnswers?.[q.id];
-        if (typeof chosen === 'number' && chosen >= 0 && chosen < optLen) {
-          optionCounts[chosen] += 1;
-        }
-        const ok = isPrioriAnswerCorrect(q, chosen);
-        if (ok) correctCount += 1;
-        else if (q.questionType === 'alphabet-pair' && chosen) {
-          wrongInputs.push(formatPrioriAnswerLabel(q, chosen, false));
-        }
-        if ((stu.streaks?.[q.id] || 0) >= 2) masteredCount += 1;
-        if (Array.isArray(stu.scratchpad?.[q.id]) && stu.scratchpad[q.id].length > 0) {
-          scratchpadCount += 1;
-        }
-      }
-
-      const correctRate = nStudents > 0 ? Math.round((correctCount / nStudents) * 100) : 0;
-      const masteryRate = nStudents > 0 ? Math.round((masteredCount / nStudents) * 100) : 0;
-      return {
-        question: q,
-        correctCount,
-        masteredCount,
-        scratchpadCount,
-        optionCounts,
-        wrongInputs,
-        correctRate,
-        masteryRate,
-      };
-    });
-
     const weakQuestionCount =
-      nStudents > 0 ? questionStats.filter((st) => st.correctRate < 60).length : 0;
+      nStudents > 0
+        ? questionStats.filter((st) =>
+            scoreViewMode === 'initial'
+              ? st.firstAnsweredCount > 0 && st.firstCorrectRate < 60
+              : st.latestAnsweredCount > 0 && st.masteryRate < 60
+          ).length
+        : 0;
 
     return {
       studentCount: nStudents,
+      expectedStudentCount,
       avgFirstScore,
       avgLatestScore,
+      avgFirstAccuracyPct,
       avgMasteryPct,
       weakQuestionCount,
       questionStats,
     };
-  }, [activePaper, questionTabRecords]);
+  }, [activePaper, classRosterRows, isDemoView, questionTabRecords, scoreViewMode]);
 
   const filteredQuestionStats = useMemo(() => {
     const stats = classAnalytics.questionStats || [];
@@ -725,18 +841,6 @@ export function PrioriTeacherDashboard({ onBack }) {
 
             <button
               type="button"
-              onClick={() => setShowDemo((v) => !v)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black border transition cursor-pointer ${
-                showDemo
-                  ? 'bg-cyan-700 border-cyan-600 text-white shadow-sm'
-                  : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
-              }`}
-            >
-              🧪 示範班級：{showDemo ? '開' : '關'}
-            </button>
-
-            <button
-              type="button"
               onClick={() => setIsPrintModalOpen(true)}
               className="px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-black flex items-center gap-1 hover:bg-amber-100 transition cursor-pointer"
               title="指定科目・年度・年級並選擇教師解答卷或空白練習卷"
@@ -788,11 +892,16 @@ export function PrioriTeacherDashboard({ onBack }) {
                 onChange={(e) => {
                   const nextGrade = e.target.value;
                   setSelectedGrade(nextGrade);
-                  setSelectedPaperGrade(
-                    PRIORI_PAPERS.some((p) => String(p.grade) === String(nextGrade))
-                      ? String(nextGrade)
-                      : '3'
-                  );
+                  if (nextGrade === 'demo') {
+                    setSelectedPaperGrade('3');
+                  } else {
+                    if (selectedClass === 'demo') setSelectedClass('1');
+                    setSelectedPaperGrade(
+                      PRIORI_PAPERS.some((p) => String(p.grade) === String(nextGrade))
+                        ? String(nextGrade)
+                        : '3'
+                    );
+                  }
                   setInspectedCell(null);
                   setInspectedQuestionId(null);
                 }}
@@ -803,6 +912,7 @@ export function PrioriTeacherDashboard({ onBack }) {
                     {g} 年級
                   </option>
                 ))}
+                <option value="demo">🧪 示範班級（假資料）</option>
               </select>
             </div>
 
@@ -814,23 +924,31 @@ export function PrioriTeacherDashboard({ onBack }) {
                 aria-label="篩選班級"
                 value={selectedClass}
                 onChange={(e) => {
-                  setSelectedClass(e.target.value);
+                  const nextCls = e.target.value;
+                  setSelectedClass(nextCls);
+                  if (nextCls !== 'demo' && selectedGrade === 'demo') {
+                    setSelectedGrade('3');
+                    setSelectedPaperGrade('3');
+                  }
                   setInspectedCell(null);
                   setInspectedQuestionId(null);
                 }}
                 className="w-full px-2.5 py-2 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800 text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100"
               >
+                <option value="demo">🧪 示範班級（假資料）</option>
                 {availableClasses.map((cls) => {
-                  const count = cls !== 'guest' ? getClassHeadcount(selectedGrade, cls) : 0;
+                  const count = cls !== 'guest' ? getClassHeadcount(effectiveGradeForOptions, cls) : 0;
                   return (
                     <option key={cls} value={cls}>
                       {cls === 'guest'
-                        ? `${selectedGrade}年訪客練習`
-                        : `${selectedGrade}年${formatShortClassName(cls)}${count > 0 ? ` (${count}人)` : ''}`}
+                        ? `${effectiveGradeForOptions}年訪客練習`
+                        : `${effectiveGradeForOptions}年${formatShortClassName(cls)}${
+                            count > 0 ? ` (${count}人)` : ''
+                          }`}
                     </option>
                   );
                 })}
-                <option value="all">{selectedGrade}年級全體</option>
+                <option value="all">{effectiveGradeForOptions}年級全體</option>
               </select>
             </div>
 
@@ -975,6 +1093,35 @@ export function PrioriTeacherDashboard({ onBack }) {
                     </option>
                   ))}
                 </select>
+
+                <div
+                  role="group"
+                  aria-label="測驗階段切換"
+                  className="inline-flex p-1 rounded-xl bg-amber-50/90 dark:bg-slate-800 border border-amber-200 dark:border-slate-700"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setScoreViewMode('initial')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                      scoreViewMode === 'initial'
+                        ? 'bg-teal-700 text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    初測成績（預設）
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScoreViewMode('mastery')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                      scoreViewMode === 'mastery'
+                        ? 'bg-emerald-700 text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    精熟後成果
+                  </button>
+                </div>
               </div>
 
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
@@ -1050,6 +1197,35 @@ export function PrioriTeacherDashboard({ onBack }) {
                   })}
                 </select>
 
+                <div
+                  role="group"
+                  aria-label="單題測驗階段切換"
+                  className="inline-flex p-1 rounded-xl bg-amber-50/90 dark:bg-slate-800 border border-amber-200 dark:border-slate-700"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setScoreViewMode('initial')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                      scoreViewMode === 'initial'
+                        ? 'bg-teal-700 text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    初測成績（預設）
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScoreViewMode('mastery')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                      scoreViewMode === 'mastery'
+                        ? 'bg-emerald-700 text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    精熟後成果
+                  </button>
+                </div>
+
                 <div className="flex flex-wrap items-center gap-1">
                   {PRIORI_PAPERS.map((p) => {
                     const isPicked = activePaper?.paperId === p.paperId;
@@ -1100,7 +1276,10 @@ export function PrioriTeacherDashboard({ onBack }) {
                   </button>
                   <div>
                     <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                      {formatGradeClassTitle(selectedGrade, inspectedCell.classNum)} {inspectedCell.seatStr}{' '}
+                      {isDemoView
+                        ? `🧪 示範 ${formatShortClassName(inspectedCell.classNum)}`
+                        : formatGradeClassTitle(selectedGrade, inspectedCell.classNum)}{' '}
+                      {inspectedCell.seatStr}{' '}
                       {inspectedCell.studentName || ''}
                       {inspectedCell.nickname && !inspectedCell.studentName ? `（${inspectedCell.nickname}）` : ''}
                       <span className="ml-2 text-sm font-black text-teal-700 dark:text-teal-300">
@@ -1112,6 +1291,9 @@ export function PrioriTeacherDashboard({ onBack }) {
                       {inspectedCell.record.latestScore ?? inspectedCell.record.score} 分・🌟 已精熟{' '}
                       {inspectedCell.record.masteredCount || 0} /{' '}
                       {inspectedCell.record.totalCount || inspectedPaper.questions.length} 題
+                      {getDrillAttemptsCount(inspectedCell.record) > 0
+                        ? `・自主補練 ${getDrillAttemptsCount(inspectedCell.record)} 次`
+                        : ''}
                     </p>
                   </div>
                 </div>
@@ -1150,11 +1332,15 @@ export function PrioriTeacherDashboard({ onBack }) {
 
             <div className="space-y-3">
               {studentDetailQuestions.map((q) => {
+                const firstMap = getRecordFirstAnswersMap(inspectedCell.record);
+                const firstChosen = firstMap?.[q.id];
                 const chosen = inspectedCell.record.latestAnswers?.[q.id];
                 const isOk = isPrioriAnswerCorrect(q, chosen);
+                const isFirstOk = isPrioriAnswerCorrect(q, firstChosen);
                 const streak = Number(inspectedCell.record.streaks?.[q.id]) || 0;
                 const badge = getStreakBadge(streak);
                 const padStrokes = inspectedCell.record.scratchpad?.[q.id] || [];
+                const qAttempts = getQuestionAttemptCount(inspectedCell.record, q.id);
 
                 return (
                   <article
@@ -1178,6 +1364,11 @@ export function PrioriTeacherDashboard({ onBack }) {
                         <span className={`px-2 py-0.5 rounded-lg border text-[11px] font-black ${badge.cls}`}>
                           {badge.label}
                         </span>
+                        {qAttempts > 1 && (
+                          <span className="px-2 py-0.5 rounded-lg bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-300 dark:border-cyan-700 text-[11px] font-black text-cyan-800 dark:text-cyan-200">
+                            自主練習 {qAttempts} 次{firstChosen !== undefined && firstChosen !== chosen ? (isFirstOk ? '' : '（初錯→修正）') : ''}
+                          </span>
+                        )}
                       </div>
 
                       <div className="text-sm font-bold text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-line">
@@ -1235,7 +1426,7 @@ export function PrioriTeacherDashboard({ onBack }) {
                   {formatGradeClassTitle(selectedGrade, selectedClass)} 目前尚無學生作答紀錄或名冊
                 </p>
                 <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                  可點上方「🧪 示範班級：開」預覽矩陣效果，或點「匯入加密名冊」展開全班座號表。
+                  可在上方「1. 年級」或「2. 班級」下拉選單切換「🧪 示範班級（假資料）」預覽矩陣效果，或點「匯入加密名冊」展開全班座號表。
                 </p>
               </div>
             ) : (
@@ -1271,7 +1462,7 @@ export function PrioriTeacherDashboard({ onBack }) {
                         className="hover:bg-teal-50/40 dark:hover:bg-slate-800/50 transition-colors"
                       >
                         <td className="sticky left-0 z-10 bg-white/95 dark:bg-slate-900/95 py-2.5 px-3 sm:px-4 font-black text-slate-700 dark:text-slate-200 tabular-nums whitespace-nowrap">
-                          {selectedClass === 'all' && row.classNum !== 'guest'
+                          {(selectedClass === 'all' || isDemoView) && row.classNum !== 'guest'
                             ? `${formatShortClassName(row.classNum)} `
                             : ''}
                           {row.seatStr}
@@ -1325,13 +1516,18 @@ export function PrioriTeacherDashboard({ onBack }) {
                             );
                           }
 
+                          const firstScore = rec.firstScore ?? rec.score ?? 0;
                           const latestScore = rec.latestScore ?? rec.score ?? 0;
                           const totalCount = rec.totalCount || col.paper.totalQuestions || 25;
+                          const firstCorrectCount = rec.firstCorrectCount;
                           const masteredCount = rec.masteredCount || 0;
+                          const drillCount = getDrillAttemptsCount(rec);
                           const allMastered = masteredCount >= totalCount && totalCount > 0;
                           const hasPad = Object.values(rec.scratchpad || {}).some(
                             (arr) => Array.isArray(arr) && arr.length > 0
                           );
+                          const displayScore =
+                            scoreViewMode === 'initial' ? firstScore : latestScore;
 
                           return (
                             <td key={col.key} className="py-2 px-2 text-center">
@@ -1349,20 +1545,32 @@ export function PrioriTeacherDashboard({ onBack }) {
                                   });
                                 }}
                                 title="點此展開全卷答題明細與計算紙筆跡"
-                                className="inline-flex flex-col items-center px-2.5 py-1.5 rounded-xl bg-teal-50/90 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900 border border-teal-200 dark:border-teal-800 transition cursor-pointer tabular-nums min-w-[84px]"
+                                className="inline-flex flex-col items-center px-2.5 py-1.5 rounded-xl bg-teal-50/90 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900 border border-teal-200 dark:border-teal-800 transition cursor-pointer tabular-nums min-w-[92px]"
                               >
                                 <span className="font-black text-teal-900 dark:text-teal-100 text-xs sm:text-sm">
-                                  {latestScore} 分{hasPad ? ' ✏️' : ''}
+                                  {displayScore} 分{hasPad ? ' ✏️' : ''}
                                 </span>
-                                <span
-                                  className={`text-[10px] font-black mt-0.5 ${
-                                    allMastered
-                                      ? 'text-emerald-700 dark:text-emerald-300'
-                                      : 'text-amber-700 dark:text-amber-300'
-                                  }`}
-                                >
-                                  {allMastered ? '🌟 已精熟' : `🌟 ${masteredCount}/${totalCount}`}
-                                </span>
+                                {scoreViewMode === 'initial' ? (
+                                  <span className="text-[10px] font-black mt-0.5 text-slate-600 dark:text-slate-300">
+                                    初測{firstCorrectCount !== undefined ? ` ${firstCorrectCount}/${totalCount}` : ''}
+                                    {drillCount > 0 ? (
+                                      <span className="text-emerald-700 dark:text-emerald-300">
+                                        {` ・補${drillCount}次`}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={`text-[10px] font-black mt-0.5 ${
+                                      allMastered
+                                        ? 'text-emerald-700 dark:text-emerald-300'
+                                        : 'text-amber-700 dark:text-amber-300'
+                                    }`}
+                                  >
+                                    {allMastered ? '🌟 已精熟' : `🌟 ${masteredCount}/${totalCount}`}
+                                    {drillCount > 0 ? ` ・補${drillCount}次` : ''}
+                                  </span>
+                                )}
                               </button>
                             </td>
                           );
@@ -1386,25 +1594,35 @@ export function PrioriTeacherDashboard({ onBack }) {
           <div className="space-y-4">
             <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="rounded-2xl bg-white/95 dark:bg-slate-900/95 border border-teal-200/80 dark:border-slate-700 p-4 shadow-sm">
-                <div className="text-xs font-black text-slate-500 dark:text-slate-400">作答人數</div>
+                <div className="text-xs font-black text-slate-500 dark:text-slate-400">
+                  已答／應答人數
+                </div>
                 <div className="text-2xl font-black text-teal-800 dark:text-teal-200 mt-1 tabular-nums">
-                  {classAnalytics.studentCount} 位
+                  {classAnalytics.studentCount} / {classAnalytics.expectedStudentCount} 位
                 </div>
               </div>
               <div className="rounded-2xl bg-white/95 dark:bg-slate-900/95 border border-teal-200/80 dark:border-slate-700 p-4 shadow-sm">
                 <div className="text-xs font-black text-slate-500 dark:text-slate-400">
-                  平均（初測 → 最新）
+                  {scoreViewMode === 'initial'
+                    ? `初測平均（最新 ${classAnalytics.avgLatestScore} 分）`
+                    : `精熟後平均（初測 ${classAnalytics.avgFirstScore} 分）`}
                 </div>
                 <div className="text-2xl font-black text-cyan-800 dark:text-cyan-200 mt-1 tabular-nums">
-                  {classAnalytics.avgFirstScore} → {classAnalytics.avgLatestScore} 分
+                  {scoreViewMode === 'initial'
+                    ? `${classAnalytics.avgFirstScore} 分`
+                    : `${classAnalytics.avgLatestScore} 分`}
                 </div>
               </div>
               <div className="rounded-2xl bg-white/95 dark:bg-slate-900/95 border border-teal-200/80 dark:border-slate-700 p-4 shadow-sm">
                 <div className="text-xs font-black text-slate-500 dark:text-slate-400">
-                  精熟達成率（連對 2 次）
+                  {scoreViewMode === 'initial'
+                    ? `初測平均答對率（精熟 ${classAnalytics.avgMasteryPct}%）`
+                    : `精熟達成率（連對 2 次・初測 ${classAnalytics.avgFirstAccuracyPct}%）`}
                 </div>
                 <div className="text-2xl font-black text-emerald-700 dark:text-emerald-300 mt-1 tabular-nums">
-                  {classAnalytics.avgMasteryPct}%
+                  {scoreViewMode === 'initial'
+                    ? `${classAnalytics.avgFirstAccuracyPct}%`
+                    : `${classAnalytics.avgMasteryPct}%`}
                 </div>
               </div>
               <div className="rounded-2xl bg-white/95 dark:bg-slate-900/95 border border-teal-200/80 dark:border-slate-700 p-4 shadow-sm">
@@ -1487,11 +1705,14 @@ export function PrioriTeacherDashboard({ onBack }) {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {questionTabRecords.map((stu) => {
-                      const chosen = stu.latestAnswers?.[inspectedQuestion.id];
+                      const firstChosen = getRecordFirstAnswersMap(stu)?.[inspectedQuestion.id];
+                      const latestChosen = stu.latestAnswers?.[inspectedQuestion.id];
+                      const chosen = scoreViewMode === 'initial' ? firstChosen : latestChosen;
                       const isOk = isPrioriAnswerCorrect(inspectedQuestion, chosen);
                       const streak = Number(stu.streaks?.[inspectedQuestion.id]) || 0;
                       const badge = getStreakBadge(streak);
                       const padStrokes = stu.scratchpad?.[inspectedQuestion.id] || [];
+                      const qAttempts = getQuestionAttemptCount(stu, inspectedQuestion.id);
 
                       return (
                         <div
@@ -1503,13 +1724,18 @@ export function PrioriTeacherDashboard({ onBack }) {
                           }`}
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <span className="font-black text-xs sm:text-sm text-slate-800 dark:text-slate-100">
                                 {getDisplayStudentTitle(stu)}
                               </span>
                               <span className={`px-2 py-0.5 rounded-lg border text-[10px] font-black ${badge.cls}`}>
                                 {badge.shortLabel}
                               </span>
+                              {qAttempts > 1 && (
+                                <span className="px-2 py-0.5 rounded-lg bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-300 dark:border-cyan-700 text-[10px] font-black text-cyan-800 dark:text-cyan-200">
+                                  自主練 {qAttempts} 次
+                                </span>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-1.5">
@@ -1518,6 +1744,7 @@ export function PrioriTeacherDashboard({ onBack }) {
                                   isOk ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
                                 }`}
                               >
+                                {scoreViewMode === 'initial' ? '初：' : '最新：'}
                                 {formatPrioriAnswerLabel(inspectedQuestion, chosen, false)}
                               </span>
                               <button
@@ -1583,12 +1810,15 @@ export function PrioriTeacherDashboard({ onBack }) {
                       <th className="sticky left-0 z-10 bg-stone-50/95 dark:bg-slate-800/95 py-2.5 px-3 sm:px-4 min-w-[235px] whitespace-nowrap">
                         題目（題意縮減）
                       </th>
-                      <th className="py-2.5 px-2.5 text-center whitespace-nowrap min-w-[68px]">
-                        答對率
+                      <th className="py-2.5 px-2.5 text-center whitespace-nowrap min-w-[96px]">
+                        <div>{scoreViewMode === 'initial' ? '初測答對率' : '目前精熟率'}</div>
+                        <div className="text-[10px] font-bold text-slate-400">
+                          {scoreViewMode === 'initial' ? '已答/應答・精熟' : '已答/應答・初測'}
+                        </div>
                       </th>
                       {classRosterRows.map((stuRow) => {
                         const shortCls =
-                          selectedClass === 'all' && stuRow.classNum !== 'guest'
+                          (selectedClass === 'all' || isDemoView) && stuRow.classNum !== 'guest'
                             ? formatShortClassName(stuRow.classNum).slice(0, 1)
                             : '';
                         const seatHead =
@@ -1671,34 +1901,65 @@ export function PrioriTeacherDashboard({ onBack }) {
                             </td>
 
                             <td className="py-2 px-2.5 text-center whitespace-nowrap tabular-nums">
-                              {classAnalytics.studentCount > 0 ? (
-                                <span
-                                  className={`inline-block px-1.5 py-0.5 rounded-lg font-black text-[11px] ${
-                                    isWeak
-                                      ? 'bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300'
-                                      : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300'
-                                  }`}
-                                >
-                                  {st.correctRate}%
-                                </span>
-                              ) : (
-                                <span className="text-slate-300 dark:text-slate-600 font-bold">-</span>
-                              )}
+                              {(() => {
+                                const answeredCount =
+                                  scoreViewMode === 'initial'
+                                    ? st.firstAnsweredCount
+                                    : st.latestAnsweredCount;
+                                const mainPct =
+                                  scoreViewMode === 'initial'
+                                    ? st.firstCorrectRate
+                                    : st.masteryRate;
+                                const altPct =
+                                  scoreViewMode === 'initial'
+                                    ? st.masteryRate
+                                    : st.firstCorrectRate;
+                                const altLabel = scoreViewMode === 'initial' ? '精熟' : '初測';
+                                if (answeredCount === 0) {
+                                  return (
+                                    <span className="text-slate-300 dark:text-slate-600 font-bold">
+                                      -
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <div className="inline-flex flex-col items-center">
+                                    <span
+                                      className={`inline-block px-1.5 py-0.5 rounded-lg font-black text-[11px] ${
+                                        isWeak
+                                          ? 'bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300'
+                                          : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300'
+                                      }`}
+                                    >
+                                      {mainPct}%
+                                    </span>
+                                    <span className="text-[10px] font-bold text-slate-400 mt-0.5">
+                                      {answeredCount}/{classAnalytics.expectedStudentCount}人・{altLabel}
+                                      {altPct}%
+                                    </span>
+                                  </div>
+                                );
+                              })()}
                             </td>
 
                             {classRosterRows.map((stuRow) => {
                               const rec = stuRow.recordsByPaper[activePaper.paperId];
-                              const chosen = rec?.latestAnswers?.[q.id];
+                              const firstMap = getRecordFirstAnswersMap(rec);
+                              const chosen =
+                                scoreViewMode === 'initial'
+                                  ? firstMap?.[q.id]
+                                  : rec?.latestAnswers?.[q.id];
                               const hasAnswer =
                                 Boolean(rec) && chosen !== undefined && chosen !== null && chosen !== '';
                               const streak = Number(rec?.streaks?.[q.id]) || 0;
+                              const qAttempts = getQuestionAttemptCount(rec, q.id);
                               const hasPad = Boolean(
                                 rec &&
                                   Array.isArray(rec.scratchpad?.[q.id]) &&
                                   rec.scratchpad[q.id].length > 0
                               );
 
-                              if (!rec || (!hasAnswer && streak === 0)) {
+                              if (!rec || (!hasAnswer && (scoreViewMode === 'initial' || streak === 0))) {
                                 return (
                                   <td
                                     key={stuRow.rowKey}
@@ -1709,7 +1970,7 @@ export function PrioriTeacherDashboard({ onBack }) {
                                 );
                               }
 
-                              const isMastered = streak >= 2;
+                              const isMastered = scoreViewMode === 'mastery' && streak >= 2;
                               const isOk = hasAnswer ? isPrioriAnswerCorrect(q, chosen) : streak > 0;
                               const symbol = isMastered ? '🌟' : isOk ? '○' : '✕';
                               const cellCls = isMastered
@@ -1723,10 +1984,19 @@ export function PrioriTeacherDashboard({ onBack }) {
                                   <button
                                     type="button"
                                     onClick={() => setInspectedQuestionId(q.id)}
-                                    title={`${stuRow.seatStr}｜作答：${formatPrioriAnswerLabel(q, chosen, false)}`}
+                                    title={`${stuRow.seatStr}｜${
+                                      scoreViewMode === 'initial' ? '初測' : '最新'
+                                    }作答：${formatPrioriAnswerLabel(q, chosen, false)}${
+                                      qAttempts > 1 ? `｜自主練習 ${qAttempts} 次` : ''
+                                    }`}
                                     className={`inline-flex items-center justify-center gap-0.5 min-w-[30px] px-1 py-1 rounded-lg border text-xs font-black transition hover:scale-105 cursor-pointer ${cellCls}`}
                                   >
                                     <span>{symbol}</span>
+                                    {qAttempts > 1 && (
+                                      <span className="text-[9px] font-black text-cyan-700 dark:text-cyan-300">
+                                        {qAttempts}
+                                      </span>
+                                    )}
                                     {hasPad && <span className="text-[9px]">✏️</span>}
                                   </button>
                                 </td>

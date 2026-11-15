@@ -22,6 +22,8 @@ import {
   Headphones,
   Square,
   Zap,
+  LogOut,
+  Smartphone,
 } from 'lucide-react';
 import {
   PRIORI_SUBJECTS,
@@ -31,6 +33,7 @@ import {
 import { useStudent } from '../../context/StudentContext';
 import { useTheme } from '../../context/ThemeContext';
 import { formatStudentDisplayName } from '../../utils/studentIdHelper';
+import { getDeviceId } from '../../services/supabase';
 import { MathRichText } from './MathRichText';
 import { PrioriScratchpad, PrioriScratchpadPreview } from './PrioriScratchpad';
 import { PrioriAlphabetPad } from './PrioriAlphabetPad';
@@ -40,6 +43,9 @@ import {
   PRIORI_DRILL_LIMIT_OPTIONS,
   buildPrioriDrillCohort,
   loadPrioriRecords,
+  fetchAndMergeStudentCloudRecords,
+  getLastSeatOnThisIpad,
+  rememberSeatOnThisIpad,
   normalizePrioriDrillLimit,
   recordPrioriAttempt,
   recordPrioriSubjectDrillAttempt,
@@ -87,7 +93,7 @@ function formatDuration(seconds) {
 }
 
 export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
-  const { currentStudent, isLoggedIn, openModal } = useStudent();
+  const { currentStudent, isLoggedIn, openModal, logoutStudent } = useStudent();
   const { isDark } = useTheme();
   const studentKey = currentStudent?.student_id || 'guest';
 
@@ -164,6 +170,8 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
   const [checkedStepsCount, setCheckedStepsCount] = useState(0);
   const [lastSubmissionByPaper, setLastSubmissionByPaper] = useState({});
   const [cloudSyncNotice, setCloudSyncNotice] = useState(null);
+  const [deviceNotice, setDeviceNotice] = useState(null);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
@@ -186,8 +194,61 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
   const [printMode, setPrintMode] = useState('all'); // 'all' | 'wrong'
 
   useEffect(() => {
+    let cancelled = false;
     setSavedRecords(loadPrioriRecords(studentKey));
-  }, [studentKey]);
+
+    if (!isLoggedIn || studentKey === 'guest' || studentKey === '999999') {
+      setDeviceNotice(null);
+      setIsSyncingCloud(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const prevOnThisIpad = getLastSeatOnThisIpad();
+    if (
+      prevOnThisIpad?.studentKey &&
+      prevOnThisIpad.studentKey !== studentKey
+    ) {
+      setDeviceNotice({
+        type: 'seat-changed',
+        text: `這台裝置上次登入的是「${prevOnThisIpad.displayName || prevOnThisIpad.studentKey}」，若不小心選錯座號可點右方登出重選。`,
+      });
+    } else {
+      setDeviceNotice(null);
+    }
+
+    rememberSeatOnThisIpad(currentStudent);
+    setIsSyncingCloud(true);
+    fetchAndMergeStudentCloudRecords(currentStudent)
+      .then((res) => {
+        if (cancelled) return;
+        setSavedRecords(res.records || {});
+        if (res.cloudError) {
+          setCloudSyncNotice({ type: 'error', message: res.cloudError });
+        } else if (
+          res.syncedCount > 0 &&
+          res.cloudLastDeviceId &&
+          res.cloudLastDeviceId !== getDeviceId()
+        ) {
+          setDeviceNotice((prev) =>
+            prev?.type === 'seat-changed'
+              ? prev
+              : {
+                  type: 'resumed-from-other-device',
+                  text: `已接續你之前在另一台 iPad／手機上的 ${res.syncedCount} 份作答進度。`,
+                }
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsSyncingCloud(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [studentKey, isLoggedIn, currentStudent]);
 
   const stopAudio = useCallback(() => {
     try {
@@ -794,6 +855,21 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                 </span>
               </button>
 
+              {isLoggedIn && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    stopSpeech();
+                    logoutStudent();
+                  }}
+                  title="登出目前座號，讓自己或同學重新點選班級座號"
+                  className="px-2.5 py-1.5 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-black flex items-center gap-1 hover:bg-stone-200 dark:hover:bg-slate-700 transition cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>登出</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => setIsQrOpen(true)}
@@ -816,6 +892,60 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
               </button>
             </div>
           </header>
+
+          {/* 輕量裝置與同步狀態列（不擋作答，提供一鍵登出重選） */}
+          {(deviceNotice || !isLoggedIn || isSyncingCloud) && (
+            <div className="space-y-1.5">
+              {deviceNotice && (
+                <div
+                  role="status"
+                  className={`rounded-2xl border px-3.5 py-2 text-xs font-black flex flex-wrap items-center justify-between gap-2 ${
+                    deviceNotice.type === 'seat-changed'
+                      ? 'bg-amber-50/95 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-100'
+                      : 'bg-cyan-50/95 dark:bg-cyan-950/60 border-cyan-300 dark:border-cyan-700 text-cyan-900 dark:text-cyan-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Smartphone className="w-4 h-4 shrink-0" />
+                    <span>{deviceNotice.text}</span>
+                  </div>
+                  {deviceNotice.type === 'seat-changed' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        logoutStudent();
+                        openModal();
+                      }}
+                      className="px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 text-[11px] font-black shrink-0 transition cursor-pointer"
+                    >
+                      點錯了？切換座號
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {!isLoggedIn && (
+                <div className="rounded-2xl bg-stone-50/95 dark:bg-slate-800/80 border border-stone-200 dark:border-slate-700 px-3.5 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    訪客作答只留這台 iPad；點右上「訪客練習中」選擇班級座號才會同步至老師後台
+                  </span>
+                  <button
+                    type="button"
+                    onClick={openModal}
+                    className="px-2.5 py-1 rounded-xl bg-lime-500 hover:bg-lime-400 text-lime-950 text-[11px] font-black shrink-0 transition cursor-pointer"
+                  >
+                    點選班級座號
+                  </button>
+                </div>
+              )}
+
+              {isSyncingCloud && isLoggedIn && (
+                <div className="rounded-xl bg-teal-50/90 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800 px-3 py-1.5 text-[11px] font-black text-teal-700 dark:text-teal-200">
+                  雲端進度同步中…
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 1. 科目分頁 + 2. 年級選擇膠囊 */}
           <div className="space-y-2.5">
@@ -1088,14 +1218,62 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                   {isLoggedIn ? formatStudentDisplayName(currentStudent) : '尚未登入（訪客模式）'}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={openModal}
-                className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-700 border border-stone-300 dark:border-slate-600 text-xs font-black text-slate-700 dark:text-slate-100 hover:border-lime-500 shrink-0 transition cursor-pointer"
-              >
-                {isLoggedIn ? '切換座號' : '登入座號'}
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isLoggedIn && (
+                  <button
+                    type="button"
+                    onClick={() => logoutStudent()}
+                    className="px-2.5 py-1.5 rounded-xl bg-stone-200/80 dark:bg-slate-700 text-xs font-black text-slate-700 dark:text-slate-200 hover:bg-stone-300 transition cursor-pointer"
+                  >
+                    登出重選
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={openModal}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-700 border border-stone-300 dark:border-slate-600 text-xs font-black text-slate-700 dark:text-slate-100 hover:border-lime-500 transition cursor-pointer"
+                >
+                  {isLoggedIn ? '切換座號' : '登入座號'}
+                </button>
+              </div>
             </div>
+
+            {deviceNotice && (
+              <div
+                role="status"
+                className={`rounded-2xl border p-3 text-xs font-black space-y-1.5 ${
+                  deviceNotice.type === 'seat-changed'
+                    ? 'bg-amber-50/95 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-100'
+                    : 'bg-cyan-50/95 dark:bg-cyan-950/60 border-cyan-300 dark:border-cyan-700 text-cyan-900 dark:text-cyan-100'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <Smartphone className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{deviceNotice.text}</span>
+                </div>
+                {deviceNotice.type === 'seat-changed' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      logoutStudent();
+                      openModal();
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 text-[11px] font-black transition cursor-pointer"
+                  >
+                    點錯了？切換座號
+                  </button>
+                )}
+              </div>
+            )}
+
+            {!isLoggedIn && (
+              <div
+                role="status"
+                className="rounded-2xl bg-amber-50/95 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 p-3 text-xs font-black text-amber-900 dark:text-amber-100"
+              >
+                目前為訪客模式：作答只會留在本機，成績不會送到老師後台！建議先點「登入座號」
+              </div>
+            )}
 
             {/* 要做的試卷 */}
             <div className="rounded-2xl bg-lime-50/80 dark:bg-lime-950/40 border border-lime-300 dark:border-lime-700 p-4 text-center space-y-1.5">

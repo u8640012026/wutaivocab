@@ -46,3 +46,34 @@ jobs:
       - name: ✍️ Run Flexible Handwriting Order & Manuscript Form Contract
         run: node scripts/test_handwriting_flexible_order.mjs
 
+  priori-verification:
+    name: 🌱 PRIORI Contracts, Lint, Build & Chrome E2E
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🧪 Run PRIORI Contracts (Drill + 114 G3 + 115 Math G3)
+        run: |
+          node scripts/test_priori_drill_contract.mjs
+          node scripts/test_priori_114_g3_contract.mjs
+          node scripts/test_priori_115_math_g3_contract.mjs
+
+      - name: 🧹 ESLint Check
+        run: npm run lint
+
+      - name: 🏗️ Production Build
+        run: npm run build
+
+      - name: 🌐 Run PRIORI Headless Chrome E2E
+        run: node scripts/verify_priori_e2e.mjs
+

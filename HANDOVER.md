@@ -125,7 +125,7 @@
 | **SAA 114 年官方卷 — P0 圖片與契約鎖定** | ✅ **已上線 (`c44e60d`)** | 144 張選項圖依獨立座標裁切完成、`optionAltTexts` 與 G4 Q20 (`50/25/15/5`) 校準鎖定，105 題標準答案與 Sharp 門禁通過 `test_saa_114_contract.mjs` 與 114 E2E |
 | **SAA 114 年官方卷 — P0 實體音檔** | ✅ **已上線 (`cee0282`)** | 已依 `SAA/114/{4,5,6}` 官方英聽 MP3 完成 FFmpeg 波形時間戳校準（`TIMESTAMPS_CALIBRATED = true`），產出 45 個 `96kbps Mono` + `0.1s` fade 小檔至 `public/audio/saa/114/` 並寫入 `media.audioSrc` |
 | **SAA 115 年官方卷** | ✅ **105 題 + 148 選項圖 + 45 音檔結案 (`9b425e2`)** | 已通過 GPT 複檢結案（暫停 SAA 開發）。兩項非阻擋 P2 待日後順手優化：`G6 Q3 (C)/(D)` 下緣略緊、將 `0.5%` 相似度門禁改回「全局 `1%`＋明確數字題例外清單」＋保留官方音檔人工抽聽紀錄 |
-| **學習扶助篩選測驗 (`PRIORI` — 獨立「學習扶助練習館」)** | ✅ **Stage 1 + Route 1 官方三科 ＋ 教師單行切換／雙軸矩陣／指定列印與各班人數骨架完成 (`100 題 / 4 卷`)** | 首頁增獨立「學習扶助練習館 (`?view=priori`，`lime` 黃綠色視覺區隔；英語教科書改 `wood` 棕)」入口，收錄 **114 年三年級 國／英／數（各 25 題，對齊官方標準答案＋25 題英語官方 MP3）** 與 **115 年三年級數學（25 題教師參考）**，共 4 卷 100 題、121 張 WebP 與 25 個 MP3。學生大廳極簡化為「科目 × 年級 × 115–108 緊湊條列」（純圖示列印、已練才顯示分科錯題沉底特訓）；支援「派卷 QR」（教師自選 `科目 × 年度 × 年級` 產出 `&entry=qr` 掃碼確認頁）。教師後台精簡為單橫行 `1. 年級 / 2. 班級 / 3. 檢視 / 4. 搜尋`，支援「**依班級**」（內建無個資各班公開人數 `一甲5～六乙12` 自動展開座號＋姓名空白可僅存本機輸入，切換年度／科目）與「**依題目**」（子膠囊指定 `科目 × 年度 × 年級`，縱軸濃縮題意 `1..25`、橫軸班級座號 `1..N`、`🌟/○/✕/-` 即時批改與計算紙診斷）X-Y 雙軸切換；並新增「**選擇列印試卷**」彈窗（科目×年度×年級＋含正解／空白卷切換）。驗證：`npm run lint`、`test_priori_drill_contract.mjs`、`test_priori_114_g3_contract.mjs`、`test_priori_115_math_g3_contract.mjs`、`verify_priori_e2e.mjs` 與 6 階段 `smoke_test.mjs` 全過。 |
+| **學習扶助篩選測驗 (`PRIORI` — 獨立「學習扶助練習館」)** | ✅ **Stage 1 + Route 1 官方三科 ＋ 跨裝置合併／輕量防錯登錄／教師初測與精熟切換／CI 版 E2E 上線 (`100 題 / 4 卷`)** | 首頁增獨立「學習扶助練習館 (`?view=priori`，`lime` 黃綠色視覺區隔；英語教科書改 `wood` 棕)」入口，收錄 **114 年三年級 國／英／數（各 25 題，對齊官方標準答案＋25 題英語官方 MP3）** 與 **115 年三年級數學（25 題教師參考）**，共 4 卷 100 題、121 張 WebP 與 25 個 MP3。學生採無負擔班級座號誠實登錄，具「本機上次座號軟性提醒＋一鍵登出重選」與跨 iPad／手機雲端進度合併（`fetchAndMergeStudentCloudRecords`／`mergePrioriPaperRecord`，不互蓋、凍結初測分數基線），訪客作答嚴格僅留本機不上傳雲端共用鍵。教師後台為單橫行 `1. 年級 / 2. 班級 / 3. 檢視 / 4. 搜尋`（`示範班級` 直接內建於年級／班級下拉選單，真實空班維持乾淨），支援「**初測成績（預設）**／**精熟後成果**」切換、已答／應答人數分母與學生自主補練次數統計、「依班級／依題目」雙軸矩陣與指定列印彈窗。驗證：`npm run lint`、PRIORI 3 支契約測試、跨平台 [`scripts/verify_priori_e2e.mjs`](scripts/verify_priori_e2e.mjs)（已納入 GitHub Actions CI）與 6 階段 `smoke_test.mjs` 全過。 |
 | **檢定館教師派發與列印** | 📝 **已定案待排程** | 未來於 `TeacherHub.jsx` 增「一鍵派發連結／QR Code」（學生掃碼直進第 0 頁說明）、結果頁重練捷徑與瀏覽器原生 `@media print` 學習單（不做 `.docx` 產生器） |
 | **全站師生使用手冊** | ⏳ **待結案整理** | 未來完成全案後以第三節模組總覽產出對外操作說明書 |
 
@@ -149,8 +149,8 @@ node scripts/test_batch_b_contract.mjs
 node scripts/test_batch_c_contract.mjs
 node scripts/test_batch_d_contract.mjs
 
-# 3. 完整 ESLint、建置與 6 階段無頭 Chrome 回歸測試 (推送前必跑)
-npm run lint ; if ($LASTEXITCODE -eq 0) { npm run build } ; if ($LASTEXITCODE -eq 0) { node scripts/smoke_test.mjs }
+# 3. 完整 ESLint、建置、學扶館 E2E 與 6 階段無頭 Chrome 回歸測試 (推送前必跑，注意勿同時併行兩個預覽測試)
+npm run lint ; if ($LASTEXITCODE -eq 0) { npm run build } ; if ($LASTEXITCODE -eq 0) { node scripts/verify_priori_e2e.mjs } ; if ($LASTEXITCODE -eq 0) { node scripts/smoke_test.mjs }
 ```
 
 - **管理者快捷通道**：鍵盤 `Ctrl+Shift+A`／`Ctrl+Alt+T`，或 ErrorBoundary ⚠️ 圖示連點 5 下，教師密碼 `wt7902230`。
@@ -218,5 +218,10 @@ npm run lint ; if ($LASTEXITCODE -eq 0) { npm run build } ; if ($LASTEXITCODE -e
       - 共用 [`PrioriPaperAxisSelector`](src/features/priori/PrioriModals.jsx) 抽出 [`PrioriTeacherPrintModal`](src/features/priori/PrioriModals.jsx)，後台點「列印解答卷（含正解）」即可像派卷 QR 一樣自由指定「科目 × 年度 × 年級」與「教師解答卷（含正解）／空白練習卷」，不再綁死當前預覽卷。
       - 後台主工具列收斂為單橫行 `1. 年級 / 2. 班級 / 3. 檢視（依班級｜依題目）/ 4. 搜尋`。內建無個資全校公開班級人數 `SCHOOL_CLASS_HEADCOUNTS`（一甲5、二甲6、三甲6、四甲8、五甲6、六甲6；一乙11、二乙4、三乙9、四乙11、五乙19、六乙12）預先展開座號 `1..N`（無加密名冊時提供純存瀏覽器 `wutai_priori_teacher_local_names_v1` 之空白姓名欄直接輸入）。
       - 「依題目」模式透過子膠囊切換 `科目 × 年度 × 年級`（含已建置快捷膠囊），下方呈現「縱軸：第 1–25 題題意縮減 + 答對率；橫軸：該班座號 `1..N` 升冪；格內：`🌟` 已精熟／`○` 答對／`✕` 答錯／`-` 未作答＋`✏️` 筆跡」交叉矩陣，點擊任意題目立即展開選項誘答分佈與全班學生手寫計算紙檢視。
-  - **驗證**：[`scripts/test_priori_114_g3_contract.mjs`](scripts/test_priori_114_g3_contract.mjs)、[`scripts/test_priori_115_math_g3_contract.mjs`](scripts/test_priori_115_math_g3_contract.mjs)、[`scripts/test_priori_drill_contract.mjs`](scripts/test_priori_drill_contract.mjs)、[`scripts/test_exam_setup_flow.mjs`](scripts/test_exam_setup_flow.mjs)、[`scripts/test_exam_audit_fixes.mjs`](scripts/test_exam_audit_fixes.mjs)、[`tmp/verify_priori_e2e.mjs`](tmp/verify_priori_e2e.mjs)、`npm run lint`、`npm run build` 與 6 階段 `scripts/smoke_test.mjs` 全部通過。
+    - **跨裝置合併、訪客防寫雲端、輕量裝置提示、初測／精熟雙視角與 CI 收編 (`prioriStorage.js` / `PrioriPracticeHub.jsx` / `PrioriTeacherDashboard.jsx` / `supabase_schema.sql` / `canonical-ci.yml`)**：
+      - **多裝置合併與初測基線凍結**：[`prioriStorage.js`](src/features/priori/prioriStorage.js) 新增 `fetchAndMergeStudentCloudRecords`、`mergePrioriPaperRecord`（依 `updatedAt` 保留較新連對、凍結初測 `firstAnswers` / `firstScore` / `firstCorrectCount` 不被後續沉底練習覆蓋，並累計 `drillAttemptsCount` 與逐題 `questionAttemptCounts`），學生切換 iPad／手機登入自動接續雲端最新進度；訪客 (`guest` / `999999`) 嚴格僅留本機 `localStorage`，絕不寫入雲端共用鍵。
+      - **無負擔誠實登錄與一鍵登出重選**：[`PrioriPracticeHub.jsx`](src/features/priori/PrioriPracticeHub.jsx) 大廳與派卷 QR 確認頁不阻擋作答，僅於同一台 iPad 切換座號或跨裝置接續時跳出柔和提示（含 `點錯了？切換座號` 與頂部一鍵 `登出` 鈕），並於訪客掃描 QR 時提醒只存本機。
+      - **示範班級內建下拉與「初測（預設）／精熟後」雙模式**：移除後台頂部示範開關與自動開假資料邏輯（真實空班永遠乾淨）；於「1. 年級」與「2. 班級」下拉選單內建 `🧪 示範班級（假資料）` 選項，任選其一即切換示範介面。子膠囊新增 `初測成績（預設）｜精熟後成果` 切換，逐題呈現已答／應答人數分母與自主補練次數。
+      - **資料庫約束冪等修復與 CI 收編**：[`supabase_schema.sql`](supabase_schema.sql) 改為先 `DROP CONSTRAINT IF EXISTS chk_leaderboard_week` 再建 `CHECK (week >= 0 AND week <= 53)`；跨平台 E2E 升格至 [`scripts/verify_priori_e2e.mjs`](scripts/verify_priori_e2e.mjs) 並納入 [`.github/workflows/canonical-ci.yml`](.github/workflows/canonical-ci.yml)。
+  - **驗證**：[`scripts/test_priori_114_g3_contract.mjs`](scripts/test_priori_114_g3_contract.mjs)、[`scripts/test_priori_115_math_g3_contract.mjs`](scripts/test_priori_115_math_g3_contract.mjs)、[`scripts/test_priori_drill_contract.mjs`](scripts/test_priori_drill_contract.mjs)、[`scripts/test_exam_setup_flow.mjs`](scripts/test_exam_setup_flow.mjs)、[`scripts/test_exam_audit_fixes.mjs`](scripts/test_exam_audit_fixes.mjs)、[`scripts/verify_priori_e2e.mjs`](scripts/verify_priori_e2e.mjs)、`npm run lint`、`npm run build` 與 6 階段 `scripts/smoke_test.mjs` 全部通過。
 - **下一步建議（Stage 3）**：比照本規格向上延伸 114 年（或 115 年官方公告後）四～六年級國／英／數試卷，並預留公開授權確認與正式版佈署。

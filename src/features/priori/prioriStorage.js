@@ -1,9 +1,14 @@
-import { supabase } from '../../services/supabase';
-import { parseStudentId, formatStudentDisplayName } from '../../utils/studentIdHelper';
+import { supabase, getDeviceId } from '../../services/supabase';
+import {
+  parseStudentId,
+  formatStudentDisplayName,
+  isGuestStudent,
+} from '../../utils/studentIdHelper';
 import { PRIORI_PAPERS, PRIORI_PAPER_MAP } from '../../data/priori';
 
 const STORAGE_PREFIX = 'wutai_priori_v1_';
 const STUDENT_META_INDEX_KEY = 'wutai_priori_student_meta_v1';
+const LAST_IPAD_SEAT_KEY = 'wutai_priori_last_seat_on_ipad_v1';
 export const PRIORI_CLOUD_MODE = 'priori-record';
 export const PRIORI_CLOUD_WEEK = 0;
 
@@ -150,11 +155,13 @@ export function compressStrokes(strokes = [], maxStrokes = 20, maxPtsPerStroke =
   return result;
 }
 
-function buildStudentIdentity(student, displayName) {
+export function buildStudentIdentity(student, displayName) {
   const sid = student?.student_id ? String(student.student_id) : 'guest';
-  if (sid === 'guest') {
+  const guestFlag = isGuestStudent(student) || sid === 'guest' || sid === '999999';
+  if (guestFlag) {
     return {
       studentKey: 'guest',
+      isGuest: true,
       grade: '03',
       classNum: 'guest',
       seat: '00',
@@ -169,10 +176,109 @@ function buildStudentIdentity(student, displayName) {
     displayName || formatStudentDisplayName(student) || `三年${classNum}班 ${Number(seat)}號`;
   return {
     studentKey: sid,
+    isGuest: false,
     grade,
     classNum,
     seat,
     displayName: resolvedName,
+  };
+}
+
+/**
+ * 輕量本機 iPad 座號記憶（協助提醒點錯座號或更換裝置，不鎖定也不需學生密碼）
+ */
+export function getLastSeatOnThisIpad() {
+  try {
+    const raw = localStorage.getItem(LAST_IPAD_SEAT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function rememberSeatOnThisIpad(student, displayName) {
+  const identity = buildStudentIdentity(student, displayName);
+  if (identity.isGuest) return null;
+  const info = {
+    studentKey: identity.studentKey,
+    displayName: identity.displayName,
+    deviceId: getDeviceId(),
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    localStorage.setItem(LAST_IPAD_SEAT_KEY, JSON.stringify(info));
+  } catch {}
+  return info;
+}
+
+/**
+ * 合併單卷新舊／跨裝置作答紀錄（保留初次測驗快照與較新精熟進度，避免舊機覆蓋新機）
+ */
+export function mergePrioriPaperRecord(localRec, cloudRec) {
+  if (!localRec && !cloudRec) return null;
+  if (!localRec) return cloudRec;
+  if (!cloudRec) return localRec;
+
+  const localTs = new Date(localRec.updatedAt || localRec.completedAt || 0).getTime();
+  const cloudTs = new Date(cloudRec.updatedAt || cloudRec.completedAt || 0).getTime();
+  const newer = cloudTs >= localTs ? cloudRec : localRec;
+  const older = cloudTs >= localTs ? localRec : cloudRec;
+
+  // 初測快照優先取較早一次的初測紀錄，永遠不被後續補練覆蓋
+  const firstCandidate =
+    older.firstAnswers && Object.keys(older.firstAnswers).length > 0
+      ? older
+      : newer.firstAnswers && Object.keys(newer.firstAnswers).length > 0
+      ? newer
+      : older;
+
+  const mergedFirstScore =
+    typeof older.firstScore === 'number'
+      ? older.firstScore
+      : typeof newer.firstScore === 'number'
+      ? newer.firstScore
+      : older.latestScore ?? 0;
+
+  const mergedStreaks = {
+    ...(older.streaks || {}),
+    ...(newer.streaks || {}),
+  };
+
+  const mergedScratchpad = { ...(older.scratchpad || {}) };
+  for (const [qid, strokes] of Object.entries(newer.scratchpad || {})) {
+    if (Array.isArray(strokes) && strokes.length > 0) {
+      mergedScratchpad[qid] = strokes;
+    }
+  }
+
+  const mergedLatestAnswers = {
+    ...(older.latestAnswers || {}),
+    ...(newer.latestAnswers || {}),
+  };
+
+  const mergedQCounts = { ...(older.questionAttemptCounts || {}) };
+  for (const [qid, cnt] of Object.entries(newer.questionAttemptCounts || {})) {
+    mergedQCounts[qid] = Math.max(Number(mergedQCounts[qid]) || 0, Number(cnt) || 0);
+  }
+
+  return {
+    ...newer,
+    firstScore: mergedFirstScore,
+    firstAnswers: firstCandidate.firstAnswers || null,
+    firstCorrectCount:
+      typeof firstCandidate.firstCorrectCount === 'number'
+        ? firstCandidate.firstCorrectCount
+        : older.firstCorrectCount,
+    firstSubmittedAt: firstCandidate.firstSubmittedAt || older.firstSubmittedAt || older.completedAt,
+    latestAnswers: mergedLatestAnswers,
+    streaks: mergedStreaks,
+    scratchpad: mergedScratchpad,
+    questionAttemptCounts: mergedQCounts,
+    attemptsCount: Math.max(Number(localRec.attemptsCount) || 1, Number(cloudRec.attemptsCount) || 1),
+    drillAttemptsCount: Math.max(
+      Number(localRec.drillAttemptsCount) || 0,
+      Number(cloudRec.drillAttemptsCount) || 0
+    ),
   };
 }
 
@@ -272,12 +378,15 @@ export function recordPrioriAttempt({
   const prev = existingAll[paper.paperId] || {};
 
   const prevLatestAnswers = prev.latestAnswers || {};
+  const prevFirstAnswers = prev.firstAnswers || null;
   const prevStreaks = prev.streaks || {};
   const prevScratchpad = prev.scratchpad || {};
+  const prevQuestionAttemptCounts = prev.questionAttemptCounts || {};
 
   const nextLatestAnswers = { ...prevLatestAnswers };
   const nextStreaks = { ...prevStreaks };
   const nextScratchpad = { ...prevScratchpad };
+  const nextQuestionAttemptCounts = { ...prevQuestionAttemptCounts };
   const newlyMasteredIds = [];
 
   // 去重（沉底模式可能同一題出現在佇列多次，只結算各獨特題 ID 一次）
@@ -293,6 +402,7 @@ export function recordPrioriAttempt({
     const rawAns = answers[q.id];
     const hasAns = rawAns !== undefined && rawAns !== null && rawAns !== '';
     nextLatestAnswers[q.id] = hasAns ? rawAns : null;
+    nextQuestionAttemptCounts[q.id] = (Number(nextQuestionAttemptCounts[q.id]) || 0) + 1;
 
     const prevStreak = Number(prevStreaks[q.id]) || 0;
     const isCorrect = isPrioriAnswerCorrect(q, rawAns);
@@ -353,6 +463,24 @@ export function recordPrioriAttempt({
     (sessionCorrect / Math.max(1, uniqueQueue.length)) * 100
   );
 
+  // 初測快照僅於首次正式作答建立（後續自主精熟補練不可覆蓋）
+  const hasExistingFirstAnswers =
+    prevFirstAnswers && Object.keys(prevFirstAnswers).length > 0;
+  let nextFirstAnswers = prevFirstAnswers;
+  let nextFirstCorrectCount = prev.firstCorrectCount;
+  if (!hasExistingFirstAnswers && !isMistakeRetry) {
+    const snap = {};
+    let fc = 0;
+    for (const q of uniqueQueue) {
+      const raw = answers[q.id];
+      const hasA = raw !== undefined && raw !== null && raw !== '';
+      snap[q.id] = hasA ? raw : null;
+      if (isPrioriAnswerCorrect(q, raw)) fc += 1;
+    }
+    nextFirstAnswers = snap;
+    nextFirstCorrectCount = fc;
+  }
+
   const firstScore =
     typeof prev.firstScore === 'number'
       ? prev.firstScore
@@ -361,6 +489,7 @@ export function recordPrioriAttempt({
       : latestScore;
 
   const updatedAt = new Date().toISOString();
+  const currentDeviceId = getDeviceId();
   const nextRecord = {
     paperId: paper.paperId,
     year: paper.year,
@@ -371,9 +500,14 @@ export function recordPrioriAttempt({
     studentClass: identity.classNum,
     studentSeat: identity.seat,
     displayName: identity.displayName,
+    lastDeviceId: currentDeviceId,
     score: latestScore,
     latestScore,
     firstScore,
+    firstAnswers: nextFirstAnswers || null,
+    firstCorrectCount:
+      typeof nextFirstCorrectCount === 'number' ? nextFirstCorrectCount : correctCount,
+    firstSubmittedAt: prev.firstSubmittedAt || (!isMistakeRetry ? updatedAt : undefined),
     sessionScore,
     sessionCorrect,
     sessionTotal: uniqueQueue.length,
@@ -385,8 +519,10 @@ export function recordPrioriAttempt({
     newlyMasteredIds,
     streaks: nextStreaks,
     latestAnswers: nextLatestAnswers,
+    questionAttemptCounts: nextQuestionAttemptCounts,
     scratchpad: nextScratchpad,
     attemptsCount: (prev.attemptsCount || 0) + 1,
+    drillAttemptsCount: (prev.drillAttemptsCount || 0) + (isMistakeRetry ? 1 : 0),
     elapsedSeconds,
     completedAt: updatedAt,
     updatedAt,
@@ -405,7 +541,18 @@ export function recordPrioriAttempt({
       seat: identity.seat,
       displayName: identity.displayName,
     });
+    if (!identity.isGuest) {
+      rememberSeatOnThisIpad(student, identity.displayName);
+    }
   } catch {}
+
+  // 訪客作答只留本機，不上傳雲端共用紀錄鍵
+  if (identity.isGuest) {
+    if (typeof onCloudSyncResult === 'function') {
+      onCloudSyncResult({ ok: true, localOnly: true });
+    }
+    return nextRecord;
+  }
 
   // 雲端同步僅寫入隔離通道 mode='priori-record', week=0（CI 測試環境略過網路寫入）
   if (typeof window === 'undefined' || !window.__CI__) {
@@ -481,42 +628,175 @@ export function recordPrioriSubjectDrillAttempt({
   };
 }
 
+function serializeRecordForCloud(identity, record) {
+  const compactPayload = {
+    v: 2,
+    paperId: record.paperId,
+    studentKey: identity.studentKey,
+    grade: identity.grade,
+    classNum: identity.classNum,
+    seat: identity.seat,
+    displayName: identity.displayName,
+    lastDeviceId: record.lastDeviceId || getDeviceId(),
+    firstScore: record.firstScore,
+    firstAnswers: record.firstAnswers || null,
+    firstCorrectCount: record.firstCorrectCount,
+    firstSubmittedAt: record.firstSubmittedAt,
+    latestScore: record.latestScore,
+    correctCount: record.correctCount,
+    totalCount: record.totalCount,
+    masteredCount: record.masteredCount,
+    attemptsCount: record.attemptsCount,
+    drillAttemptsCount: record.drillAttemptsCount || 0,
+    streaks: record.streaks,
+    latestAnswers: record.latestAnswers,
+    questionAttemptCounts: record.questionAttemptCounts || {},
+    scratchpad: record.scratchpad,
+    updatedAt: record.updatedAt,
+  };
+
+  let serialized = JSON.stringify(compactPayload);
+  // 防禦過大筆跡 payload：若超過 40KB 則每筆畫再降採樣，但確保不遺失作答與初測欄位
+  if (serialized.length > 40000) {
+    const trimmedPad = {};
+    for (const [qId, strokes] of Object.entries(record.scratchpad || {})) {
+      trimmedPad[qId] = compressStrokes(strokes, 12, 28);
+    }
+    serialized = JSON.stringify({ ...compactPayload, scratchpad: trimmedPad });
+  }
+  return serialized;
+}
+
+function hydrateCloudPayload(row) {
+  if (!row?.book) return null;
+  try {
+    const payload = JSON.parse(row.book);
+    const pid = payload?.paperId;
+    if (!pid) return null;
+    const sk = payload.studentKey || 'guest';
+    if (sk === 'guest' || sk === '999999') return null;
+    return {
+      paperId: pid,
+      studentKey: sk,
+      studentGrade: payload.grade || '03',
+      studentClass: payload.classNum || '1',
+      studentSeat: payload.seat || '01',
+      displayName: payload.displayName || row.name || sk,
+      lastDeviceId: payload.lastDeviceId || '',
+      firstScore: payload.firstScore ?? row.score ?? 0,
+      firstAnswers: payload.firstAnswers || null,
+      firstCorrectCount: payload.firstCorrectCount,
+      firstSubmittedAt: payload.firstSubmittedAt,
+      latestScore: payload.latestScore ?? row.score ?? 0,
+      score: payload.latestScore ?? row.score ?? 0,
+      correctCount: payload.correctCount ?? 0,
+      totalCount:
+        payload.totalCount ?? (PRIORI_PAPER_MAP[pid]?.totalQuestions || 25),
+      masteredCount: payload.masteredCount ?? row.time ?? 0,
+      attemptsCount: payload.attemptsCount ?? 1,
+      drillAttemptsCount: payload.drillAttemptsCount ?? 0,
+      streaks: payload.streaks || {},
+      latestAnswers: payload.latestAnswers || {},
+      questionAttemptCounts: payload.questionAttemptCounts || {},
+      scratchpad: payload.scratchpad || {},
+      updatedAt: payload.updatedAt || row.created_at,
+      source: 'cloud',
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 學生切換裝置或登入座號時，讀取雲端同帳號最新進度並與本機端聯集合併（避免換 iPad/手機遺失或互蓋）
+ */
+export async function fetchAndMergeStudentCloudRecords(student, displayName = '') {
+  const identity = buildStudentIdentity(student, displayName);
+  const localAll = loadPrioriRecords(identity.studentKey);
+
+  if (identity.isGuest || (typeof window !== 'undefined' && window.__CI__)) {
+    return {
+      records: localAll,
+      syncedCount: 0,
+      cloudLastDeviceId: '',
+      cloudError: '',
+    };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('leaderboard')
+      .select('id, device_id, name, book, score, time, created_at')
+      .eq('mode', PRIORI_CLOUD_MODE)
+      .eq('week', PRIORI_CLOUD_WEEK)
+      .like('device_id', `priori_${identity.studentKey}_%`);
+
+    if (error) {
+      return {
+        records: localAll,
+        syncedCount: 0,
+        cloudLastDeviceId: '',
+        cloudError: error.message || '雲端紀錄同步失敗',
+      };
+    }
+
+    const mergedAll = { ...localAll };
+    let syncedCount = 0;
+    let cloudLastDeviceId = '';
+    let latestCloudTs = -1;
+
+    if (Array.isArray(data)) {
+      for (const row of data) {
+        const cloudRec = hydrateCloudPayload(row);
+        if (!cloudRec) continue;
+        syncedCount += 1;
+        mergedAll[cloudRec.paperId] = mergePrioriPaperRecord(
+          mergedAll[cloudRec.paperId],
+          cloudRec
+        );
+        const ts = new Date(cloudRec.updatedAt || 0).getTime();
+        if (cloudRec.lastDeviceId && ts >= latestCloudTs) {
+          latestCloudTs = ts;
+          cloudLastDeviceId = cloudRec.lastDeviceId;
+        }
+      }
+    }
+
+    if (syncedCount > 0) {
+      try {
+        localStorage.setItem(
+          getPrioriStorageKey(identity.studentKey),
+          JSON.stringify(mergedAll)
+        );
+      } catch {}
+    }
+
+    return {
+      records: mergedAll,
+      syncedCount,
+      cloudLastDeviceId,
+      cloudError: '',
+    };
+  } catch (err) {
+    return {
+      records: localAll,
+      syncedCount: 0,
+      cloudLastDeviceId: '',
+      cloudError: err?.message || '雲端連線異常',
+    };
+  }
+}
+
 async function syncPrioriRecordToCloud(identity, record) {
+  if (identity.isGuest) {
+    return { ok: true, localOnly: true };
+  }
   try {
     const cloudDeviceId = `priori_${identity.studentKey}_${record.paperId}`;
-    const compactPayload = {
-      v: 1,
-      paperId: record.paperId,
-      studentKey: identity.studentKey,
-      grade: identity.grade,
-      classNum: identity.classNum,
-      seat: identity.seat,
-      displayName: identity.displayName,
-      firstScore: record.firstScore,
-      latestScore: record.latestScore,
-      correctCount: record.correctCount,
-      totalCount: record.totalCount,
-      masteredCount: record.masteredCount,
-      attemptsCount: record.attemptsCount,
-      streaks: record.streaks,
-      latestAnswers: record.latestAnswers,
-      scratchpad: record.scratchpad,
-      updatedAt: record.updatedAt,
-    };
-
-    let serialized = JSON.stringify(compactPayload);
-    // 防禦過大筆跡 payload：若超過 40KB 則每筆畫再降採樣
-    if (serialized.length > 40000) {
-      const trimmedPad = {};
-      for (const [qId, strokes] of Object.entries(record.scratchpad || {})) {
-        trimmedPad[qId] = compressStrokes(strokes, 12, 28);
-      }
-      serialized = JSON.stringify({ ...compactPayload, scratchpad: trimmedPad });
-    }
 
     const { data: existing, error: selectError } = await supabase
       .from('leaderboard')
-      .select('id')
+      .select('id, book, created_at')
       .eq('device_id', cloudDeviceId)
       .eq('mode', PRIORI_CLOUD_MODE)
       .eq('week', PRIORI_CLOUD_WEEK)
@@ -527,15 +807,33 @@ async function syncPrioriRecordToCloud(identity, record) {
       return { ok: false, error: selectError.message };
     }
 
+    let finalRecord = record;
+    if (existing?.book) {
+      const existingHydrated = hydrateCloudPayload(existing);
+      if (existingHydrated) {
+        finalRecord = mergePrioriPaperRecord(existingHydrated, record);
+        try {
+          const localMap = loadPrioriRecords(identity.studentKey);
+          localMap[finalRecord.paperId] = finalRecord;
+          localStorage.setItem(
+            getPrioriStorageKey(identity.studentKey),
+            JSON.stringify(localMap)
+          );
+        } catch {}
+      }
+    }
+
+    const serialized = serializeRecordForCloud(identity, finalRecord);
+
     if (existing?.id) {
       const { error: updateError } = await supabase
         .from('leaderboard')
         .update({
           name: identity.displayName,
           book: serialized,
-          score: record.latestScore,
-          time: record.masteredCount,
-          created_at: record.updatedAt,
+          score: finalRecord.latestScore,
+          time: finalRecord.masteredCount,
+          created_at: finalRecord.updatedAt,
         })
         .eq('id', existing.id);
       if (updateError) {
@@ -549,8 +847,8 @@ async function syncPrioriRecordToCloud(identity, record) {
           name: identity.displayName,
           mode: PRIORI_CLOUD_MODE,
           book: serialized,
-          score: record.latestScore,
-          time: record.masteredCount,
+          score: finalRecord.latestScore,
+          time: finalRecord.masteredCount,
           week: PRIORI_CLOUD_WEEK,
         },
       ]);
@@ -571,11 +869,7 @@ function mergeStudentRecord(bucketMap, paperId, sk, nextRec) {
   if (!bucketMap.has(paperId)) bucketMap.set(paperId, new Map());
   const byStudent = bucketMap.get(paperId);
   const existing = byStudent.get(sk);
-  const nextTime = new Date(nextRec.updatedAt || 0).getTime();
-  const prevTime = existing ? new Date(existing.updatedAt || 0).getTime() : -1;
-  if (!existing || nextTime >= prevTime) {
-    byStudent.set(sk, nextRec);
-  }
+  byStudent.set(sk, mergePrioriPaperRecord(existing, nextRec));
 }
 
 function sortTeacherRecords(list) {
@@ -649,34 +943,9 @@ export async function fetchAllPrioriTeacherRecordsWithMeta(filterPaperId = null)
         cloudError = error.message || '雲端紀錄讀取失敗';
       } else if (Array.isArray(data)) {
         for (const row of data) {
-          if (!row?.book) continue;
-          try {
-            const payload = JSON.parse(row.book);
-            const pid = payload?.paperId;
-            if (!pid || (filterPaperId && pid !== filterPaperId)) continue;
-            const sk = payload.studentKey || 'guest';
-            mergeStudentRecord(bucketByPaper, pid, sk, {
-              paperId: pid,
-              studentKey: sk,
-              studentGrade: payload.grade || '03',
-              studentClass: payload.classNum || '1',
-              studentSeat: payload.seat || '01',
-              displayName: payload.displayName || row.name || sk,
-              firstScore: payload.firstScore ?? row.score ?? 0,
-              latestScore: payload.latestScore ?? row.score ?? 0,
-              score: payload.latestScore ?? row.score ?? 0,
-              correctCount: payload.correctCount ?? 0,
-              totalCount:
-                payload.totalCount ?? (PRIORI_PAPER_MAP[pid]?.totalQuestions || 25),
-              masteredCount: payload.masteredCount ?? row.time ?? 0,
-              attemptsCount: payload.attemptsCount ?? 1,
-              streaks: payload.streaks || {},
-              latestAnswers: payload.latestAnswers || {},
-              scratchpad: payload.scratchpad || {},
-              updatedAt: payload.updatedAt || row.created_at,
-              source: 'cloud',
-            });
-          } catch {}
+          const cloudRec = hydrateCloudPayload(row);
+          if (!cloudRec || (filterPaperId && cloudRec.paperId !== filterPaperId)) continue;
+          mergeStudentRecord(bucketByPaper, cloudRec.paperId, cloudRec.studentKey, cloudRec);
         }
       }
     } catch (err) {
@@ -846,8 +1115,29 @@ function buildDemoScratchpadForPaper(paperId, padMode) {
 export const PRIORI_DEMO_CLASS_RECORDS = ['114-math-g3', '114-chinese-g3', '114-english-g3', '115-math-g3'].flatMap(
   (paperId) =>
     DEMO_STUDENTS_META.map((stu) => {
+      const paper = PRIORI_PAPER_MAP[paperId];
       const built = buildDemoAnswersAndStreaks(paperId, stu.pattern);
-      const totalCount = PRIORI_PAPER_MAP[paperId]?.questions?.length || 25;
+      // 依 firstScoreBase 模擬初測較多錯題、之後自主精熟補練修正之成長對照
+      const targetFirstCorrect = Math.max(
+        1,
+        Math.round(((stu.firstScoreBase || 60) / 100) * (paper?.questions?.length || 25))
+      );
+      const firstPattern = [];
+      let remCorrect = targetFirstCorrect;
+      for (let i = 0; i < (paper?.questions?.length || 25); i += 1) {
+        if (stu.pattern[i] > 0 && remCorrect > 0) {
+          firstPattern.push(1);
+          remCorrect -= 1;
+        } else {
+          firstPattern.push(0);
+        }
+      }
+      const firstBuilt = buildDemoAnswersAndStreaks(paperId, firstPattern);
+      const questionAttemptCounts = {};
+      (paper?.questions || []).forEach((q, idx) => {
+        questionAttemptCounts[q.id] = stu.pattern[idx] === 2 ? Math.max(2, stu.attemptsCount) : 1;
+      });
+      const totalCount = paper?.questions?.length || 25;
       const latestScore = Math.round((built.correctCount / totalCount) * 100);
       return {
         paperId,
@@ -856,13 +1146,17 @@ export const PRIORI_DEMO_CLASS_RECORDS = ['114-math-g3', '114-chinese-g3', '114-
         studentClass: stu.classNum,
         studentSeat: stu.seat,
         displayName: stu.name,
-        firstScore: stu.firstScoreBase,
+        firstScore: Math.round((firstBuilt.correctCount / totalCount) * 100),
+        firstCorrectCount: firstBuilt.correctCount,
+        firstAnswers: firstBuilt.latestAnswers,
         latestScore,
         score: latestScore,
         correctCount: built.correctCount,
         totalCount,
         masteredCount: built.masteredCount,
         attemptsCount: stu.attemptsCount,
+        drillAttemptsCount: Math.max(0, stu.attemptsCount - 1),
+        questionAttemptCounts,
         latestAnswers: built.latestAnswers,
         streaks: built.streaks,
         scratchpad: buildDemoScratchpadForPaper(paperId, stu.padMode),

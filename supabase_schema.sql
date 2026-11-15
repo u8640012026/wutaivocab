@@ -50,10 +50,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_leaderboard_name') THEN
         ALTER TABLE public.leaderboard ADD CONSTRAINT chk_leaderboard_name CHECK (char_length(name) >= 1 AND char_length(name) <= 20);
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_leaderboard_week') THEN
-        -- week = 0 保留給非週期性隔離通道（如 exam-audit-note / exam-student-report / priori-record）
-        ALTER TABLE public.leaderboard ADD CONSTRAINT chk_leaderboard_week CHECK (week >= 0 AND week <= 53);
-    END IF;
+    ALTER TABLE public.leaderboard DROP CONSTRAINT IF EXISTS chk_leaderboard_week;
+    -- week = 0 保留給非週期性隔離通道（如 exam-audit-note / exam-student-report / priori-record / priori-roster）
+    ALTER TABLE public.leaderboard ADD CONSTRAINT chk_leaderboard_week CHECK (week >= 0 AND week <= 53);
 END $$;
 
 -- 3. 開啟 Row Level Security (RLS) 安全防護
