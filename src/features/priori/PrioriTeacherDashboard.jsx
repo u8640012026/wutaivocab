@@ -39,9 +39,8 @@ import {
   logoutPrioriTeacherServer,
   loadEncryptedRosterEnvelope,
   fetchPrioriStudentBindingsServer,
-  issuePrioriActivationCodeServer,
-  issuePrioriClassActivationCodesServer,
-  resetPrioriStudentBindingServer,
+  setPrioriStudentPinServer,
+  setPrioriClassPinsServer,
 } from './prioriSecurity';
 
 const ALL_YEARS_DESC = ['115', '114', '113', '112', '111', '110', '109', '108'];
@@ -188,7 +187,7 @@ export function PrioriTeacherDashboard({ onBack }) {
   const [cloudError, setCloudError] = useState('');
   const [bindingNotice, setBindingNotice] = useState('');
   const [bindingsByStudent, setBindingsByStudent] = useState({});
-  const [issuedClassCodes, setIssuedClassCodes] = useState(null);
+  const [pinManageModal, setPinManageModal] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [scoreViewMode, setScoreViewMode] = useState('initial'); // 'initial' (預設初測) | 'mastery' (精熟後)
   const isDemoView = selectedGrade === 'demo' || selectedClass === 'demo';
@@ -234,7 +233,7 @@ export function PrioriTeacherDashboard({ onBack }) {
     setCloudError('');
     setBindingNotice('');
     setBindingsByStudent({});
-    setIssuedClassCodes(null);
+    setPinManageModal(null);
     setRosterEnvelope(null);
     setRosterEntries([]);
     setIsRosterModalOpen(false);
@@ -349,146 +348,145 @@ export function PrioriTeacherDashboard({ onBack }) {
     await logoutPrioriTeacherServer(token);
   };
 
-  const handleIssueStudentActivationCode = useCallback(
-    async (row) => {
-      const sk = row?.studentKey;
-      if (!sk || !/^\d{6}$/.test(sk) || sk === '999999') return;
-      const epoch = sessionEpochRef.current;
-      const activeToken = teacherSession?.token || '';
-      const label = row.rosterName || row.localName || `${row.seatStr || sk}`;
-      const res = await issuePrioriActivationCodeServer(activeToken, sk);
-      if (epoch !== sessionEpochRef.current) return;
-      if (res.unauthorized) {
-        expireTeacherSession('教師伺服器憑證已失效或過期，請重新驗證登入。');
-        return;
-      }
-      if (res.ok && res.activationCode) {
-        setBindingsByStudent((prev) => ({
-          ...prev,
-          [sk]: {
-            ...(prev[sk] || {}),
-            student_key: sk,
-            status: 'awaiting_activation',
-            device_count: 0,
-            activation_expires_at: res.expiresAt || null,
-          },
-        }));
-        setBindingNotice(
-          `已為「${label}（${sk}）」產生一次性 6 碼啟用碼：${res.activationCode}（7 天內有效；請學生首次點選座號時輸入此啟用碼與自訂 4 碼換機密碼）。`
-        );
-      } else {
-        setBindingNotice(`發放啟用碼失敗：${res.error || '請確認教師權限或座號狀態'}`);
-      }
-    },
-    [teacherSession?.token, expireTeacherSession]
+  const isAdminTeacher = useMemo(
+    () => (teacherSession?.allowedClasses || []).includes('*'),
+    [teacherSession?.allowedClasses]
   );
 
-  const handleIssueClassActivationCodes = useCallback(
-    async (reissueExisting = false) => {
-      if (
-        selectedGrade === 'demo' ||
-        selectedClass === 'all' ||
-        selectedClass === 'demo'
-      ) {
+  const openSinglePinModal = useCallback((row) => {
+    const sk = row?.studentKey;
+    if (!sk || !/^\d{6}$/.test(sk) || sk === '999999') return;
+    const label = row.rosterName || row.localName || `${row.seatStr || sk}`;
+    setPinManageModal({
+      mode: 'single',
+      studentKey: sk,
+      label,
+      pinInput: '',
+      busy: false,
+      error: '',
+    });
+  }, []);
+
+  const openBatchPinModal = useCallback(() => {
+    if (selectedGrade === 'demo') return;
+    setPinManageModal({
+      mode: 'batch',
+      scope: selectedClass === 'all' ? 'grade' : 'class',
+      grade: selectedGrade,
+      classNum: selectedClass,
+      pinInput: '',
+      overwriteExisting: true,
+      busy: false,
+      error: '',
+    });
+  }, [selectedClass, selectedGrade]);
+
+  const handleSubmitPinManageModal = useCallback(
+    async (e) => {
+      e?.preventDefault?.();
+      if (!pinManageModal || pinManageModal.busy) return;
+      const cleanPin = String(pinManageModal.pinInput || '').trim();
+      if (!/^\d{4}$/.test(cleanPin)) {
+        setPinManageModal((prev) =>
+          prev ? { ...prev, error: '請輸入 4 位數字密碼（例如 1234 或學生生日）' } : prev
+        );
         return;
       }
+
       const epoch = sessionEpochRef.current;
       const activeToken = teacherSession?.token || '';
-      const targetGrade = selectedGrade;
-      const targetClass = selectedClass;
-      const res = await issuePrioriClassActivationCodesServer(
-        activeToken,
-        targetGrade,
-        targetClass,
-        reissueExisting
-      );
-      if (epoch !== sessionEpochRef.current) return;
-      if (res.unauthorized) {
-        expireTeacherSession('教師伺服器憑證已失效或過期，請重新驗證登入。');
-        return;
-      }
-      if (res.ok) {
-        const items = res.items || [];
-        if (items.length === 0) {
-          setIssuedClassCodes(null);
+      setPinManageModal((prev) => (prev ? { ...prev, busy: true, error: '' } : prev));
+
+      try {
+        if (pinManageModal.mode === 'single') {
+          const sk = pinManageModal.studentKey;
+          const label = pinManageModal.label || sk;
+          const res = await setPrioriStudentPinServer(activeToken, sk, cleanPin);
+          if (epoch !== sessionEpochRef.current) return;
+          if (res.unauthorized) {
+            expireTeacherSession('教師伺服器憑證已失效或過期，請重新驗證登入。');
+            return;
+          }
+          if (!res.ok) {
+            setPinManageModal((prev) =>
+              prev ? { ...prev, busy: false, error: res.error || '設定 4 碼密碼失敗' } : prev
+            );
+            return;
+          }
+          setBindingsByStudent((prev) => ({
+            ...prev,
+            [sk]: {
+              ...(prev[sk] || {}),
+              student_key: sk,
+              status: 'bound',
+              device_count: 0,
+            },
+          }));
           setBindingNotice(
-            `${targetGrade}年${targetClass}班目前沒有需要新發啟用碼的座號（已綁定或尚持有未過期啟用碼者已自動保留）。`
+            `已將「${label}（${sk}）」的新 4 碼密碼設為 ${cleanPin}（原有作答與初測成績完整保留，舊裝置須用此新 4 碼重新登入）。`
           );
-        } else {
-          setBindingsByStudent((prev) => {
-            const next = { ...prev };
-            items.forEach((item) => {
-              if (item?.student_key) {
-                next[item.student_key] = {
-                  ...(next[item.student_key] || {}),
-                  student_key: item.student_key,
-                  status: 'awaiting_activation',
-                  device_count: 0,
-                  activation_expires_at: item.expires_at || null,
-                };
-              }
-            });
-            return next;
+          setPinManageModal(null);
+          return;
+        }
+
+        const scopeGrade =
+          pinManageModal.scope === 'all' ? null : pinManageModal.grade || selectedGrade;
+        const scopeClass =
+          pinManageModal.scope === 'class' && pinManageModal.classNum !== 'all'
+            ? pinManageModal.classNum || selectedClass
+            : null;
+        const overwrite = Boolean(pinManageModal.overwriteExisting);
+
+        const res = await setPrioriClassPinsServer(
+          activeToken,
+          scopeGrade,
+          scopeClass,
+          cleanPin,
+          overwrite
+        );
+        if (epoch !== sessionEpochRef.current) return;
+        if (res.unauthorized) {
+          expireTeacherSession('教師伺服器憑證已失效或過期，請重新驗證登入。');
+          return;
+        }
+        if (!res.ok) {
+          setPinManageModal((prev) =>
+            prev ? { ...prev, busy: false, error: res.error || '批次設定 4 碼密碼失敗' } : prev
+          );
+          return;
+        }
+
+        const bindRes = await fetchPrioriStudentBindingsServer(activeToken);
+        if (epoch !== sessionEpochRef.current) return;
+        if (bindRes.ok && Array.isArray(bindRes.bindings)) {
+          const nextBindings = {};
+          bindRes.bindings.forEach((b) => {
+            if (b?.student_key) nextBindings[b.student_key] = b;
           });
-          setIssuedClassCodes({
-            grade: targetGrade,
-            classNum: targetClass,
-            items,
-          });
-          setBindingNotice(
-            `已為 ${targetGrade}年${targetClass}班共 ${items.length} 位尚未領取有效啟用碼的學生產生一次性 6 碼啟用碼，請見下方啟用碼清單。`
+          setBindingsByStudent(nextBindings);
+        }
+
+        const scopeLabel =
+          pinManageModal.scope === 'all'
+            ? '全校所有班級學生'
+            : scopeClass
+            ? `${scopeGrade}年${scopeClass}班`
+            : `${scopeGrade}年級所有班級`;
+        setBindingNotice(
+          `已為「${scopeLabel}」共 ${res.updatedCount} 位學生將 4 碼密碼統一設為 ${cleanPin}${
+            res.skippedCount > 0 ? `（另有 ${res.skippedCount} 位已自設密碼學生未覆蓋）` : ''
+          }；作答成績已全部保留。`
+        );
+        setPinManageModal(null);
+      } catch (err) {
+        if (epoch === sessionEpochRef.current) {
+          setPinManageModal((prev) =>
+            prev ? { ...prev, busy: false, error: err?.message || '密碼更新失敗' } : prev
           );
         }
-      } else {
-        setBindingNotice(`整班發放啟用碼失敗：${res.error || '請確認教師權限'}`);
       }
     },
-    [teacherSession?.token, selectedGrade, selectedClass, expireTeacherSession]
-  );
-
-  const handleResetStudentBinding = useCallback(
-    async (row) => {
-      const sk = row?.studentKey;
-      if (!sk || !/^\d{6}$/.test(sk) || sk === '999999') return;
-      const label = row.rosterName || row.localName || `${row.seatStr || sk}`;
-      if (
-        typeof window !== 'undefined' &&
-        typeof window.confirm === 'function' &&
-        !window.confirm(
-          `確定要重設「${label}（座號代碼 ${sk}）」的裝置綁定與 4 碼換機密碼並換發新啟用碼嗎？\n（會保留所有既有作答與初測成績，僅取消舊裝置與舊密碼並產生新的一次性 6 碼啟用碼）`
-        )
-      ) {
-        return;
-      }
-      const epoch = sessionEpochRef.current;
-      const activeToken = teacherSession?.token || '';
-      const res = await resetPrioriStudentBindingServer(activeToken, sk);
-      if (epoch !== sessionEpochRef.current) return;
-      if (res.unauthorized) {
-        expireTeacherSession('教師伺服器憑證已失效或過期，請重新驗證登入。');
-        return;
-      }
-      if (res.ok) {
-        setBindingsByStudent((prev) => ({
-          ...prev,
-          [sk]: {
-            ...(prev[sk] || {}),
-            student_key: sk,
-            status: 'awaiting_activation',
-            device_count: 0,
-            activation_expires_at: res.expiresAt || null,
-          },
-        }));
-        setBindingNotice(
-          res.activationCode
-            ? `已重設「${label}（${sk}）」的裝置鎖（既有作答與初測成績完整保留），新一次性 6 碼啟用碼：${res.activationCode}。`
-            : `已重設「${label}」的換機裝置鎖定（作答成績已完整保留）。`
-        );
-      } else {
-        setBindingNotice(`重設失敗：${res.error || '請確認教師權限'}`);
-      }
-    },
-    [teacherSession?.token, expireTeacherSession]
+    [expireTeacherSession, pinManageModal, selectedClass, selectedGrade, teacherSession?.token]
   );
 
   // 依目前選取切換「真實班級紀錄」或「內建示範班級（假資料）」
@@ -1124,44 +1122,6 @@ export function PrioriTeacherDashboard({ onBack }) {
           </div>
         )}
 
-        {issuedClassCodes && issuedClassCodes.items?.length > 0 && (
-          <div
-            id="priori-teacher-class-activation-codes"
-            className="rounded-2xl bg-white/95 dark:bg-slate-900/95 border border-teal-300 dark:border-teal-700 p-4 shadow-sm space-y-2.5"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-xs font-black text-teal-900 dark:text-teal-100 flex items-center gap-1.5">
-                <KeyRound className="w-4 h-4 text-teal-600" />
-                <span>
-                  {issuedClassCodes.grade}年{issuedClassCodes.classNum}班・一次性 6 碼啟用碼清單（{issuedClassCodes.items.length} 位）
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIssuedClassCodes(null)}
-                className="px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-slate-800 text-xs font-black text-slate-600 dark:text-slate-300 cursor-pointer"
-              >
-                收合清單
-              </button>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
-              {issuedClassCodes.items.map((item) => (
-                <div
-                  key={item.student_key}
-                  className="rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800/80 px-2.5 py-1.5 text-center"
-                >
-                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                    {item.seat} 號（{item.student_key}）
-                  </div>
-                  <div className="text-sm font-black tracking-widest text-teal-700 dark:text-teal-300 select-all">
-                    {item.activation_code}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* 第一順位：精簡單行篩選列 (1 年級 2 班級 3 檢視 4 搜尋) + 子膠囊維度 */}
         <section className="rounded-2xl bg-white/95 dark:bg-slate-900/95 border border-teal-200/70 dark:border-slate-700 p-3.5 sm:p-4 shadow-sm space-y-2.5">
           <div className="grid grid-cols-2 lg:grid-cols-12 gap-2.5 items-end">
@@ -1408,43 +1368,18 @@ export function PrioriTeacherDashboard({ onBack }) {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {selectedGrade !== 'demo' &&
-                  selectedClass !== 'all' &&
-                  selectedClass !== 'demo' && (
-                    <>
-                      <button
-                        type="button"
-                        id="priori-teacher-issue-class-codes-btn"
-                        onClick={() => handleIssueClassActivationCodes(false)}
-                        className="px-2.5 py-1 rounded-xl bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 border border-teal-300 dark:border-teal-700 text-[11px] font-black text-teal-800 dark:text-teal-200 inline-flex items-center gap-1 transition cursor-pointer"
-                        title="僅為本班尚未有任何有效啟用碼的未綁定座號產生 6 碼啟用碼（不作廢已發出且仍有效之啟用碼）"
-                      >
-                        <KeyRound className="w-3 h-3" />
-                        <span>發放本班未啟用碼</span>
-                      </button>
-                      <button
-                        type="button"
-                        id="priori-teacher-reissue-class-codes-btn"
-                        onClick={() => {
-                          if (
-                            typeof window !== 'undefined' &&
-                            typeof window.confirm === 'function' &&
-                            !window.confirm(
-                              `確定要重新產生並覆蓋「${selectedGrade}年${selectedClass}班」所有尚未完成綁定（含先前已發但尚未使用）座號的 6 碼啟用碼嗎？\n（已綁定完成的學生不受影響；僅作廢尚未啟用的舊啟用碼）`
-                            )
-                          ) {
-                            return;
-                          }
-                          handleIssueClassActivationCodes(true);
-                        }}
-                        className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-[11px] font-black text-amber-800 dark:text-amber-200 inline-flex items-center gap-1 transition cursor-pointer"
-                        title="僅限確定舊紙條遺失時使用：為本班尚未綁定的座號重新發碼（會作廢尚未啟用之舊碼）"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                        <span>重發待啟用碼</span>
-                      </button>
-                    </>
-                  )}
+                {selectedGrade !== 'demo' && selectedClass !== 'demo' && (
+                  <button
+                    type="button"
+                    id="priori-teacher-batch-pin-btn"
+                    onClick={openBatchPinModal}
+                    className="px-2.5 py-1 rounded-xl bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 border border-teal-300 dark:border-teal-700 text-[11px] font-black text-teal-800 dark:text-teal-200 inline-flex items-center gap-1 transition cursor-pointer"
+                    title="學生忘記密碼時，老師可自由輸入 4 位數字，一鍵幫本班、本年級或全校所有人統一設為新密碼"
+                  >
+                    <KeyRound className="w-3 h-3" />
+                    <span>批次設 4 碼密碼</span>
+                  </button>
+                )}
                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
                   {formatGradeClassTitle(selectedGrade, selectedClass)}・共 {matrixRows.length} 人（座號升冪）
                 </span>
@@ -1841,52 +1776,43 @@ export function PrioriTeacherDashboard({ onBack }) {
                               const status = binding?.status || 'unbound';
                               const deviceCount = Number(binding?.device_count || 0);
                               const isBound = status === 'bound' || status === 'locked';
-                              const isAwaiting = status === 'awaiting_activation';
 
                               return (
                                 <div className="mt-1 flex flex-wrap items-center gap-1">
                                   <span
                                     className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-black ${
-                                      isBound
+                                      status === 'locked'
+                                        ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300'
+                                        : isBound && deviceCount > 0
                                         ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
-                                        : isAwaiting
+                                        : isBound
                                         ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300'
                                         : 'bg-stone-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                                     }`}
                                   >
                                     {status === 'locked'
                                       ? `密碼暫鎖（已綁 ${deviceCount} 台）`
+                                      : isBound && deviceCount > 0
+                                      ? `已設碼（綁 ${deviceCount} 台）`
                                       : isBound
-                                      ? `已綁 ${deviceCount} 台`
-                                      : isAwaiting
-                                      ? '待啟用'
-                                      : '未綁定'}
+                                      ? '已設碼・待首登'
+                                      : '未設碼（首登自設）'}
                                   </span>
-                                  {isBound ? (
-                                    <button
-                                      type="button"
-                                      data-binding-action="reset"
-                                      data-student-key={row.studentKey}
-                                      onClick={() => handleResetStudentBinding(row)}
-                                      title="若學生忘記 4 碼換機密碼或換新平板，點此解除裝置鎖並換發新啟用碼（不刪成績）"
-                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-[10px] font-black text-amber-800 dark:text-amber-200 transition cursor-pointer"
-                                    >
-                                      <KeyRound className="w-2.5 h-2.5" />
-                                      <span>重設並發啟用碼</span>
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      data-binding-action="issue"
-                                      data-student-key={row.studentKey}
-                                      onClick={() => handleIssueStudentActivationCode(row)}
-                                      title="產生一次性 6 碼啟用碼，供學生首次綁定裝置並自訂 4 碼換機密碼"
-                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 text-[10px] font-black text-teal-800 dark:text-teal-200 transition cursor-pointer"
-                                    >
-                                      <KeyRound className="w-2.5 h-2.5" />
-                                      <span>{isAwaiting ? '重發啟用碼' : '發啟用碼'}</span>
-                                    </button>
-                                  )}
+                                  <button
+                                    type="button"
+                                    data-binding-action="set-pin"
+                                    data-student-key={row.studentKey}
+                                    onClick={() => openSinglePinModal(row)}
+                                    title="老師可直接替這名學生自訂或修改一組 4 位數新密碼（保留全部作答成績）"
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-black transition cursor-pointer ${
+                                      isBound
+                                        ? 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200'
+                                        : 'bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-200'
+                                    }`}
+                                  >
+                                    <KeyRound className="w-2.5 h-2.5" />
+                                    <span>{isBound ? '改設 4 碼' : '設 4 碼'}</span>
+                                  </button>
                                 </div>
                               );
                             })()}
@@ -2408,6 +2334,163 @@ export function PrioriTeacherDashboard({ onBack }) {
           </div>
         )}
       </div>
+
+      {pinManageModal && (
+        <div
+          id="priori-teacher-pin-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="教師設定學生 4 碼密碼"
+          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <form
+            onSubmit={handleSubmitPinManageModal}
+            className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-5 space-y-3.5 shadow-2xl border-2 border-teal-300 dark:border-teal-700"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 text-[11px] font-black">
+                  <KeyRound className="w-3 h-3" />
+                  <span>{pinManageModal.mode === 'single' ? '單一學生改設 4 碼' : '批次設定 4 碼密碼'}</span>
+                </div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white pt-1">
+                  {pinManageModal.mode === 'single'
+                    ? `設定「${pinManageModal.label}」的 4 碼密碼`
+                    : '幫班級／全校統一設定 4 碼密碼'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPinManageModal(null)}
+                className="p-1.5 rounded-xl bg-stone-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 cursor-pointer"
+                aria-label="關閉視窗"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              {pinManageModal.mode === 'single'
+                ? `座號代碼 ${pinManageModal.studentKey}：輸入老師指定的新 4 位數密碼，儲存後會保留全部成績並讓舊平板需用新密碼重登。`
+                : '由老師直接自訂一組 4 位數字，一鍵套用到選擇範圍的學生（保留所有作答與初測成績）。'}
+            </p>
+
+            {pinManageModal.mode === 'batch' && (
+              <div className="space-y-2 rounded-2xl bg-stone-50 dark:bg-slate-800/80 border border-stone-200 dark:border-slate-700 p-3 text-xs">
+                {isAdminTeacher && (
+                  <div className="space-y-1">
+                    <div className="font-black text-slate-700 dark:text-slate-200">1. 套用對象範圍</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        data-batch-scope="current"
+                        onClick={() =>
+                          setPinManageModal((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  scope: prev.classNum === 'all' ? 'grade' : 'class',
+                                }
+                              : prev
+                          )
+                        }
+                        className={`px-2.5 py-1 rounded-xl font-black border cursor-pointer ${
+                          pinManageModal.scope !== 'all'
+                            ? 'bg-teal-600 text-white border-teal-600'
+                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-stone-200 dark:border-slate-700'
+                        }`}
+                      >
+                        {pinManageModal.classNum === 'all'
+                          ? `僅 ${pinManageModal.grade} 年級全部班級`
+                          : `僅 ${pinManageModal.grade}年${pinManageModal.classNum}班`}
+                      </button>
+                      <button
+                        type="button"
+                        data-batch-scope="all"
+                        onClick={() =>
+                          setPinManageModal((prev) => (prev ? { ...prev, scope: 'all' } : prev))
+                        }
+                        className={`px-2.5 py-1 rounded-xl font-black border cursor-pointer ${
+                          pinManageModal.scope === 'all'
+                            ? 'bg-teal-600 text-white border-teal-600'
+                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-stone-200 dark:border-slate-700'
+                        }`}
+                      >
+                        全校所有班級（所有人）
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <label className="flex items-start gap-2 cursor-pointer pt-0.5">
+                  <input
+                    id="priori-teacher-batch-overwrite"
+                    type="checkbox"
+                    checked={Boolean(pinManageModal.overwriteExisting)}
+                    onChange={(e) =>
+                      setPinManageModal((prev) =>
+                        prev ? { ...prev, overwriteExisting: e.target.checked } : prev
+                      )
+                    }
+                    className="mt-0.5 rounded accent-teal-600"
+                  />
+                  <span className="font-bold text-slate-700 dark:text-slate-200 leading-snug">
+                    覆蓋所有人（含已設過密碼的學生，並要求用新 4 碼重登；若取消勾選則只幫尚未設碼者預先設碼）
+                  </span>
+                </label>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="priori-teacher-pin-input"
+                className="block text-xs font-black text-slate-700 dark:text-slate-200"
+              >
+                老師自訂 4 位數字新密碼
+              </label>
+              <input
+                id="priori-teacher-pin-input"
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                pattern="\d{4}"
+                autoFocus
+                disabled={pinManageModal.busy}
+                value={pinManageModal.pinInput}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                  setPinManageModal((prev) => (prev ? { ...prev, pinInput: val, error: '' } : prev));
+                }}
+                placeholder="輸入 4 位數字（例如 1234）"
+                className="w-full px-4 py-2.5 rounded-2xl border-2 border-teal-200 dark:border-teal-700 bg-teal-50/40 dark:bg-slate-800 text-slate-900 dark:text-white font-black text-center text-xl tracking-[0.4em] focus:outline-none focus:border-teal-600"
+              />
+              {pinManageModal.error && (
+                <p className="text-xs font-black text-rose-600 dark:text-rose-400">
+                  {pinManageModal.error}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setPinManageModal(null)}
+                className="px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 text-xs font-black text-slate-600 dark:text-slate-300 cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                id="priori-teacher-pin-submit"
+                disabled={pinManageModal.busy}
+                className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-xs font-black text-white shadow-sm cursor-pointer"
+              >
+                {pinManageModal.busy ? '套用中…' : '確認套用 4 碼'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <PrioriRosterModal
         isOpen={isRosterModalOpen}

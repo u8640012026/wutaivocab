@@ -692,14 +692,15 @@ function hydrateCloudPayload(row) {
 /**
  * 透過伺服器 RPC 取得／核發當前座號專屬的學生工作階段 Token
  * - 同台已綁定裝置：直接無密碼核發 token (`trusted_device`)
- * - 首次綁定：需設定 4 碼換機小密碼 (`needs_pin_setup` -> `bound_new`)
- * - 更換新裝置：需輸入先前設定之 4 碼換機小密碼 (`pin_required` -> `pin_verified`)
+ * - 全新空白座號首登：由學生直接自設 4 碼小密碼 (`needs_pin_setup` -> `bound_new`)
+ * - 已有雲端舊紀錄且未綁定：提示先由教師於後台設 4 碼 (`needs_teacher_pin`)
+ * - 更換新裝置或教師重設後：輸入該 4 碼小密碼 (`pin_required` -> `pin_verified`)
  */
 export async function loginPrioriStudentSeat(
   student,
   transferPin = null,
   displayName = '',
-  { forceRefresh = false, activationCode = null } = {}
+  { forceRefresh = false } = {}
 ) {
   const identity = buildStudentIdentity(student, displayName);
   if (identity.isGuest || (typeof window !== 'undefined' && window.__CI__)) {
@@ -708,12 +709,8 @@ export async function loginPrioriStudentSeat(
 
   const cleanPin =
     typeof transferPin === 'string' && transferPin.trim() ? transferPin.trim() : null;
-  const cleanActCode =
-    typeof activationCode === 'string' && activationCode.trim()
-      ? activationCode.trim()
-      : null;
 
-  if (!forceRefresh && !cleanPin && !cleanActCode) {
+  if (!forceRefresh && !cleanPin) {
     const cached = getCachedPrioriStudentSession(identity.studentKey);
     if (cached?.token) {
       return {
@@ -730,7 +727,7 @@ export async function loginPrioriStudentSeat(
       p_student_key: identity.studentKey,
       p_device_secret: getOrCreatePrioriDeviceSecret(),
       p_transfer_pin: cleanPin,
-      p_activation_code: cleanActCode,
+      p_activation_code: null,
     });
 
     if (error) {
@@ -763,8 +760,7 @@ export async function loginPrioriStudentSeat(
     clearCachedPrioriStudentSession(identity.studentKey);
     return {
       ok: false,
-      status: data?.status || 'needs_activation',
-      hasActiveCode: Boolean(data?.has_active_code),
+      status: data?.status || 'needs_pin_setup',
       remainingAttempts: data?.remaining_attempts,
       lockedUntil: data?.locked_until || null,
       hasRecords: Boolean(data?.has_records),
@@ -841,8 +837,7 @@ export async function fetchAndMergeStudentCloudRecords(
       options.transferPin || null,
       displayName,
       {
-        forceRefresh: Boolean(options.forceAuthCheck || options.activationCode || options.transferPin),
-        activationCode: options.activationCode || null,
+        forceRefresh: Boolean(options.forceAuthCheck || options.transferPin),
       }
     );
 
@@ -858,10 +853,8 @@ export async function fetchAndMergeStudentCloudRecords(
         };
       }
       if (
-        authRes.status === 'needs_activation' ||
-        authRes.status === 'invalid_activation_code' ||
-        authRes.status === 'activation_locked' ||
         authRes.status === 'needs_pin_setup' ||
+        authRes.status === 'needs_teacher_pin' ||
         authRes.status === 'pin_required' ||
         authRes.status === 'invalid_pin' ||
         authRes.status === 'pin_locked' ||
@@ -873,7 +866,6 @@ export async function fetchAndMergeStudentCloudRecords(
           cloudLastDeviceId: '',
           authRequired: true,
           authStatus: authRes.status,
-          hasActiveCode: Boolean(authRes.hasActiveCode),
           remainingAttempts: authRes.remainingAttempts,
           lockedUntil: authRes.lockedUntil || null,
           hasRecords: Boolean(authRes.hasRecords),
@@ -900,7 +892,7 @@ export async function fetchAndMergeStudentCloudRecords(
         student,
         options.transferPin || null,
         displayName,
-        { forceRefresh: true, activationCode: options.activationCode || null }
+        { forceRefresh: true }
       );
       if (!authRes.ok) {
         return {
@@ -908,8 +900,7 @@ export async function fetchAndMergeStudentCloudRecords(
           syncedCount: 0,
           cloudLastDeviceId: '',
           authRequired: !authRes.schemaPending,
-          authStatus: authRes.status || 'needs_activation',
-          hasActiveCode: Boolean(authRes.hasActiveCode),
+          authStatus: authRes.status || 'needs_pin_setup',
           remainingAttempts: authRes.remainingAttempts,
           lockedUntil: authRes.lockedUntil || null,
           hasRecords: Boolean(authRes.hasRecords),
@@ -1032,12 +1023,13 @@ async function syncPrioriRecordToCloud(identity, record, options = {}) {
         return {
           ok: false,
           authRequired: true,
-          authStatus: authRes.status || 'needs_activation',
-          hasActiveCode: Boolean(authRes.hasActiveCode),
+          authStatus: authRes.status || 'needs_pin_setup',
           error:
-            authRes.status === 'needs_activation'
-              ? '已存於本機！向老師領取 6 碼一次性啟用碼並綁定後即可同步雲端。'
-              : '已存於本機！完成換機密碼驗證後即可同步雲端。',
+            authRes.status === 'needs_teacher_pin'
+              ? '已存於本機！此座號已有雲端舊紀錄，請先由老師在後台設定 4 碼密碼後即可同步。'
+              : authRes.status === 'needs_pin_setup'
+              ? '已存於本機！設定你的 4 碼小密碼後即可同步雲端。'
+              : '已存於本機！完成 4 碼小密碼驗證後即可同步雲端。',
         };
       }
       activeToken = authRes.token;
@@ -1063,10 +1055,9 @@ async function syncPrioriRecordToCloud(identity, record, options = {}) {
         return {
           ok: false,
           authRequired: !refreshAuth.schemaPending,
-          authStatus: refreshAuth.status || 'needs_activation',
-          hasActiveCode: Boolean(refreshAuth.hasActiveCode),
+          authStatus: refreshAuth.status || 'pin_required',
           error:
-            refreshAuth.error || '裝置憑證已更新，請重新驗證啟用碼或 4 碼換機密碼後再同步雲端。',
+            refreshAuth.error || '裝置憑證已更新，請輸入 4 碼小密碼完成驗證後再同步雲端。',
         };
       }
       activeToken = refreshAuth.token;

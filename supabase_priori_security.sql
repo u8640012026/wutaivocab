@@ -1,5 +1,5 @@
 -- ============================================================
--- 霧臺國小 學習扶助練習館 (PRIORI) 獨立資料表與伺服器端權限隔離腳本 (v3)
+-- 霧臺國小 學習扶助練習館 (PRIORI) 獨立資料表與伺服器端權限隔離腳本 (v4)
 -- 請在 Supabase Dashboard -> SQL Editor 中貼上並點擊「Run」執行
 -- ============================================================
 -- ★ 執行前必填步驟：
@@ -8,16 +8,17 @@
 -- ============================================================
 -- 安全設計重點（逐項可實測驗證）：
 -- 1. 舊公開 leaderboard 無損保全遷移與永久鎖死：
---    - 先備份至受 RLS 封鎖的 priori_legacy_leaderboard_backup，
---      依時間／成績決定性合併同生同卷重複列（較新／較高分勝出，保留最早初測基準）、
---      將無法解析或無效紀錄寫入 priori_legacy_migration_issues 稽核表，
---      核對新表筆數與贏出成績完全吻合後才從公開表刪除，並於 leaderboard 設下 CHECK 與 RLS 阻斷。
+--    - 先以 SHARE ROW EXCLUSIVE 鎖定公開表並即時套用 RLS／NOT VALID 約束，
+--      備份至 priori_legacy_leaderboard_backup、確定性合併（較新／較高分勝出，保留最早初測基準）、
+--      核對終態與分數後僅依已驗證來源主鍵刪除，並於同交易 VALIDATE CHECK 約束。
 -- 2. 所有 PRIORI 資料表啟用 RLS 且 REVOKE ALL FROM PUBLIC, anon, authenticated，
 --    未授權直接呼叫 /rest/v1/priori_* 一律被 PostgreSQL RLS 拒絕。
--- 3. 權威學生座號名錄 (priori_student_directory) + 教師一次性啟用碼：
---    - 首次綁定與教師重設後，均須憑教師發放的一次性 6 碼啟用碼＋學生自設 4 碼換機小密碼完成啟用；
---      匿名裝置無法搶先認領任何空白或剛重設的座號並讀走舊成績。
---    - 啟用完成後，同一台 iPad 憑本機 device_secret 雜湊永久免密直接登入；換新 iPad 才輸 4 碼小密碼。
+-- 3. 權威學生座號名錄 (priori_student_directory) + 單一 4 碼小密碼＋教師批次／單生改碼：
+--    - 空白座號首次使用直接由學生自設 4 碼小密碼並綁定當前 iPad（零啟用碼負擔）；
+--      若該座號已有未綁定雲端舊紀錄，則需先由教師於後台設好 4 碼（防陌生人搶綁舊成績）。
+--    - 綁定後同一台 iPad 憑本機 device_secret 雜湊永久免輸密碼；換新 iPad 時輸入該 4 碼即可接續進度。
+--    - 學生忘記密碼時，教師可於後台直接幫單一學生、指定班級或全部學生統一重設一組新的自訂 4 碼密碼
+--      （保留全部作答成績、立即撤銷舊裝置工作階段，且不留無密碼空窗期）。
 --    - 學生寫入 (priori_student_upsert_record) 與教師查詢 (priori_teacher_list_records)
 --      皆強制以 priori_student_directory 為唯一真實來源，拒絕任何篡改年級／班級／座號之請求 (42501)。
 -- 4. 教師端全面採用 pgcrypto crypt() bcrypt 雜湊，嚴格隔離全校 ('*') 與單班 ('3-1') 權限。
@@ -776,25 +777,13 @@ DROP FUNCTION IF EXISTS public.priori_student_get_records(TEXT);
 DROP FUNCTION IF EXISTS public.priori_student_upsert_record(TEXT, TEXT, TEXT, TEXT, TEXT, INT, INT, JSONB);
 DROP FUNCTION IF EXISTS public.priori_teacher_get_roster(TEXT);
 DROP FUNCTION IF EXISTS public.priori_teacher_save_roster(TEXT, JSONB, INT);
+DROP FUNCTION IF EXISTS public.priori_internal_generate_activation_code();
+DROP FUNCTION IF EXISTS public.priori_teacher_issue_activation_code(TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.priori_teacher_issue_class_activation_codes(TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.priori_teacher_issue_class_activation_codes(TEXT, TEXT, TEXT, BOOLEAN);
+DROP FUNCTION IF EXISTS public.priori_teacher_reset_student_binding(TEXT, TEXT);
 
 -- ── 6. 內部輔助函式（不開放 PUBLIC / anon / authenticated 呼叫） ──
-CREATE OR REPLACE FUNCTION public.priori_internal_generate_activation_code()
-RETURNS TEXT
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public, extensions
-AS $$
-    SELECT lpad(
-        ((get_byte(extensions.gen_random_bytes(1), 0)::bigint << 24
-        | get_byte(extensions.gen_random_bytes(1), 0)::bigint << 16
-        | get_byte(extensions.gen_random_bytes(1), 0)::bigint << 8
-        | get_byte(extensions.gen_random_bytes(1), 0)::bigint) % 900000 + 100000)::text,
-        6,
-        '0'
-    );
-$$;
-
-REVOKE ALL ON FUNCTION public.priori_internal_generate_activation_code() FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION public.priori_internal_assert_teacher(p_token TEXT)
 RETURNS TABLE(teacher_id TEXT, allowed_classes TEXT[])
@@ -923,10 +912,10 @@ DECLARE
     v_key TEXT := trim(COALESCE(p_student_key, ''));
     v_secret TEXT := trim(COALESCE(p_device_secret, ''));
     v_pin TEXT := trim(COALESCE(p_transfer_pin, ''));
-    v_act TEXT := trim(COALESCE(p_activation_code, ''));
     v_dev_hash TEXT;
     v_dir public.priori_student_directory%ROWTYPE;
     v_bind public.priori_student_bindings%ROWTYPE;
+    v_has_records BOOLEAN := FALSE;
     v_now TIMESTAMPTZ := timezone('utc'::text, now());
     v_expires TIMESTAMPTZ := v_now + interval '30 days';
     v_token TEXT;
@@ -962,20 +951,76 @@ BEGIN
     WHERE student_key = v_key
     FOR UPDATE;
 
-    -- 情境 A：此座號從未由教師發放啟用碼或尚未建立綁定列 -> 嚴禁匿名裝置搶先綁定
-    IF NOT FOUND THEN
+    -- 情境 A：尚未設定 4 碼小密碼之座號（全新空白座號允許學生首次登入直接自設 4 碼；已有舊雲端成績者則須先由教師後台設碼）
+    IF NOT FOUND OR v_bind.pin_hash IS NULL THEN
+        v_has_records := EXISTS (SELECT 1 FROM public.priori_records WHERE student_key = v_key);
+        IF v_has_records THEN
+            RETURN jsonb_build_object(
+                'authorized', false,
+                'status', 'needs_teacher_pin',
+                'has_records', true
+            );
+        END IF;
+
+        IF v_pin = '' THEN
+            RETURN jsonb_build_object(
+                'authorized', false,
+                'status', 'needs_pin_setup',
+                'has_records', false
+            );
+        END IF;
+
+        IF v_pin !~ '^\d{4}$' THEN
+            RETURN jsonb_build_object(
+                'authorized', false,
+                'status', 'invalid_pin_format',
+                'has_records', false
+            );
+        END IF;
+
+        INSERT INTO public.priori_student_bindings (
+            student_key, pin_hash, activation_code_hash, activation_expires_at, activated_at,
+            authorized_device_hashes, pin_failed_attempts, pin_locked_until, created_at, updated_at
+        )
+        VALUES (
+            v_key,
+            extensions.crypt(v_pin, extensions.gen_salt('bf', 8)),
+            NULL,
+            NULL,
+            v_now,
+            ARRAY[v_dev_hash],
+            0,
+            NULL,
+            v_now,
+            v_now
+        )
+        ON CONFLICT (student_key) DO UPDATE SET
+            pin_hash = EXCLUDED.pin_hash,
+            activation_code_hash = NULL,
+            activation_expires_at = NULL,
+            activated_at = v_now,
+            authorized_device_hashes = ARRAY[v_dev_hash],
+            pin_failed_attempts = 0,
+            pin_locked_until = NULL,
+            updated_at = v_now;
+
+        v_token := 'psess_' || encode(extensions.gen_random_bytes(32), 'hex');
+        v_token_hash := encode(extensions.digest(convert_to(v_token, 'UTF8'), 'sha256'), 'hex');
+
+        INSERT INTO public.priori_student_sessions (token_hash, student_key, device_secret_hash, expires_at)
+        VALUES (v_token_hash, v_key, v_dev_hash, v_expires);
+
         RETURN jsonb_build_object(
-            'authorized', false,
-            'status', 'needs_activation',
-            'has_active_code', false,
-            'has_records', EXISTS (SELECT 1 FROM public.priori_records WHERE student_key = v_key)
+            'authorized', true,
+            'status', 'bound_new',
+            'token', v_token,
+            'student_key', v_key,
+            'expires_at', v_expires
         );
     END IF;
 
-    -- 情境 B：已完成啟用且為同一台已信任裝置 -> 永久免輸入啟用碼／密碼直接登入
-    IF v_bind.pin_hash IS NOT NULL
-       AND v_bind.activation_code_hash IS NULL
-       AND v_dev_hash = ANY(v_bind.authorized_device_hashes) THEN
+    -- 情境 B：已綁定且為同一台已信任裝置 -> 永久免輸入密碼直接登入
+    IF v_dev_hash = ANY(v_bind.authorized_device_hashes) THEN
         UPDATE public.priori_student_bindings
         SET pin_failed_attempts = 0,
             pin_locked_until = NULL,
@@ -997,107 +1042,7 @@ BEGIN
         );
     END IF;
 
-    -- 情境 C：等待首次啟用或教師重設後待重新啟用（必須核對教師發放的一次性 6 碼啟用碼 ＋ 自設 4 碼換機密碼）
-    IF v_bind.pin_hash IS NULL OR v_bind.activation_code_hash IS NOT NULL THEN
-        IF v_bind.pin_locked_until IS NOT NULL AND v_bind.pin_locked_until > v_now THEN
-            RETURN jsonb_build_object(
-                'authorized', false,
-                'status', 'activation_locked',
-                'locked_until', v_bind.pin_locked_until,
-                'has_active_code', (v_bind.activation_code_hash IS NOT NULL AND v_bind.activation_expires_at > v_now),
-                'remaining_attempts', 0
-            );
-        END IF;
-
-        IF v_bind.activation_code_hash IS NULL
-           OR v_bind.activation_expires_at IS NULL
-           OR v_bind.activation_expires_at <= v_now THEN
-            RETURN jsonb_build_object(
-                'authorized', false,
-                'status', 'needs_activation',
-                'has_active_code', false,
-                'has_records', EXISTS (SELECT 1 FROM public.priori_records WHERE student_key = v_key)
-            );
-        END IF;
-
-        IF v_act = '' AND v_pin = '' THEN
-            RETURN jsonb_build_object(
-                'authorized', false,
-                'status', 'needs_activation',
-                'has_active_code', true,
-                'remaining_attempts', GREATEST(1, 5 - COALESCE(v_bind.pin_failed_attempts, 0)),
-                'has_records', EXISTS (SELECT 1 FROM public.priori_records WHERE student_key = v_key)
-            );
-        END IF;
-
-        IF v_pin !~ '^\d{4}$' THEN
-            RETURN jsonb_build_object(
-                'authorized', false,
-                'status', 'invalid_pin_format',
-                'has_active_code', true,
-                'remaining_attempts', GREATEST(1, 5 - COALESCE(v_bind.pin_failed_attempts, 0))
-            );
-        END IF;
-
-        IF v_act !~ '^\d{6}$' OR extensions.crypt(v_act, v_bind.activation_code_hash) <> v_bind.activation_code_hash THEN
-            v_fail := COALESCE(v_bind.pin_failed_attempts, 0) + 1;
-            IF v_fail >= 5 THEN
-                UPDATE public.priori_student_bindings
-                SET pin_failed_attempts = v_fail,
-                    pin_locked_until = v_now + interval '15 minutes',
-                    updated_at = v_now
-                WHERE student_key = v_key;
-
-                RETURN jsonb_build_object(
-                    'authorized', false,
-                    'status', 'activation_locked',
-                    'has_active_code', true,
-                    'locked_until', v_now + interval '15 minutes',
-                    'remaining_attempts', 0
-                );
-            END IF;
-
-            UPDATE public.priori_student_bindings
-            SET pin_failed_attempts = v_fail,
-                updated_at = v_now
-            WHERE student_key = v_key;
-
-            RETURN jsonb_build_object(
-                'authorized', false,
-                'status', 'invalid_activation_code',
-                'has_active_code', true,
-                'remaining_attempts', GREATEST(0, 5 - v_fail)
-            );
-        END IF;
-
-        -- 一次性啟用碼核對成功：立即作廢啟用碼並綁定此裝置＋設定 4 碼換機小密碼
-        UPDATE public.priori_student_bindings
-        SET pin_hash = extensions.crypt(v_pin, extensions.gen_salt('bf', 8)),
-            activation_code_hash = NULL,
-            activation_expires_at = NULL,
-            activated_at = v_now,
-            authorized_device_hashes = ARRAY[v_dev_hash],
-            pin_failed_attempts = 0,
-            pin_locked_until = NULL,
-            updated_at = v_now
-        WHERE student_key = v_key;
-
-        v_token := 'psess_' || encode(extensions.gen_random_bytes(32), 'hex');
-        v_token_hash := encode(extensions.digest(convert_to(v_token, 'UTF8'), 'sha256'), 'hex');
-
-        INSERT INTO public.priori_student_sessions (token_hash, student_key, device_secret_hash, expires_at)
-        VALUES (v_token_hash, v_key, v_dev_hash, v_expires);
-
-        RETURN jsonb_build_object(
-            'authorized', true,
-            'status', 'activated_new',
-            'token', v_token,
-            'student_key', v_key,
-            'expires_at', v_expires
-        );
-    END IF;
-
-    -- 情境 D：已啟用座號切換至另一台新 iPad／手機 -> 僅核對學生自設 4 碼換機密碼
+    -- 情境 C：已設 4 碼之座號於首次／新裝置登入 -> 僅核對該 4 碼小密碼（含 5 次錯誤暫鎖 15 分鐘）
     IF v_bind.pin_locked_until IS NOT NULL AND v_bind.pin_locked_until > v_now THEN
         RETURN jsonb_build_object(
             'authorized', false,
@@ -1627,17 +1572,11 @@ BEGIN
                 'class_num', d.class_num,
                 'seat', d.seat,
                 'status', CASE
-                    WHEN b.student_key IS NULL THEN 'unbound'
+                    WHEN b.student_key IS NULL OR b.pin_hash IS NULL THEN 'unbound'
                     WHEN b.pin_locked_until IS NOT NULL AND b.pin_locked_until > v_now THEN 'locked'
-                    WHEN b.pin_hash IS NULL OR b.activation_code_hash IS NOT NULL THEN
-                        CASE
-                            WHEN b.activation_code_hash IS NOT NULL AND b.activation_expires_at > v_now THEN 'awaiting_activation'
-                            ELSE 'unbound'
-                        END
                     ELSE 'bound'
                 END,
                 'device_count', COALESCE(array_length(b.authorized_device_hashes, 1), 0),
-                'activation_expires_at', b.activation_expires_at,
                 'activated_at', b.activated_at
             )
             ORDER BY d.student_key ASC
@@ -1656,10 +1595,11 @@ BEGIN
 END;
 $$;
 
--- 9F. 教師發放單一未綁定座號之「一次性 6 碼啟用碼」（防首次搶先綁走）
-CREATE OR REPLACE FUNCTION public.priori_teacher_issue_activation_code(
+-- 9F. 教師幫單一學生直接自訂／重設新 4 碼小密碼（保留全部作答紀錄，立即撤銷舊裝置憑證且無空窗期）
+CREATE OR REPLACE FUNCTION public.priori_teacher_set_student_pin(
     p_token TEXT,
-    p_student_key TEXT
+    p_student_key TEXT,
+    p_new_pin TEXT
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -1669,203 +1609,17 @@ AS $$
 DECLARE
     v_sess RECORD;
     v_key TEXT := trim(COALESCE(p_student_key, ''));
+    v_pin TEXT := trim(COALESCE(p_new_pin, ''));
     v_dir public.priori_student_directory%ROWTYPE;
-    v_bind public.priori_student_bindings%ROWTYPE;
     v_now TIMESTAMPTZ := timezone('utc'::text, now());
-    v_expires TIMESTAMPTZ := v_now + interval '7 days';
-    v_code TEXT;
 BEGIN
     SELECT * INTO v_sess FROM public.priori_internal_assert_teacher(p_token);
 
     IF v_key !~ '^\d{6}$' OR v_key = '999999' THEN
         RAISE EXCEPTION 'Invalid student key scope' USING ERRCODE = '22023';
     END IF;
-
-    SELECT * INTO v_dir
-    FROM public.priori_student_directory
-    WHERE student_key = v_key AND active = TRUE;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Student seat not found in active directory' USING ERRCODE = '22023';
-    END IF;
-
-    IF NOT public.priori_internal_class_in_scope(v_sess.allowed_classes, v_dir.grade, v_dir.class_num) THEN
-        RAISE EXCEPTION 'Forbidden: student outside teacher class scope' USING ERRCODE = '42501';
-    END IF;
-
-    SELECT * INTO v_bind
-    FROM public.priori_student_bindings
-    WHERE student_key = v_key
-    FOR UPDATE;
-
-    IF FOUND AND v_bind.pin_hash IS NOT NULL AND v_bind.activation_code_hash IS NULL
-       AND COALESCE(array_length(v_bind.authorized_device_hashes, 1), 0) > 0 THEN
-        RETURN jsonb_build_object(
-            'ok', false,
-            'reason', 'already_bound',
-            'student_key', v_key
-        );
-    END IF;
-
-    v_code := public.priori_internal_generate_activation_code();
-
-    INSERT INTO public.priori_student_bindings (
-        student_key, pin_hash, activation_code_hash, activation_expires_at,
-        authorized_device_hashes, pin_failed_attempts, pin_locked_until, created_at, updated_at
-    )
-    VALUES (
-        v_key,
-        NULL,
-        extensions.crypt(v_code, extensions.gen_salt('bf', 6)),
-        v_expires,
-        ARRAY[]::TEXT[],
-        0,
-        NULL,
-        v_now,
-        v_now
-    )
-    ON CONFLICT (student_key) DO UPDATE SET
-        pin_hash = NULL,
-        activation_code_hash = EXCLUDED.activation_code_hash,
-        activation_expires_at = EXCLUDED.activation_expires_at,
-        authorized_device_hashes = ARRAY[]::TEXT[],
-        pin_failed_attempts = 0,
-        pin_locked_until = NULL,
-        updated_at = v_now;
-
-    RETURN jsonb_build_object(
-        'ok', true,
-        'student_key', v_key,
-        'activation_code', v_code,
-        'expires_at', v_expires
-    );
-END;
-$$;
-
--- 9G. 教師為整班尚未綁定學生批量發放一次性 6 碼啟用碼（預設跳過已綁定與尚持有有效未過期啟用碼者；僅 p_reissue_existing=TRUE 才重發覆蓋）
-DROP FUNCTION IF EXISTS public.priori_teacher_issue_class_activation_codes(TEXT, TEXT, TEXT);
-CREATE OR REPLACE FUNCTION public.priori_teacher_issue_class_activation_codes(
-    p_token TEXT,
-    p_grade TEXT,
-    p_class_num TEXT,
-    p_reissue_existing BOOLEAN DEFAULT FALSE
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, extensions
-AS $$
-DECLARE
-    v_sess RECORD;
-    v_g TEXT := COALESCE(NULLIF(ltrim(trim(COALESCE(p_grade, '')), '0'), ''), '');
-    v_c TEXT := COALESCE(NULLIF(ltrim(trim(COALESCE(p_class_num, '')), '0'), ''), '');
-    v_reissue BOOLEAN := COALESCE(p_reissue_existing, FALSE);
-    v_now TIMESTAMPTZ := timezone('utc'::text, now());
-    v_expires TIMESTAMPTZ := v_now + interval '7 days';
-    v_stu RECORD;
-    v_bind RECORD;
-    v_code TEXT;
-    v_results JSONB := '[]'::jsonb;
-BEGIN
-    SELECT * INTO v_sess FROM public.priori_internal_assert_teacher(p_token);
-
-    IF v_g = '' OR v_c = '' THEN
-        RAISE EXCEPTION 'Invalid class filter' USING ERRCODE = '22023';
-    END IF;
-
-    IF NOT public.priori_internal_class_in_scope(v_sess.allowed_classes, v_g, v_c) THEN
-        RAISE EXCEPTION 'Forbidden: class outside teacher scope' USING ERRCODE = '42501';
-    END IF;
-
-    FOR v_stu IN
-        SELECT d.student_key, d.grade, d.class_num, d.seat
-        FROM public.priori_student_directory d
-        WHERE d.active = TRUE
-          AND d.grade = v_g
-          AND d.class_num = v_c
-        ORDER BY d.student_key ASC
-    LOOP
-        SELECT * INTO v_bind
-        FROM public.priori_student_bindings
-        WHERE student_key = v_stu.student_key
-        FOR UPDATE;
-
-        -- 已完成裝置綁定者永遠跳過
-        IF FOUND AND v_bind.pin_hash IS NOT NULL AND v_bind.activation_code_hash IS NULL
-           AND COALESCE(array_length(v_bind.authorized_device_hashes, 1), 0) > 0 THEN
-            CONTINUE;
-        END IF;
-
-        -- 已發放且尚未過期之有效啟用碼，預設予以保留以免學生手上的紙本碼失效
-        IF NOT v_reissue AND FOUND AND v_bind.activation_code_hash IS NOT NULL
-           AND v_bind.activation_expires_at IS NOT NULL AND v_bind.activation_expires_at > v_now THEN
-            CONTINUE;
-        END IF;
-
-        v_code := public.priori_internal_generate_activation_code();
-
-        INSERT INTO public.priori_student_bindings (
-            student_key, pin_hash, activation_code_hash, activation_expires_at,
-            authorized_device_hashes, pin_failed_attempts, pin_locked_until, created_at, updated_at
-        )
-        VALUES (
-            v_stu.student_key,
-            NULL,
-            extensions.crypt(v_code, extensions.gen_salt('bf', 6)),
-            v_expires,
-            ARRAY[]::TEXT[],
-            0,
-            NULL,
-            v_now,
-            v_now
-        )
-        ON CONFLICT (student_key) DO UPDATE SET
-            pin_hash = NULL,
-            activation_code_hash = EXCLUDED.activation_code_hash,
-            activation_expires_at = EXCLUDED.activation_expires_at,
-            authorized_device_hashes = ARRAY[]::TEXT[],
-            pin_failed_attempts = 0,
-            pin_locked_until = NULL,
-            updated_at = v_now;
-
-        v_results := v_results || jsonb_build_array(
-            jsonb_build_object(
-                'student_key', v_stu.student_key,
-                'grade', v_stu.grade,
-                'class_num', v_stu.class_num,
-                'seat', v_stu.seat,
-                'activation_code', v_code,
-                'expires_at', v_expires
-            )
-        );
-    END LOOP;
-
-    RETURN v_results;
-END;
-$$;
-
--- 9H. 教師重設學生換機鎖：保留全部作答紀錄，清掉舊綁定並立即換發全新一次性 6 碼啟用碼
-CREATE OR REPLACE FUNCTION public.priori_teacher_reset_student_binding(
-    p_token TEXT,
-    p_student_key TEXT
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, extensions
-AS $$
-DECLARE
-    v_sess RECORD;
-    v_key TEXT := trim(COALESCE(p_student_key, ''));
-    v_dir public.priori_student_directory%ROWTYPE;
-    v_now TIMESTAMPTZ := timezone('utc'::text, now());
-    v_expires TIMESTAMPTZ := v_now + interval '7 days';
-    v_code TEXT;
-BEGIN
-    SELECT * INTO v_sess FROM public.priori_internal_assert_teacher(p_token);
-
-    IF v_key !~ '^\d{6}$' OR v_key = '999999' THEN
-        RAISE EXCEPTION 'Invalid student key scope' USING ERRCODE = '22023';
+    IF v_pin !~ '^\d{4}$' THEN
+        RAISE EXCEPTION 'PIN must be exactly 4 digits' USING ERRCODE = '22023';
     END IF;
 
     SELECT * INTO v_dir
@@ -1882,17 +1636,16 @@ BEGIN
 
     DELETE FROM public.priori_student_sessions WHERE student_key = v_key;
 
-    v_code := public.priori_internal_generate_activation_code();
-
     INSERT INTO public.priori_student_bindings (
-        student_key, pin_hash, activation_code_hash, activation_expires_at,
+        student_key, pin_hash, activation_code_hash, activation_expires_at, activated_at,
         authorized_device_hashes, pin_failed_attempts, pin_locked_until, created_at, updated_at
     )
     VALUES (
         v_key,
+        extensions.crypt(v_pin, extensions.gen_salt('bf', 8)),
         NULL,
-        extensions.crypt(v_code, extensions.gen_salt('bf', 6)),
-        v_expires,
+        NULL,
+        v_now,
         ARRAY[]::TEXT[],
         0,
         NULL,
@@ -1900,9 +1653,10 @@ BEGIN
         v_now
     )
     ON CONFLICT (student_key) DO UPDATE SET
-        pin_hash = NULL,
-        activation_code_hash = EXCLUDED.activation_code_hash,
-        activation_expires_at = EXCLUDED.activation_expires_at,
+        pin_hash = EXCLUDED.pin_hash,
+        activation_code_hash = NULL,
+        activation_expires_at = NULL,
+        activated_at = v_now,
         authorized_device_hashes = ARRAY[]::TEXT[],
         pin_failed_attempts = 0,
         pin_locked_until = NULL,
@@ -1910,9 +1664,115 @@ BEGIN
 
     RETURN jsonb_build_object(
         'ok', true,
-        'student_key', v_key,
-        'activation_code', v_code,
-        'expires_at', v_expires
+        'student_key', v_key
+    );
+END;
+$$;
+
+-- 9G. 教師為指定班級、某年級或全校（授權範圍內）所有人統一設置／重設新 4 碼小密碼
+CREATE OR REPLACE FUNCTION public.priori_teacher_set_class_pins(
+    p_token TEXT,
+    p_grade TEXT DEFAULT NULL,
+    p_class_num TEXT DEFAULT NULL,
+    p_new_pin TEXT DEFAULT NULL,
+    p_overwrite_existing BOOLEAN DEFAULT FALSE
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+    v_sess RECORD;
+    v_raw_g TEXT := trim(COALESCE(p_grade, ''));
+    v_raw_c TEXT := trim(COALESCE(p_class_num, ''));
+    v_g TEXT := CASE WHEN v_raw_g IN ('', 'all', 'demo') THEN NULL ELSE NULLIF(ltrim(v_raw_g, '0'), '') END;
+    v_c TEXT := CASE WHEN v_raw_c IN ('', 'all', 'demo') THEN NULL ELSE NULLIF(ltrim(v_raw_c, '0'), '') END;
+    v_pin TEXT := trim(COALESCE(p_new_pin, ''));
+    v_overwrite BOOLEAN := COALESCE(p_overwrite_existing, FALSE);
+    v_now TIMESTAMPTZ := timezone('utc'::text, now());
+    v_stu RECORD;
+    v_bind RECORD;
+    v_updated INT := 0;
+    v_skipped INT := 0;
+BEGIN
+    SELECT * INTO v_sess FROM public.priori_internal_assert_teacher(p_token);
+
+    IF v_pin !~ '^\d{4}$' THEN
+        RAISE EXCEPTION 'PIN must be exactly 4 digits' USING ERRCODE = '22023';
+    END IF;
+
+    IF v_g IS NOT NULL AND v_c IS NOT NULL THEN
+        IF NOT public.priori_internal_class_in_scope(v_sess.allowed_classes, v_g, v_c) THEN
+            RAISE EXCEPTION 'Forbidden: class outside teacher scope' USING ERRCODE = '42501';
+        END IF;
+    ELSIF v_g IS NOT NULL THEN
+        IF NOT ('*' = ANY(v_sess.allowed_classes))
+           AND NOT EXISTS (
+               SELECT 1
+               FROM public.priori_student_directory d0
+               WHERE d0.active = TRUE
+                 AND d0.grade = v_g
+                 AND public.priori_internal_class_in_scope(v_sess.allowed_classes, d0.grade, d0.class_num)
+           ) THEN
+            RAISE EXCEPTION 'Forbidden: grade outside teacher scope' USING ERRCODE = '42501';
+        END IF;
+    END IF;
+
+    FOR v_stu IN
+        SELECT d.student_key, d.grade, d.class_num, d.seat
+        FROM public.priori_student_directory d
+        WHERE d.active = TRUE
+          AND public.priori_internal_class_in_scope(v_sess.allowed_classes, d.grade, d.class_num)
+          AND (v_g IS NULL OR d.grade = v_g)
+          AND (v_c IS NULL OR d.class_num = v_c)
+        ORDER BY d.student_key ASC
+    LOOP
+        SELECT * INTO v_bind
+        FROM public.priori_student_bindings
+        WHERE student_key = v_stu.student_key
+        FOR UPDATE;
+
+        IF NOT v_overwrite AND FOUND AND v_bind.pin_hash IS NOT NULL THEN
+            v_skipped := v_skipped + 1;
+            CONTINUE;
+        END IF;
+
+        DELETE FROM public.priori_student_sessions WHERE student_key = v_stu.student_key;
+
+        INSERT INTO public.priori_student_bindings (
+            student_key, pin_hash, activation_code_hash, activation_expires_at, activated_at,
+            authorized_device_hashes, pin_failed_attempts, pin_locked_until, created_at, updated_at
+        )
+        VALUES (
+            v_stu.student_key,
+            extensions.crypt(v_pin, extensions.gen_salt('bf', 6)),
+            NULL,
+            NULL,
+            v_now,
+            ARRAY[]::TEXT[],
+            0,
+            NULL,
+            v_now,
+            v_now
+        )
+        ON CONFLICT (student_key) DO UPDATE SET
+            pin_hash = EXCLUDED.pin_hash,
+            activation_code_hash = NULL,
+            activation_expires_at = NULL,
+            activated_at = v_now,
+            authorized_device_hashes = ARRAY[]::TEXT[],
+            pin_failed_attempts = 0,
+            pin_locked_until = NULL,
+            updated_at = v_now;
+
+        v_updated := v_updated + 1;
+    END LOOP;
+
+    RETURN jsonb_build_object(
+        'ok', true,
+        'updated_count', v_updated,
+        'skipped_count', v_skipped
     );
 END;
 $$;
@@ -1998,14 +1858,11 @@ GRANT EXECUTE ON FUNCTION public.priori_teacher_save_roster(TEXT, JSONB, INT, TE
 REVOKE ALL ON FUNCTION public.priori_teacher_list_bindings(TEXT, TEXT, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.priori_teacher_list_bindings(TEXT, TEXT, TEXT) TO anon, authenticated;
 
-REVOKE ALL ON FUNCTION public.priori_teacher_issue_activation_code(TEXT, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.priori_teacher_issue_activation_code(TEXT, TEXT) TO anon, authenticated;
+REVOKE ALL ON FUNCTION public.priori_teacher_set_student_pin(TEXT, TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.priori_teacher_set_student_pin(TEXT, TEXT, TEXT) TO anon, authenticated;
 
-REVOKE ALL ON FUNCTION public.priori_teacher_issue_class_activation_codes(TEXT, TEXT, TEXT, BOOLEAN) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.priori_teacher_issue_class_activation_codes(TEXT, TEXT, TEXT, BOOLEAN) TO anon, authenticated;
-
-REVOKE ALL ON FUNCTION public.priori_teacher_reset_student_binding(TEXT, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.priori_teacher_reset_student_binding(TEXT, TEXT) TO anon, authenticated;
+REVOKE ALL ON FUNCTION public.priori_teacher_set_class_pins(TEXT, TEXT, TEXT, TEXT, BOOLEAN) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.priori_teacher_set_class_pins(TEXT, TEXT, TEXT, TEXT, BOOLEAN) TO anon, authenticated;
 
 REVOKE ALL ON FUNCTION public.priori_teacher_sync_directory(TEXT, TEXT, TEXT, INT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.priori_teacher_sync_directory(TEXT, TEXT, TEXT, INT) TO anon, authenticated;

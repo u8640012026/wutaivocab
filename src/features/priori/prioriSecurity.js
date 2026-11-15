@@ -459,7 +459,7 @@ export async function saveEncryptedRosterEnvelope(
 }
 
 /**
- * 教師讀取授權班級學生之裝置綁定／待啟用狀態（不含雜湊或明文啟用碼）
+ * 教師讀取授權班級學生之 4 碼小密碼與裝置綁定狀態（不含雜湊或明文密碼）
  */
 export async function fetchPrioriStudentBindingsServer(teacherToken, grade = null, classNum = null) {
   const activeToken = teacherToken || getPrioriTeacherSession()?.token || '';
@@ -488,111 +488,95 @@ export async function fetchPrioriStudentBindingsServer(teacherToken, grade = nul
 }
 
 /**
- * 教師為單一尚未綁定／待啟用座號發放一次性 6 碼啟用碼
+ * 教師為單一授權班級學生直接自訂／重設新 4 碼小密碼（不刪成績、立即撤銷舊裝置工作階段）
  */
-export async function issuePrioriActivationCodeServer(teacherToken, studentKey) {
+export async function setPrioriStudentPinServer(teacherToken, studentKey, newPin) {
   const activeToken = teacherToken || getPrioriTeacherSession()?.token || '';
   const cleanKey = String(studentKey || '').trim();
+  const cleanPin = String(newPin || '').trim();
   if (!activeToken) {
     return { ok: false, error: '缺乏有效教師伺服器憑證' };
   }
   if (!/^\d{6}$/.test(cleanKey) || cleanKey === '999999') {
     return { ok: false, error: '無效的 6 碼座號' };
   }
+  if (!/^\d{4}$/.test(cleanPin)) {
+    return { ok: false, error: '新密碼必須為 4 位數字（例如 1234）' };
+  }
+
   try {
-    const { data, error } = await supabase.rpc('priori_teacher_issue_activation_code', {
+    const { data, error } = await supabase.rpc('priori_teacher_set_student_pin', {
       p_token: activeToken,
       p_student_key: cleanKey,
+      p_new_pin: cleanPin,
     });
     if (error) {
       return {
         ok: false,
         unauthorized: isPrioriUnauthorizedError(error),
         schemaPending: isPrioriSchemaPendingError(error),
-        error: error.message || '產生啟用碼失敗',
-      };
-    }
-    return {
-      ok: Boolean(data?.ok),
-      reason: data?.reason || '',
-      studentKey: data?.student_key || cleanKey,
-      activationCode: data?.activation_code || '',
-      expiresAt: data?.expires_at || null,
-      error: data?.reason === 'already_bound' ? '該座號已綁定裝置；若學生忘記密碼請改用「重設並發啟用碼」。' : '',
-    };
-  } catch (err) {
-    return { ok: false, error: err?.message || '產生啟用碼連線失敗' };
-  }
-}
-
-/**
- * 教師為整班尚未綁定學生批量產生一次性 6 碼啟用碼
- */
-export async function issuePrioriClassActivationCodesServer(
-  teacherToken,
-  grade,
-  classNum,
-  reissueExisting = false
-) {
-  const activeToken = teacherToken || getPrioriTeacherSession()?.token || '';
-  if (!activeToken) {
-    return { ok: false, items: [], error: '缺乏有效教師伺服器憑證' };
-  }
-  try {
-    const { data, error } = await supabase.rpc('priori_teacher_issue_class_activation_codes', {
-      p_token: activeToken,
-      p_grade: String(grade || ''),
-      p_class_num: String(classNum || ''),
-      p_reissue_existing: Boolean(reissueExisting),
-    });
-    if (error) {
-      return {
-        ok: false,
-        items: [],
-        unauthorized: isPrioriUnauthorizedError(error),
-        schemaPending: isPrioriSchemaPendingError(error),
-        error: error.message || '整班發放啟用碼失敗',
-      };
-    }
-    return { ok: true, items: Array.isArray(data) ? data : [] };
-  } catch (err) {
-    return { ok: false, items: [], error: err?.message || '整班發放啟用碼連線失敗' };
-  }
-}
-
-/**
- * 教師為忘記 4 碼換機密碼或更換新 iPad 的授權班級學生重設裝置綁定並換發新啟用碼（不刪除作答紀錄）
- */
-export async function resetPrioriStudentBindingServer(teacherToken, studentKey) {
-  const activeToken = teacherToken || getPrioriTeacherSession()?.token || '';
-  const cleanKey = String(studentKey || '').trim();
-  if (!activeToken) {
-    return { ok: false, error: '缺乏有效教師伺服器憑證' };
-  }
-  if (!/^\d{6}$/.test(cleanKey) || cleanKey === '999999') {
-    return { ok: false, error: '無效的 6 碼座號' };
-  }
-
-  try {
-    const { data, error } = await supabase.rpc('priori_teacher_reset_student_binding', {
-      p_token: activeToken,
-      p_student_key: cleanKey,
-    });
-    if (error) {
-      return {
-        ok: false,
-        unauthorized: isPrioriUnauthorizedError(error),
-        schemaPending: isPrioriSchemaPendingError(error),
-        error: error.message || '重設學生裝置綁定失敗',
+        error: error.message || '重設學生 4 碼密碼失敗',
       };
     }
     return {
       ok: Boolean(data?.ok ?? true),
       studentKey: data?.student_key || cleanKey,
-      activationCode: data?.activation_code || '',
-      expiresAt: data?.expires_at || null,
     };
   } catch (err) {
-    return { ok: false, error: err?.message || '重設學生裝置綁定連線失敗' };
+    return { ok: false, error: err?.message || '重設學生 4 碼密碼連線失敗' };
+  }
+}
+
+/**
+ * 教師為指定班級、年級或授權範圍內全部學生批次設定／重設同一組自訂 4 碼小密碼
+ */
+export async function setPrioriClassPinsServer(
+  teacherToken,
+  grade,
+  classNum,
+  newPin,
+  overwriteExisting = false
+) {
+  const activeToken = teacherToken || getPrioriTeacherSession()?.token || '';
+  const cleanPin = String(newPin || '').trim();
+  if (!activeToken) {
+    return { ok: false, updatedCount: 0, skippedCount: 0, error: '缺乏有效教師伺服器憑證' };
+  }
+  if (!/^\d{4}$/.test(cleanPin)) {
+    return { ok: false, updatedCount: 0, skippedCount: 0, error: '批次設定密碼必須為 4 位數字' };
+  }
+  const cleanGrade = grade && grade !== 'demo' && grade !== 'all' ? String(grade) : null;
+  const cleanClass = classNum && classNum !== 'demo' && classNum !== 'all' ? String(classNum) : null;
+
+  try {
+    const { data, error } = await supabase.rpc('priori_teacher_set_class_pins', {
+      p_token: activeToken,
+      p_grade: cleanGrade,
+      p_class_num: cleanClass,
+      p_new_pin: cleanPin,
+      p_overwrite_existing: Boolean(overwriteExisting),
+    });
+    if (error) {
+      return {
+        ok: false,
+        updatedCount: 0,
+        skippedCount: 0,
+        unauthorized: isPrioriUnauthorizedError(error),
+        schemaPending: isPrioriSchemaPendingError(error),
+        error: error.message || '批次設定班級 4 碼密碼失敗',
+      };
+    }
+    return {
+      ok: Boolean(data?.ok ?? true),
+      updatedCount: Number(data?.updated_count || 0),
+      skippedCount: Number(data?.skipped_count || 0),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      updatedCount: 0,
+      skippedCount: 0,
+      error: err?.message || '批次設定班級 4 碼密碼連線失敗',
+    };
   }
 }

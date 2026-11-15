@@ -228,51 +228,71 @@ async function run() {
   const t42Login = await callRpc(db, 'anon', `SELECT public.priori_teacher_login($1)`, ['Class42Pass!99']);
   assert.equal(t42Login.authorized, true);
 
-  // 10. Anti-preemption: anonymous attacker CANNOT claim unbound/migrated seat 030105!
+  // 10. Blank seat self-setup vs migrated unbound seat protection
   const dev1 = 'device_ipad_0001_secret_token_alpha';
   const dev2 = 'device_ipad_0002_secret_token_beta';
+
+  // 10A. Blank seat (030102 has 0 records) -> student can self-set 4-digit PIN directly with zero activation code!
+  const blankCheck = await callRpc(
+    db,
+    'anon',
+    `SELECT public.priori_student_login_seat($1, $2, NULL, NULL)`,
+    ['030102', dev1]
+  );
+  assert.equal(blankCheck.authorized, false);
+  assert.equal(blankCheck.status, 'needs_pin_setup');
+
+  const blankBound = await callRpc(
+    db,
+    'anon',
+    `SELECT public.priori_student_login_seat($1, $2, $3, NULL)`,
+    ['030102', dev1, '1212']
+  );
+  assert.equal(blankBound.authorized, true);
+  assert.equal(blankBound.status, 'bound_new');
+
+  // 10B. Migrated unbound seat WITH pre-existing records (030105) CANNOT be anonymously claimed!
   const hijackAttempt = await callRpc(
     db,
     'anon',
-    `SELECT public.priori_student_login_seat($1, $2, $3, $4)`,
-    ['030105', dev1, '9999', '123456']
+    `SELECT public.priori_student_login_seat($1, $2, $3, NULL)`,
+    ['030105', dev1, '9999']
   );
   assert.equal(hijackAttempt.authorized, false);
-  assert.equal(hijackAttempt.status, 'needs_activation');
-  assert.equal(hijackAttempt.has_active_code, false);
+  assert.equal(hijackAttempt.status, 'needs_teacher_pin');
+  assert.equal(hijackAttempt.has_records, true);
 
-  // Teacher issues one-time activation code for 030105
-  const actIssue = await callRpc(
+  // Teacher sets initial custom 4-digit PIN '2468' for 030105
+  const setPin05 = await callRpc(
     db,
     'anon',
-    `SELECT public.priori_teacher_issue_activation_code($1, $2)`,
-    [adminLogin.token, '030105']
+    `SELECT public.priori_teacher_set_student_pin($1, $2, $3)`,
+    [adminLogin.token, '030105', '2468']
   );
-  assert.equal(actIssue.ok, true);
-  assert.match(actIssue.activation_code, /^\d{6}$/);
+  assert.equal(setPin05.ok, true);
 
-  // Wrong activation code fails cleanly
-  const badActTry = await callRpc(
+  // Wrong PIN fails cleanly
+  const badPinTry = await callRpc(
     db,
     'anon',
-    `SELECT public.priori_student_login_seat($1, $2, $3, $4)`,
-    ['030105', dev1, '2468', actIssue.activation_code === '000000' ? '111111' : '000000']
+    `SELECT public.priori_student_login_seat($1, $2, $3, NULL)`,
+    ['030105', dev1, '0000']
   );
-  assert.equal(badActTry.authorized, false);
-  assert.equal(badActTry.status, 'invalid_activation_code');
+  assert.equal(badPinTry.authorized, false);
+  assert.equal(badPinTry.status, 'invalid_pin');
 
-  // Valid activation code + 4-digit PIN activates & returns token, and CANNOT be reused!
-  const activated = await callRpc(
+  // Correct teacher-set 4-digit PIN '2468' logs in on device 1 & binds device 1
+  const dev1Ok = await callRpc(
     db,
     'anon',
-    `SELECT public.priori_student_login_seat($1, $2, $3, $4)`,
-    ['030105', dev1, '2468', actIssue.activation_code]
+    `SELECT public.priori_student_login_seat($1, $2, $3, NULL)`,
+    ['030105', dev1, '2468']
   );
-  assert.equal(activated.authorized, true);
-  assert.equal(activated.status, 'activated_new');
-  const stuToken1 = activated.token;
+  assert.equal(dev1Ok.authorized, true);
+  assert.equal(dev1Ok.status, 'pin_verified');
+  const stuToken1 = dev1Ok.token;
 
-  // Same iPad needs ZERO activation code and ZERO PIN!
+  // Same iPad needs ZERO PIN!
   const sameDeviceLogin = await callRpc(
     db,
     'anon',
@@ -282,17 +302,16 @@ async function run() {
   assert.equal(sameDeviceLogin.authorized, true);
   assert.equal(sameDeviceLogin.status, 'trusted_device');
 
-  // Reusing the spent activation code on device 2 MUST be ignored/rejected -> requires Transfer PIN
-  const reuseTry = await callRpc(
+  // Device 2 prompts for PIN and unlocks with '2468'
+  const dev2Prompt = await callRpc(
     db,
     'anon',
-    `SELECT public.priori_student_login_seat($1, $2, NULL, $3)`,
-    ['030105', dev2, actIssue.activation_code]
+    `SELECT public.priori_student_login_seat($1, $2, NULL, NULL)`,
+    ['030105', dev2]
   );
-  assert.equal(reuseTry.authorized, false);
-  assert.equal(reuseTry.status, 'pin_required');
+  assert.equal(dev2Prompt.authorized, false);
+  assert.equal(dev2Prompt.status, 'pin_required');
 
-  // Device 2 unlocks with self-chosen 4-digit PIN '2468'
   const dev2PinOk = await callRpc(
     db,
     'anon',
@@ -311,7 +330,7 @@ async function run() {
   );
   assert.equal(myRecords.length, 1);
   assert.equal(myRecords[0].score, 12);
-  console.log('✓ One-time activation, same-device passwordless, and 2nd-device 4-digit PIN verified');
+  console.log('✓ Blank self-PIN, migrated-record anti-preemption, same-device passwordless, and 2nd-device PIN verified');
 
   // 11. Verify student CANNOT read/write sibling seat OR tamper class/grade/seat to 4-2!
   await assert.rejects(
@@ -353,65 +372,56 @@ async function run() {
   );
   await assert.rejects(
     async () =>
-      callRpc(db, 'anon', `SELECT public.priori_teacher_reset_student_binding($1, '030105')`, [t42Login.token]),
+      callRpc(db, 'anon', `SELECT public.priori_teacher_set_student_pin($1, '030105', '9999')`, [t42Login.token]),
     (err) => err.code === '42501'
   );
   console.log('✓ Student class-tampering 42501 & Class-4-2 directory isolation passed');
 
-  // 12. Teacher reset invalidates old tokens, blocks anonymous preemption, and preserves migrated record
+  // 12. Teacher sets a new 4-digit PIN ('1357') -> revokes old tokens/devices immediately without unbinding window & preserves records
   const resetRes = await callRpc(
     db,
     'anon',
-    `SELECT public.priori_teacher_reset_student_binding($1, $2)`,
-    [adminLogin.token, '030105']
+    `SELECT public.priori_teacher_set_student_pin($1, $2, $3)`,
+    [adminLogin.token, '030105', '1357']
   );
   assert.equal(resetRes.ok, true);
-  assert.match(resetRes.activation_code, /^\d{6}$/);
 
   await assert.rejects(
     async () => callRpc(db, 'anon', `SELECT public.priori_student_get_records($1, $2)`, [stuToken1, '030105']),
     (err) => err.code === '42501',
-    'Reset binding must immediately revoke previous student tokens'
+    'Setting new PIN must immediately revoke previous student tokens'
   );
 
-  // Attacker trying old PIN '2468' after reset CANNOT hijack seat without teacher new activation code
-  const postResetHijack = await callRpc(
+  // Old trusted device dev1 is revoked too (must re-enter new teacher-set PIN; old PIN '2468' is rejected!)
+  const oldPinTry = await callRpc(
     db,
     'anon',
     `SELECT public.priori_student_login_seat($1, $2, '2468', NULL)`,
-    ['030105', 'attacker_device_secret_xyz_123456']
+    ['030105', dev1]
   );
-  assert.equal(postResetHijack.authorized, false);
-  assert.equal(postResetHijack.status, 'invalid_activation_code');
+  assert.equal(oldPinTry.authorized, false);
+  assert.equal(oldPinTry.status, 'invalid_pin');
 
-  // Real student activates with new activation code and new 4-digit PIN '1357' -> keeps score = 12
-  const reActivated = await callRpc(
+  // Real student logs in directly with teacher-chosen 4-digit PIN '1357' -> keeps score = 12
+  const reSignedIn = await callRpc(
     db,
     'anon',
-    `SELECT public.priori_student_login_seat($1, $2, '1357', $3)`,
-    ['030105', dev2, resetRes.activation_code]
+    `SELECT public.priori_student_login_seat($1, $2, '1357', NULL)`,
+    ['030105', dev2]
   );
-  assert.equal(reActivated.authorized, true);
+  assert.equal(reSignedIn.authorized, true);
+  assert.equal(reSignedIn.status, 'pin_verified');
   const preservedRecords = await callRpc(
     db,
     'anon',
     `SELECT public.priori_student_get_records($1, $2)`,
-    [reActivated.token, '030105']
+    [reSignedIn.token, '030105']
   );
   assert.equal(preservedRecords.length, 1);
-  assert.equal(preservedRecords[0].score, 12, 'Teacher reset + reactivation must preserve 100% of records');
-  console.log('✓ Post-reset anti-preemption & zero-data-loss reactivation verified');
+  assert.equal(preservedRecords[0].score, 12, 'Teacher custom PIN reset must preserve 100% of records');
+  console.log('✓ Custom teacher PIN reset revokes old sessions & preserves 100% of records');
 
-  // 13. Teacher binding status listing & bulk class activation code issuance + preserving existing active codes
-  const single030101 = await callRpc(
-    db,
-    'anon',
-    `SELECT public.priori_teacher_issue_activation_code($1, '030101')`,
-    [adminLogin.token]
-  );
-  assert.equal(single030101.ok, true);
-  const code030101Before = single030101.activation_code;
-
+  // 13. Teacher binding status listing & batch class/school custom 4-digit PIN setting
   const bindings31 = await callRpc(
     db,
     'anon',
@@ -419,57 +429,68 @@ async function run() {
     [adminLogin.token]
   );
   assert.equal(bindings31.length, 6, 'Class 3-1 directory should contain 6 seats');
-  const bind030105 = bindings31.find((b) => b.student_key === '030105');
-  assert.equal(bind030105?.status, 'bound');
-  assert.equal(bind030105?.device_count, 1);
-  const bind030101 = bindings31.find((b) => b.student_key === '030101');
-  assert.equal(bind030101?.status, 'awaiting_activation');
+  assert.equal(bindings31.find((b) => b.student_key === '030105')?.status, 'bound');
+  assert.equal(bindings31.find((b) => b.student_key === '030102')?.status, 'bound');
+  assert.equal(bindings31.find((b) => b.student_key === '030101')?.status, 'unbound');
 
-  // Default bulk issue (p_reissue_existing = false) MUST skip BOTH bound 030105 AND awaiting-valid 030101!
-  const bulk31 = await callRpc(
+  // Batch set with p_overwrite_existing = FALSE skips already-bound 030102 & 030105, sets remaining 4 unbound seats
+  const batchSkip = await callRpc(
     db,
     'anon',
-    `SELECT public.priori_teacher_issue_class_activation_codes($1, '3', '1', FALSE)`,
+    `SELECT public.priori_teacher_set_class_pins($1, '3', '1', '3344', FALSE)`,
     [adminLogin.token]
   );
-  assert.equal(bulk31.length, 4, 'Bulk issuance must skip bound 030105 AND active awaiting 030101 -> 4 remaining seats');
-  assert.ok(!bulk31.some((x) => x.student_key === '030105' || x.student_key === '030101'));
+  assert.equal(batchSkip.updated_count, 4);
+  assert.equal(batchSkip.skipped_count, 2);
 
-  // Explicit reissue (p_reissue_existing = true) replaces awaiting 030101 with a fresh code while keeping bound 030105 untouched
-  const reissue31 = await callRpc(
+  // Confirm 030101 can log in with batch PIN '3344' while 030102 still uses '1212'
+  const login01Batch = await callRpc(
     db,
     'anon',
-    `SELECT public.priori_teacher_issue_class_activation_codes($1, '3', '1', TRUE)`,
+    `SELECT public.priori_student_login_seat('030101', $1, '3344', NULL)`,
+    [dev1]
+  );
+  assert.equal(login01Batch.authorized, true);
+  const login02Intact = await callRpc(
+    db,
+    'anon',
+    `SELECT public.priori_student_login_seat('030102', $1, '1212', NULL)`,
+    [dev2]
+  );
+  assert.equal(login02Intact.authorized, true);
+
+  // Batch overwrite (p_overwrite_existing = TRUE) resets all 6 seats in Class 3-1 to '8899' and revokes prior device/PINs
+  const batchOverwrite = await callRpc(
+    db,
+    'anon',
+    `SELECT public.priori_teacher_set_class_pins($1, '3', '1', '8899', TRUE)`,
     [adminLogin.token]
   );
-  assert.equal(reissue31.length, 5, 'Explicit class reissue covers all 5 non-bound seats');
-  const reissued030101 = reissue31.find((x) => x.student_key === '030101');
-  assert.ok(reissued030101 && reissued030101.activation_code !== code030101Before);
-
-  // Old code before explicit reissue fails; new code succeeds
-  const oldCodeFail = await callRpc(
+  assert.equal(batchOverwrite.updated_count, 6);
+  const old02Rejected = await callRpc(
     db,
     'anon',
-    `SELECT public.priori_student_login_seat('030101', $1, '1122', $2)`,
-    [dev1, code030101Before]
+    `SELECT public.priori_student_login_seat('030102', $1, NULL, NULL)`,
+    [dev1]
   );
-  assert.equal(oldCodeFail.authorized, false);
-  assert.equal(oldCodeFail.status, 'invalid_activation_code');
-  const newCodeOk = await callRpc(
+  assert.equal(old02Rejected.authorized, false);
+  assert.equal(old02Rejected.status, 'pin_required');
+  const new02Accepted = await callRpc(
     db,
     'anon',
-    `SELECT public.priori_student_login_seat('030101', $1, '1122', $2)`,
-    [dev1, reissued030101.activation_code]
+    `SELECT public.priori_student_login_seat('030102', $1, '8899', NULL)`,
+    [dev1]
   );
-  assert.equal(newCodeOk.authorized, true);
+  assert.equal(new02Accepted.authorized, true);
 
+  // Class 4-2 teacher CANNOT batch-set Class 3-1 or outside their scope!
   await assert.rejects(
     async () =>
-      callRpc(db, 'anon', `SELECT public.priori_teacher_issue_class_activation_codes($1, '3', '1', FALSE)`, [t42Login.token]),
+      callRpc(db, 'anon', `SELECT public.priori_teacher_set_class_pins($1, '3', '1', '0000', TRUE)`, [t42Login.token]),
     (err) => err.code === '42501',
-    'Class 4-2 teacher must not bulk-issue codes for Class 3-1'
+    'Class 4-2 teacher must not set PINs for Class 3-1'
   );
-  console.log('✓ Teacher binding list, non-destructive bulk class issuance & explicit reissue verified');
+  console.log('✓ Teacher binding list, selective batch PIN init & full-class custom PIN reset verified');
 
   await db.close();
 
@@ -508,8 +529,8 @@ async function run() {
       PRIORI_TEST_DB: '',
       PRIORI_ENABLE_WRITE_PROBES: '',
       PRIORI_TEST_STUDENT_ISOLATION: '',
-      PRIORI_TEACHER_PASSWORD: '',
-      PRIORI_CLASS_TEACHER_PASSWORD: '',
+      PRIORI_TEACHER_PASSWORD: 'lingering-env-pw-must-be-ignored',
+      PRIORI_CLASS_TEACHER_PASSWORD: 'lingering-cls-pw-must-be-ignored',
     });
     assert.equal(roRes.code, 0, `Strict read-only mode failed: ${roRes.stderr}\n${roRes.stdout}`);
     assert.ok(roRes.stdout.includes('STRICT READ-ONLY AUDIT PASSED'));
@@ -518,7 +539,8 @@ async function run() {
         (h.method === 'POST' && !h.pathname.startsWith('/rest/v1/rpc/')) ||
         h.pathname.includes('priori_student_login_seat') ||
         h.pathname.includes('priori_student_upsert_record') ||
-        h.pathname.includes('priori_teacher_reset_student_binding') ||
+        h.pathname.includes('priori_teacher_set_student_pin') ||
+        h.pathname.includes('priori_teacher_set_class_pins') ||
         h.pathname.includes('priori_teacher_login')
     );
     assert.deepEqual(forbiddenPaths, [], `Default read-only audit MUST NOT execute write/login probes, got: ${JSON.stringify(forbiddenPaths)}`);

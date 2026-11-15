@@ -141,11 +141,11 @@ async function run() {
       `Expected forged student token upsert rejected, got ${unauthStuUpsert.status}: ${unauthStuUpsert.text}`
     );
 
-    const forgedReset = await restCall('rpc/priori_teacher_reset_student_binding', {
+    const forgedSetPin = await restCall('rpc/priori_teacher_set_student_pin', {
       method: 'POST',
-      body: { p_token: 'forged-token-' + '0'.repeat(64), p_student_key: '000099' },
+      body: { p_token: 'forged-token-' + '0'.repeat(64), p_student_key: '000099', p_new_pin: '1234' },
     });
-    assert.ok(isDenied(forgedReset), `Expected forged teacher reset rejected, got ${forgedReset.status}`);
+    assert.ok(isDenied(forgedSetPin), `Expected forged teacher set-pin rejected, got ${forgedSetPin.status}`);
 
     for (const badKey of ['guest', '999999', '%', '03%', '']) {
       const res = await restCall('rpc/priori_student_login_seat', {
@@ -212,7 +212,6 @@ async function run() {
         p_student_key: '030199',
         p_device_secret: 'audit_bad_seat_' + 'x'.repeat(24),
         p_transfer_pin: '1234',
-        p_activation_code: '000000',
       },
     });
     assert.ok(
@@ -221,20 +220,19 @@ async function run() {
     );
 
     const probeSeat = (process.env.PRIORI_TEST_SEAT || '000099').trim();
-    const anonClaimNoCode = await restCall('rpc/priori_student_login_seat', {
+    const anonNoPin = await restCall('rpc/priori_student_login_seat', {
       method: 'POST',
       body: {
         p_student_key: probeSeat,
         p_device_secret: 'audit_anon_probe_' + 'x'.repeat(24),
-        p_transfer_pin: '1234',
       },
     });
     assert.equal(
-      Boolean(anonClaimNoCode.json?.authorized),
+      Boolean(anonNoPin.json?.authorized),
       false,
-      `Anonymous login without activation code/PIN must never authorize: ${anonClaimNoCode.text}`
+      `Anonymous login without PIN must never authorize: ${anonNoPin.text}`
     );
-    assert.ok(!anonClaimNoCode.json?.token, 'Anonymous unverified login must not return token');
+    assert.ok(!anonNoPin.json?.token, 'Anonymous unverified login must not return token');
     console.log('✓ Test-DB leaderboard constraint & anonymous claim block verified');
   } else {
     console.log('ℹ️ Read-only mode: skipped POST leaderboard & student-seat login probes (protected from PIN/trusted-device writes).');
@@ -245,7 +243,7 @@ async function run() {
   if (ENABLE_ISOLATION_TEST) {
     if (!teacherPw) {
       throw new Error(
-        'PRIORI_TEST_STUDENT_ISOLATION=1 requires PRIORI_TEACHER_PASSWORD (initial binding requires a teacher-issued 6-digit activation code).'
+        'PRIORI_TEST_STUDENT_ISOLATION=1 requires PRIORI_TEACHER_PASSWORD.'
       );
     }
     const testSeat = (process.env.PRIORI_TEST_SEAT || '').trim();
@@ -279,12 +277,12 @@ async function run() {
         );
       }
 
-      const issueRes = await restCall('rpc/priori_teacher_issue_activation_code', {
+      const setPinRes = await restCall('rpc/priori_teacher_set_student_pin', {
         method: 'POST',
-        body: { p_token: adminTok, p_student_key: testSeat },
+        body: { p_token: adminTok, p_student_key: testSeat, p_new_pin: '1357' },
       });
-      if (!issueRes.json?.ok) {
-        throw new Error(`Could not issue activation code for test seat ${testSeat}: ${issueRes.text}`);
+      if (!setPinRes.json?.ok) {
+        throw new Error(`Could not set 4-digit PIN for test seat ${testSeat}: ${setPinRes.text}`);
       }
 
       const devA = 'audit_dev_a_' + Date.now() + '_' + 'a'.repeat(16);
@@ -294,7 +292,6 @@ async function run() {
           p_student_key: testSeat,
           p_device_secret: devA,
           p_transfer_pin: '1357',
-          p_activation_code: issueRes.json.activation_code,
         },
       });
       assert.equal(bindA.json?.authorized, true, `Failed activating test seat ${testSeat}: ${bindA.text}`);
@@ -354,8 +351,8 @@ async function run() {
     console.log('ℹ️ Read-only audit mode: skipped isolation write test (run only on a test DB with PRIORI_TEST_DB=1 PRIORI_TEST_STUDENT_ISOLATION=1 PRIORI_TEST_SEAT=000099).');
   }
 
-  // 7. Optional authenticated teacher & single-class isolation roundtrip
-  if (teacherPw) {
+  // 7. Optional authenticated teacher & single-class isolation roundtrip (gated to ALLOW_TEST_DB_WRITES to avoid lingering env vars mutating prod sessions)
+  if (ALLOW_TEST_DB_WRITES && teacherPw) {
     const loginOk = await restCall('rpc/priori_teacher_login', {
       method: 'POST',
       body: { p_password: teacherPw },
@@ -389,7 +386,7 @@ async function run() {
   }
 
   const classTeacherPw = process.env.PRIORI_CLASS_TEACHER_PASSWORD || '';
-  if (classTeacherPw) {
+  if (ALLOW_TEST_DB_WRITES && classTeacherPw) {
     const clsLogin = await restCall('rpc/priori_teacher_login', {
       method: 'POST',
       body: { p_password: classTeacherPw },
