@@ -459,7 +459,103 @@ export async function saveEncryptedRosterEnvelope(
 }
 
 /**
- * 教師為忘記 4 碼換機密碼或更換新 iPad 的授權班級學生重設裝置綁定（不刪除作答紀錄）
+ * 教師讀取授權班級學生之裝置綁定／待啟用狀態（不含雜湊或明文啟用碼）
+ */
+export async function fetchPrioriStudentBindingsServer(teacherToken, grade = null, classNum = null) {
+  const activeToken = teacherToken || getPrioriTeacherSession()?.token || '';
+  if (!activeToken) {
+    return { ok: false, bindings: [], error: '缺乏有效教師伺服器憑證' };
+  }
+  try {
+    const { data, error } = await supabase.rpc('priori_teacher_list_bindings', {
+      p_token: activeToken,
+      p_grade: grade && grade !== 'demo' ? String(grade) : null,
+      p_class_num: classNum && classNum !== 'all' && classNum !== 'demo' ? String(classNum) : null,
+    });
+    if (error) {
+      return {
+        ok: false,
+        bindings: [],
+        unauthorized: isPrioriUnauthorizedError(error),
+        schemaPending: isPrioriSchemaPendingError(error),
+        error: error.message || '讀取裝置綁定狀態失敗',
+      };
+    }
+    return { ok: true, bindings: Array.isArray(data) ? data : [] };
+  } catch (err) {
+    return { ok: false, bindings: [], error: err?.message || '讀取裝置綁定狀態連線失敗' };
+  }
+}
+
+/**
+ * 教師為單一尚未綁定／待啟用座號發放一次性 6 碼啟用碼
+ */
+export async function issuePrioriActivationCodeServer(teacherToken, studentKey) {
+  const activeToken = teacherToken || getPrioriTeacherSession()?.token || '';
+  const cleanKey = String(studentKey || '').trim();
+  if (!activeToken) {
+    return { ok: false, error: '缺乏有效教師伺服器憑證' };
+  }
+  if (!/^\d{6}$/.test(cleanKey) || cleanKey === '999999') {
+    return { ok: false, error: '無效的 6 碼座號' };
+  }
+  try {
+    const { data, error } = await supabase.rpc('priori_teacher_issue_activation_code', {
+      p_token: activeToken,
+      p_student_key: cleanKey,
+    });
+    if (error) {
+      return {
+        ok: false,
+        unauthorized: isPrioriUnauthorizedError(error),
+        schemaPending: isPrioriSchemaPendingError(error),
+        error: error.message || '產生啟用碼失敗',
+      };
+    }
+    return {
+      ok: Boolean(data?.ok),
+      reason: data?.reason || '',
+      studentKey: data?.student_key || cleanKey,
+      activationCode: data?.activation_code || '',
+      expiresAt: data?.expires_at || null,
+      error: data?.reason === 'already_bound' ? '該座號已綁定裝置；若學生忘記密碼請改用「重設並發啟用碼」。' : '',
+    };
+  } catch (err) {
+    return { ok: false, error: err?.message || '產生啟用碼連線失敗' };
+  }
+}
+
+/**
+ * 教師為整班尚未綁定學生批量產生一次性 6 碼啟用碼
+ */
+export async function issuePrioriClassActivationCodesServer(teacherToken, grade, classNum) {
+  const activeToken = teacherToken || getPrioriTeacherSession()?.token || '';
+  if (!activeToken) {
+    return { ok: false, items: [], error: '缺乏有效教師伺服器憑證' };
+  }
+  try {
+    const { data, error } = await supabase.rpc('priori_teacher_issue_class_activation_codes', {
+      p_token: activeToken,
+      p_grade: String(grade || ''),
+      p_class_num: String(classNum || ''),
+    });
+    if (error) {
+      return {
+        ok: false,
+        items: [],
+        unauthorized: isPrioriUnauthorizedError(error),
+        schemaPending: isPrioriSchemaPendingError(error),
+        error: error.message || '整班發放啟用碼失敗',
+      };
+    }
+    return { ok: true, items: Array.isArray(data) ? data : [] };
+  } catch (err) {
+    return { ok: false, items: [], error: err?.message || '整班發放啟用碼連線失敗' };
+  }
+}
+
+/**
+ * 教師為忘記 4 碼換機密碼或更換新 iPad 的授權班級學生重設裝置綁定並換發新啟用碼（不刪除作答紀錄）
  */
 export async function resetPrioriStudentBindingServer(teacherToken, studentKey) {
   const activeToken = teacherToken || getPrioriTeacherSession()?.token || '';
@@ -484,7 +580,12 @@ export async function resetPrioriStudentBindingServer(teacherToken, studentKey) 
         error: error.message || '重設學生裝置綁定失敗',
       };
     }
-    return { ok: Boolean(data?.ok ?? true) };
+    return {
+      ok: Boolean(data?.ok ?? true),
+      studentKey: data?.student_key || cleanKey,
+      activationCode: data?.activation_code || '',
+      expiresAt: data?.expires_at || null,
+    };
   } catch (err) {
     return { ok: false, error: err?.message || '重設學生裝置綁定連線失敗' };
   }

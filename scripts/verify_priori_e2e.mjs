@@ -217,6 +217,114 @@ class CDP {
         return { status: 200, body: JSON.stringify({ ok: true, updated_at: now, roster_key: scopeKey }) };
       }
 
+      if (rpcName === 'priori_teacher_list_bindings') {
+        const sess = this.teacherSessions.get(payload?.p_token || '');
+        if (!sess) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Unauthorized teacher session' }) };
+        }
+        const headcounts = {
+          '1-1': 5, '1-2': 11, '2-1': 6, '2-2': 4, '3-1': 6, '3-2': 9,
+          '4-1': 8, '4-2': 11, '5-1': 6, '5-2': 19, '6-1': 6, '6-2': 12,
+        };
+        const reqG = payload?.p_grade ? String(parseInt(payload.p_grade, 10)) : null;
+        const reqC = payload?.p_class_num ? String(parseInt(payload.p_class_num, 10)) : null;
+        const items = [];
+        for (const [clsKey, maxSeat] of Object.entries(headcounts)) {
+          const [g, c] = clsKey.split('-');
+          if (!sess.allowedClasses.includes('*') && !sess.allowedClasses.includes(clsKey)) continue;
+          if (reqG && g !== reqG) continue;
+          if (reqC && c !== reqC) continue;
+          for (let s = 1; s <= maxSeat; s += 1) {
+            const seatStr = String(s).padStart(2, '0');
+            const sk = `${g.padStart(2, '0')}${c.padStart(2, '0')}${seatStr}`;
+            const bind = this.studentBindings.get(sk);
+            let status = 'unbound';
+            if (bind) {
+              if (bind.lockedUntil > Date.now()) status = 'locked';
+              else if (!bind.pin) status = bind.activationCode ? 'awaiting_activation' : 'unbound';
+              else status = 'bound';
+            }
+            items.push({
+              student_key: sk,
+              grade: g,
+              class_num: c,
+              seat: seatStr,
+              status,
+              device_count: bind?.deviceSecrets?.size || 0,
+              activation_expires_at: bind?.activationExpiresAt || null,
+              activated_at: bind?.activatedAt || null,
+            });
+          }
+        }
+        return { status: 200, body: JSON.stringify(items) };
+      }
+
+      if (rpcName === 'priori_teacher_issue_activation_code') {
+        const sess = this.teacherSessions.get(payload?.p_token || '');
+        const sk = String(payload?.p_student_key || '').trim();
+        if (!sess) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Unauthorized teacher session' }) };
+        }
+        const cls = `${parseInt(sk.slice(0, 2), 10)}-${parseInt(sk.slice(2, 4), 10)}`;
+        if (!sess.allowedClasses.includes('*') && !sess.allowedClasses.includes(cls)) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Forbidden: student outside scope' }) };
+        }
+        const existing = this.studentBindings.get(sk);
+        if (existing?.pin && existing.deviceSecrets?.size > 0) {
+          return { status: 200, body: JSON.stringify({ ok: false, reason: 'already_bound', student_key: sk }) };
+        }
+        const activationCode = String(100000 + ((this.nextRowSeq++ * 7919) % 900000));
+        const expiresAt = new Date(Date.now() + 7 * 86400 * 1000).toISOString();
+        this.studentBindings.set(sk, {
+          pin: null,
+          activationCode,
+          activationExpiresAt: expiresAt,
+          activatedAt: null,
+          deviceSecrets: new Set(),
+          failCount: 0,
+          lockedUntil: 0,
+        });
+        return { status: 200, body: JSON.stringify({ ok: true, student_key: sk, activation_code: activationCode, expires_at: expiresAt }) };
+      }
+
+      if (rpcName === 'priori_teacher_issue_class_activation_codes') {
+        const sess = this.teacherSessions.get(payload?.p_token || '');
+        if (!sess) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Unauthorized teacher session' }) };
+        }
+        const g = String(parseInt(payload?.p_grade || '0', 10));
+        const c = String(parseInt(payload?.p_class_num || '0', 10));
+        const clsKey = `${g}-${c}`;
+        const headcounts = {
+          '1-1': 5, '1-2': 11, '2-1': 6, '2-2': 4, '3-1': 6, '3-2': 9,
+          '4-1': 8, '4-2': 11, '5-1': 6, '5-2': 19, '6-1': 6, '6-2': 12,
+        };
+        if (!sess.allowedClasses.includes('*') && !sess.allowedClasses.includes(clsKey)) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Forbidden: class outside scope' }) };
+        }
+        const maxSeat = headcounts[clsKey] || 0;
+        const expiresAt = new Date(Date.now() + 7 * 86400 * 1000).toISOString();
+        const issued = [];
+        for (let s = 1; s <= maxSeat; s += 1) {
+          const seatStr = String(s).padStart(2, '0');
+          const sk = `${g.padStart(2, '0')}${c.padStart(2, '0')}${seatStr}`;
+          const existing = this.studentBindings.get(sk);
+          if (existing?.pin && existing.deviceSecrets?.size > 0) continue;
+          const activationCode = String(100000 + ((this.nextRowSeq++ * 7919) % 900000));
+          this.studentBindings.set(sk, {
+            pin: null,
+            activationCode,
+            activationExpiresAt: expiresAt,
+            activatedAt: null,
+            deviceSecrets: new Set(),
+            failCount: 0,
+            lockedUntil: 0,
+          });
+          issued.push({ student_key: sk, grade: g, class_num: c, seat: seatStr, activation_code: activationCode, expires_at: expiresAt });
+        }
+        return { status: 200, body: JSON.stringify(issued) };
+      }
+
       if (rpcName === 'priori_teacher_reset_student_binding') {
         const sess = this.teacherSessions.get(payload?.p_token || '');
         const sk = String(payload?.p_student_key || '').trim();
@@ -227,48 +335,106 @@ class CDP {
         if (!sess.allowedClasses.includes('*') && !sess.allowedClasses.includes(cls)) {
           return { status: 401, body: JSON.stringify({ code: '42501', message: 'Forbidden: student outside scope' }) };
         }
-        this.studentBindings.delete(sk);
         for (const [t, s] of this.studentSessions.entries()) {
           if (s.studentKey === sk) this.studentSessions.delete(t);
         }
-        return { status: 200, body: JSON.stringify({ ok: true, student_key: sk }) };
+        const activationCode = String(100000 + ((this.nextRowSeq++ * 7919) % 900000));
+        const expiresAt = new Date(Date.now() + 7 * 86400 * 1000).toISOString();
+        this.studentBindings.set(sk, {
+          pin: null,
+          activationCode,
+          activationExpiresAt: expiresAt,
+          activatedAt: null,
+          deviceSecrets: new Set(),
+          failCount: 0,
+          lockedUntil: 0,
+        });
+        return { status: 200, body: JSON.stringify({ ok: true, student_key: sk, activation_code: activationCode, expires_at: expiresAt }) };
       }
 
       if (rpcName === 'priori_student_login_seat') {
         const sk = String(payload?.p_student_key || '').trim();
         const devSecret = String(payload?.p_device_secret || '').trim();
         const pin = payload?.p_transfer_pin ? String(payload.p_transfer_pin).trim() : '';
+        const actCode = payload?.p_activation_code ? String(payload.p_activation_code).trim() : '';
         if (!/^\d{6}$/.test(sk) || sk === '999999' || devSecret.length < 16) {
           return { status: 400, body: JSON.stringify({ code: '22023', message: 'Invalid student/device credential' }) };
         }
+        const headcounts = {
+          '1-1': 5, '1-2': 11, '2-1': 6, '2-2': 4, '3-1': 6, '3-2': 9,
+          '4-1': 8, '4-2': 11, '5-1': 6, '5-2': 19, '6-1': 6, '6-2': 12,
+        };
+        const gNum = parseInt(sk.slice(0, 2), 10);
+        const cNum = parseInt(sk.slice(2, 4), 10);
+        const sNum = parseInt(sk.slice(4, 6), 10);
+        const maxSeat = headcounts[`${gNum}-${cNum}`] || 0;
+        if (sNum < 1 || sNum > maxSeat) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Unknown or inactive student seat' }) };
+        }
         let bind = this.studentBindings.get(sk);
         const expiresAt = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
+        const hasRecs = this.prioriRecords.some((r) => r.student_key === sk);
         const issueToken = (status) => {
           const token = `psess_mock_${sk}_${this.nextRowSeq++}_${'s'.repeat(32)}`;
           this.studentSessions.set(token, { studentKey: sk, devSecret, expiresAt });
           return { status: 200, body: JSON.stringify({ authorized: true, status, token, student_key: sk, expires_at: expiresAt }) };
         };
-        if (!bind) {
+        if (bind && bind.lockedUntil > Date.now()) {
+          return {
+            status: 200,
+            body: JSON.stringify({
+              authorized: false,
+              status: !bind.pin ? 'activation_locked' : 'pin_locked',
+              has_active_code: !bind.pin && Boolean(bind.activationCode),
+              has_records: hasRecs,
+            }),
+          };
+        }
+        if (!bind || !bind.pin) {
+          const hasActiveCode = Boolean(bind?.activationCode);
+          if (!hasActiveCode || !actCode) {
+            return {
+              status: 200,
+              body: JSON.stringify({
+                authorized: false,
+                status: 'needs_activation',
+                has_active_code: hasActiveCode,
+                has_records: hasRecs,
+                remaining_attempts: hasActiveCode ? Math.max(1, 5 - (bind?.failCount || 0)) : 0,
+              }),
+            };
+          }
+          if (!/^\d{6}$/.test(actCode) || actCode !== bind.activationCode) {
+            bind.failCount = (bind.failCount || 0) + 1;
+            if (bind.failCount >= 5) {
+              bind.lockedUntil = Date.now() + 15 * 60 * 1000;
+              return { status: 200, body: JSON.stringify({ authorized: false, status: 'activation_locked', remaining_attempts: 0, has_active_code: true, has_records: hasRecs }) };
+            }
+            return { status: 200, body: JSON.stringify({ authorized: false, status: 'invalid_activation_code', remaining_attempts: 5 - bind.failCount, has_active_code: true, has_records: hasRecs }) };
+          }
           if (!/^\d{4}$/.test(pin)) {
             return {
               status: 200,
               body: JSON.stringify({
                 authorized: false,
                 status: pin ? 'invalid_pin_format' : 'needs_pin_setup',
-                has_records: this.prioriRecords.some((r) => r.student_key === sk),
+                has_active_code: true,
+                has_records: hasRecs,
               }),
             };
           }
-          bind = { pin, deviceSecrets: new Set([devSecret]), failCount: 0, lockedUntil: 0 };
+          bind.pin = pin;
+          bind.activationCode = null;
+          bind.activatedAt = new Date().toISOString();
+          bind.deviceSecrets = new Set([devSecret]);
+          bind.failCount = 0;
+          bind.lockedUntil = 0;
           this.studentBindings.set(sk, bind);
           return issueToken('bound_new');
         }
         if (bind.deviceSecrets.has(devSecret)) {
           bind.failCount = 0;
           return issueToken('trusted_device');
-        }
-        if (bind.lockedUntil > Date.now()) {
-          return { status: 200, body: JSON.stringify({ authorized: false, status: 'pin_locked' }) };
         }
         if (!pin) {
           return { status: 200, body: JSON.stringify({ authorized: false, status: 'pin_required', remaining_attempts: Math.max(1, 5 - bind.failCount) }) };
@@ -335,15 +501,24 @@ class CDP {
         if (!/^\d{6}$/.test(sk) || sk === '999999' || !pid) {
           return { status: 400, body: JSON.stringify({ code: '22023', message: 'Invalid student record scope' }) };
         }
+        const dirGrade = String(parseInt(sk.slice(0, 2), 10));
+        const dirClass = String(parseInt(sk.slice(2, 4), 10));
+        const dirSeat = sk.slice(4, 6);
+        const reqGrade = String(payload?.p_grade ?? dirGrade).trim().replace(/^0+/, '') || dirGrade;
+        const reqClass = String(payload?.p_class_num ?? dirClass).trim().replace(/^0+/, '') || dirClass;
+        const reqSeat = String(payload?.p_seat ?? dirSeat).trim().replace(/^0+/, '');
+        if (reqGrade !== dirGrade || reqClass !== dirClass || (reqSeat && reqSeat !== String(parseInt(dirSeat, 10)))) {
+          return { status: 401, body: JSON.stringify({ code: '42501', message: 'Forbidden: grade/class/seat mismatch against student directory' }) };
+        }
         const now = new Date().toISOString();
         const recordKey = `priori_${sk}_${pid}`;
         const nextRow = {
           record_key: recordKey,
           student_key: sk,
           paper_id: pid,
-          grade: String(payload?.p_grade || '03'),
-          class_num: String(payload?.p_class_num || '1'),
-          seat: String(payload?.p_seat || '01'),
+          grade: dirGrade,
+          class_num: dirClass,
+          seat: dirSeat,
           score: Number(payload?.p_score) || 0,
           elapsed_seconds: Number(payload?.p_elapsed) || 0,
           payload: payload?.p_payload,
@@ -1380,7 +1555,7 @@ async function run() {
       `);
     };
 
-    const submitTransferPin = async (pin, expectError = false) => {
+    const submitTransferPin = async (pin, expectError = false, activationCode = null, expectedErrorSubstring = '不正確') => {
       const res = await client.eval(`
         (async () => {
           const deadline = Date.now() + 5000;
@@ -1392,6 +1567,11 @@ async function run() {
           }
           if (!input) return { ok: false, reason: 'PIN dialog not shown' };
           const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+          const actInput = document.getElementById('priori-student-activation-code');
+          if (${JSON.stringify(activationCode)} !== null && actInput) {
+            setter.call(actInput, ${JSON.stringify(activationCode || '')});
+            actInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }
           setter.call(input, ${JSON.stringify(pin)});
           input.dispatchEvent(new Event('input', { bubbles: true }));
           const form = input.closest('form');
@@ -1400,7 +1580,7 @@ async function run() {
             await new Promise((r) => setTimeout(r, 350));
             const stillOpen = !!document.getElementById('priori-student-transfer-pin');
             const dialogText = form?.innerText || '';
-            return { ok: stillOpen && dialogText.includes('不正確'), dialogText };
+            return { ok: stillOpen && dialogText.includes(${JSON.stringify(expectedErrorSubstring)}), dialogText };
           }
           const closeDeadline = Date.now() + 5000;
           while (Date.now() < closeDeadline) {
@@ -1410,7 +1590,7 @@ async function run() {
           return { ok: !document.getElementById('priori-student-transfer-pin') };
         })()
       `);
-      assert.equal(res?.ok, true, `Transfer PIN interaction (${pin}) failed: ${JSON.stringify(res)}`);
+      assert.equal(res?.ok, true, `Transfer PIN interaction (${pin}/${activationCode}) failed: ${JSON.stringify(res)}`);
     };
 
     const start114MathAndAnswer = async (qNum, optIdx) => {
@@ -1459,17 +1639,102 @@ async function run() {
       `);
     };
 
-    // Device 1: Logged in as 3年甲班 05號 ('030105'), sets 4-digit PIN '0512', solves Q1 right (option index 3) and submits
+    // Pre-issue anti-preemption check: anonymous visitor CANNOT self-claim unbound seat '030105' without teacher code
     await resetLocalPrioriForSeat('030105', { resetDeviceSecret: true });
     await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori` });
     await sleep(600);
-    await submitTransferPin('0512', false);
+    const blockedBeforeIssue = await client.eval(`
+      (async () => {
+        const deadline = Date.now() + 5000;
+        let actInput = null;
+        while (Date.now() < deadline) {
+          actInput = document.getElementById('priori-student-activation-code');
+          if (actInput) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        const formText = actInput?.closest('form')?.innerText || '';
+        return {
+          ok: Boolean(actInput) && formText.includes('尚未為這組座號產生啟用碼'),
+          formText,
+        };
+      })()
+    `);
+    assert.equal(blockedBeforeIssue?.ok, true, `Unbound seat must require teacher activation code: ${JSON.stringify(blockedBeforeIssue)}`);
+    await submitTransferPin('0512', true, '123456', '啟用碼');
 
-    // Reload on SAME Device 1: MUST NOT prompt for PIN again!
+    // Teacher logs into Dashboard first (verifying legacy fallback password blocked) and issues 6-digit code for 030105
+    await client.eval(`sessionStorage.removeItem('wutai_priori_teacher_session_v1'); sessionStorage.removeItem('wutai_priori_teacher_authed');`);
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&tab=teacher` });
+    await sleep(700);
+    const issuedCodeRes = await client.eval(`
+      (async () => {
+        const setInput = (el, val) => {
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+          setter.call(el, val);
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+        const setSelect = (el, val) => {
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+          setter.call(el, val);
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        const pwInput = document.getElementById('priori-teacher-password');
+        let legacyBlocked = false;
+        if (pwInput) {
+          setInput(pwInput, 'wt7902230');
+          Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
+          await new Promise((r) => setTimeout(r, 350));
+          legacyBlocked = (document.body.innerText || '').includes('教師密碼錯誤');
+
+          setInput(pwInput, 'ci-mock-admin-pw');
+          Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
+          const deadline = Date.now() + 5000;
+          while (Date.now() < deadline) {
+            if (document.querySelector('section[aria-label="班級成績總覽矩陣"]')) break;
+            await new Promise((r) => setTimeout(r, 120));
+          }
+        }
+        const gradeSel = document.querySelector('select[aria-label="篩選年級"]');
+        const classSel = document.querySelector('select[aria-label="篩選班級"]');
+        setSelect(gradeSel, '3');
+        await new Promise((r) => setTimeout(r, 150));
+        setSelect(classSel, '1');
+        await new Promise((r) => setTimeout(r, 250));
+        const issueBtn = document.querySelector('button[data-binding-action="issue"][data-student-key="030105"]');
+        issueBtn?.click();
+        const noticeDeadline = Date.now() + 4000;
+        let noticeText = '';
+        while (Date.now() < noticeDeadline) {
+          noticeText = document.getElementById('priori-teacher-binding-notice')?.innerText || '';
+          if (/\\d{6}/.test(noticeText)) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        const match = noticeText.match(/啟用碼[：:]\\s*(\\d{6})/);
+        return {
+          ok: legacyBlocked && Boolean(match?.[1]),
+          legacyBlocked,
+          code: match?.[1] || '',
+          noticeText,
+        };
+      })()
+    `);
+    assert.equal(issuedCodeRes?.ok, true, `Teacher activation code issuance failed: ${JSON.stringify(issuedCodeRes)}`);
+    const seat05ActivationCode = issuedCodeRes.code;
+
+    // Device 1: Wrong activation code rejected, then real 6-digit activation code + 4-digit PIN '0512' binds & stays passwordless
+    await resetLocalPrioriForSeat('030105', { resetDeviceSecret: true });
     await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori` });
     await sleep(600);
-    const sameDevNoPrompt = await client.eval(`!document.getElementById('priori-student-transfer-pin')`);
-    assert.equal(sameDevNoPrompt, true, 'Same trusted device must NOT prompt for transfer PIN again');
+    await submitTransferPin('0512', true, '000000', '啟用碼');
+    await submitTransferPin('0512', false, seat05ActivationCode);
+
+    // Reload on SAME Device 1: MUST NOT prompt for activation code or PIN again!
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori` });
+    await sleep(600);
+    const sameDevNoPrompt = await client.eval(
+      `!document.getElementById('priori-student-transfer-pin') && !document.getElementById('priori-student-activation-code')`
+    );
+    assert.equal(sameDevNoPrompt, true, 'Same trusted device must NOT prompt for activation code or transfer PIN again');
 
     await start114MathAndAnswer(1, 3);
     await submitQuiz();
@@ -1532,7 +1797,7 @@ async function run() {
     `);
     assert.equal(hubMerged?.ok, true, `Expected Hub 114-math-g3 strip to show 8 分: ${JSON.stringify(hubMerged)}`);
 
-    // Teacher Dashboard 3年甲班 Seat 05 shows 8 分 in BOTH 初測成績（預設） and 精熟後成果 (fresh server login!)
+    // Teacher Dashboard 3年甲班 Seat 05 shows 8 分 in BOTH 初測成績（預設） and 精熟後成果 + '已綁 2 台'
     await client.eval(`sessionStorage.removeItem('wutai_priori_teacher_session_v1'); sessionStorage.removeItem('wutai_priori_teacher_authed');`);
     await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&tab=teacher` });
     await sleep(700);
@@ -1549,13 +1814,7 @@ async function run() {
           el.dispatchEvent(new Event('change', { bubbles: true }));
         };
         const pwInput = document.getElementById('priori-teacher-password');
-        let legacyBlocked = false;
         if (pwInput) {
-          setInput(pwInput, 'wt7902230');
-          Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
-          await new Promise((r) => setTimeout(r, 350));
-          legacyBlocked = (document.body.innerText || '').includes('教師密碼錯誤');
-
           setInput(pwInput, 'ci-mock-admin-pw');
           Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
           const deadline = Date.now() + 5000;
@@ -1569,7 +1828,7 @@ async function run() {
         setSelect(gradeSel, '3');
         await new Promise((r) => setTimeout(r, 150));
         setSelect(classSel, '1');
-        await new Promise((r) => setTimeout(r, 250));
+        await new Promise((r) => setTimeout(r, 300));
 
         const matrix = document.querySelector('section[aria-label="班級成績總覽矩陣"]');
         const seat05RowInitial = Array.from(matrix?.querySelectorAll('tbody tr') || []).find((tr) =>
@@ -1584,11 +1843,20 @@ async function run() {
         );
         const masteryText = seat05RowMastery?.innerText || '';
 
+        // Bulk-issue remaining unbound seats in Class 3-1 (6 total - 1 bound = 5 seats)
+        document.getElementById('priori-teacher-issue-class-codes-btn')?.click();
+        await new Promise((r) => setTimeout(r, 300));
+        const classCodesPanelText = document.getElementById('priori-teacher-class-activation-codes')?.innerText || '';
+
         return {
-          ok: legacyBlocked && initialText.includes('8 分') && masteryText.includes('8 分'),
-          legacyBlocked,
+          ok:
+            initialText.includes('8 分') &&
+            initialText.includes('已綁 2 台') &&
+            masteryText.includes('8 分') &&
+            classCodesPanelText.includes('5 位'),
           initialText,
           masteryText,
+          classCodesPanelText,
         };
       })()
     `);
@@ -1608,6 +1876,9 @@ async function run() {
     assert.ok(rpcUrls.includes('priori_student_upsert_record'), `Missing student upsert RPC call: ${JSON.stringify(rpcUrls)}`);
     assert.ok(rpcUrls.includes('priori_teacher_login'), `Missing teacher login RPC call: ${JSON.stringify(rpcUrls)}`);
     assert.ok(rpcUrls.includes('priori_teacher_list_records'), `Missing teacher list RPC call: ${JSON.stringify(rpcUrls)}`);
+    assert.ok(rpcUrls.includes('priori_teacher_list_bindings'), `Missing teacher bindings RPC call: ${JSON.stringify(rpcUrls)}`);
+    assert.ok(rpcUrls.includes('priori_teacher_issue_activation_code'), `Missing teacher issue activation RPC call: ${JSON.stringify(rpcUrls)}`);
+    assert.ok(rpcUrls.includes('priori_teacher_issue_class_activation_codes'), `Missing teacher bulk issue activation RPC call: ${JSON.stringify(rpcUrls)}`);
 
     // Direct RPC contract isolation assertions on mock server (0 browser console noise):
     const activeTokenA = Array.from(client.studentSessions.entries()).find(([, s]) => s.studentKey === '030105')?.[0];
@@ -1635,6 +1906,23 @@ async function run() {
     });
     assert.equal(crossWriteMock.status, 401, `Student A writing Student B must be rejected: ${crossWriteMock.body}`);
 
+    const classTamperMock = client.handleMockSupabase({
+      url: 'https://fqkdkmcqjswufzbvkram.supabase.co/rest/v1/rpc/priori_student_upsert_record',
+      method: 'POST',
+      postData: JSON.stringify({
+        p_token: activeTokenA,
+        p_student_key: '030105',
+        p_paper_id: '114-math-g3',
+        p_grade: '04',
+        p_class_num: '2',
+        p_seat: '05',
+        p_score: 100,
+        p_elapsed: 5,
+        p_payload: {},
+      }),
+    });
+    assert.equal(classTamperMock.status, 401, `Student 3-1 tampering grade/class to 4-2 must be rejected: ${classTamperMock.body}`);
+
     const clsLoginMock = client.handleMockSupabase({
       url: 'https://fqkdkmcqjswufzbvkram.supabase.co/rest/v1/rpc/priori_teacher_login',
       method: 'POST',
@@ -1653,7 +1941,43 @@ async function run() {
       postData: JSON.stringify({ p_token: clsToken, p_grade: '3', p_class_num: '2' }),
     });
     assert.equal(clsForeignClass.status, 401, `Single-class teacher must be denied foreign class 3-2: ${clsForeignClass.body}`);
-    console.log('✓ Test I (4-digit transfer PIN + cross-sync 8 分 + Student/Class Teacher isolation verified) passed');
+
+    // Teacher clicks '重設並發啟用碼' in Dashboard UI -> revokes activeTokenA & blocks post-reset hijacking without new code
+    const resetUiRes = await client.eval(`
+      (async () => {
+        window.confirm = () => true;
+        document.querySelector('button[data-binding-action="reset"][data-student-key="030105"]')?.click();
+        const deadline = Date.now() + 4000;
+        let notice = '';
+        while (Date.now() < deadline) {
+          notice = document.getElementById('priori-teacher-binding-notice')?.innerText || '';
+          if (notice.includes('新一次性 6 碼啟用碼')) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        const match = notice.match(/啟用碼[：:]\\s*(\\d{6})/);
+        return { ok: Boolean(match?.[1]), newCode: match?.[1] || '', notice };
+      })()
+    `);
+    assert.equal(resetUiRes?.ok, true, `Teacher reset UI failed to issue new activation code: ${JSON.stringify(resetUiRes)}`);
+    assert.notEqual(resetUiRes.newCode, seat05ActivationCode, 'Reset must issue a fresh one-time activation code');
+    const staleTokenCheck = client.handleMockSupabase({
+      url: 'https://fqkdkmcqjswufzbvkram.supabase.co/rest/v1/rpc/priori_student_get_records',
+      method: 'POST',
+      postData: JSON.stringify({ p_token: activeTokenA, p_student_key: '030105' }),
+    });
+    assert.equal(staleTokenCheck.status, 401, `Old student token must be invalidated after reset: ${staleTokenCheck.body}`);
+    const postResetHijack = client.handleMockSupabase({
+      url: 'https://fqkdkmcqjswufzbvkram.supabase.co/rest/v1/rpc/priori_student_login_seat',
+      method: 'POST',
+      postData: JSON.stringify({
+        p_student_key: '030105',
+        p_device_secret: 'attacker_device_secret_value_12345',
+        p_transfer_pin: '8888',
+        p_activation_code: seat05ActivationCode,
+      }),
+    });
+    assert.equal(JSON.parse(postResetHijack.body).authorized, false, `Old activation code must fail after reset: ${postResetHijack.body}`);
+    console.log('✓ Test I (teacher 6-digit activation code + 4-digit PIN + cross-sync 8 分 + directory & reset isolation verified) passed');
 
     // Test J: Year-113 G3–G6 Sampling + Official 113 Eng G5 Q9 (1) / G6 Q23 (2) Grading + Legacy Record Reconciliation
     await client.send('Page.addScriptToEvaluateOnNewDocument', {

@@ -70,6 +70,9 @@ jobs:
           node scripts/test_priori_114_g4_6_contract.mjs
           node scripts/test_priori_115_math_g3_contract.mjs
 
+      - name: 🐘 Run Real PostgreSQL + pgcrypto SQL & Migration Security Tests
+        run: node scripts/test_priori_sql_pg.mjs
+
       - name: 🧹 ESLint Check
         run: npm run lint
 

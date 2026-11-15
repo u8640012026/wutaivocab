@@ -73,19 +73,24 @@ CREATE POLICY "Allow public update words" ON public.words FOR UPDATE USING (true
 DROP POLICY IF EXISTS "Allow public delete words" ON public.words;
 CREATE POLICY "Allow public delete words" ON public.words FOR DELETE USING (true);
 
--- 排行榜權限：允許所有人讀取榜單
+-- 排行榜權限：允許所有人讀取榜單（永久排除 PRIORI 隔離紀錄）
 DROP POLICY IF EXISTS "Allow public read leaderboard" ON public.leaderboard;
-CREATE POLICY "Allow public read leaderboard" ON public.leaderboard FOR SELECT USING (true);
+CREATE POLICY "Allow public read leaderboard" ON public.leaderboard FOR SELECT
+  USING (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster');
 
--- 排行榜權限：允許所有人上傳個人成績
+-- 排行榜權限：允許所有人上傳個人成績（禁止寫入 PRIORI 模式）
 DROP POLICY IF EXISTS "Allow public insert leaderboard" ON public.leaderboard;
-CREATE POLICY "Allow public insert leaderboard" ON public.leaderboard FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public insert leaderboard" ON public.leaderboard FOR INSERT
+  WITH CHECK (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster');
 
 DROP POLICY IF EXISTS "Allow public update leaderboard" ON public.leaderboard;
-CREATE POLICY "Allow public update leaderboard" ON public.leaderboard FOR UPDATE USING (true);
+CREATE POLICY "Allow public update leaderboard" ON public.leaderboard FOR UPDATE
+  USING (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster')
+  WITH CHECK (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster');
 
 DROP POLICY IF EXISTS "Allow public delete leaderboard" ON public.leaderboard;
-CREATE POLICY "Allow public delete leaderboard" ON public.leaderboard FOR DELETE USING (true);
+CREATE POLICY "Allow public delete leaderboard" ON public.leaderboard FOR DELETE
+  USING (mode IS DISTINCT FROM 'priori-record' AND mode IS DISTINCT FROM 'priori-roster');
 
 -- ============================================================
 -- 4. 預載種子題庫 (包含官方基礎教材 + 教師專屬自建範例)

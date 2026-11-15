@@ -41,11 +41,13 @@ async function run() {
   for (const tbl of [
     'priori_records?select=*',
     'priori_rosters?select=*',
+    'priori_student_directory?select=*',
     'priori_student_bindings?select=*',
     'priori_student_sessions?select=*',
     'priori_teacher_auth?select=*',
     'priori_teacher_sessions?select=*',
     'priori_legacy_leaderboard_backup?select=*',
+    'priori_legacy_migration_issues?select=*',
   ]) {
     const r = await restCall(tbl);
     if (r.status === 404 || r.json?.code === 'PGRST205') {
@@ -178,80 +180,123 @@ async function run() {
   );
   console.log('✓ Public leaderboard has 0 PRIORI rows & permanently rejects priori-* writes');
 
-  // 6. Cross-student isolation roundtrip (uses synthetic grade '00' keys & cleans up automatically)
-  if (process.env.PRIORI_TEST_STUDENT_ISOLATION === '1') {
-    const devA = 'audit_dev_a_' + Date.now() + '_' + 'a'.repeat(16);
-    const devB = 'audit_dev_b_' + Date.now() + '_' + 'b'.repeat(16);
-    const stuA = '000001';
-    const stuB = '000002';
+  // 5b. Unactivated / bogus-seat anonymous claims MUST NOT issue tokens
+  const badSeatClaim = await restCall('rpc/priori_student_login_seat', {
+    method: 'POST',
+    body: {
+      p_student_key: '030199',
+      p_device_secret: 'audit_bad_seat_' + 'x'.repeat(24),
+      p_transfer_pin: '1234',
+      p_activation_code: '000000',
+    },
+  });
+  assert.ok(
+    isDenied(badSeatClaim),
+    `Expected out-of-directory seat '030199' denied (42501), got ${badSeatClaim.status}: ${badSeatClaim.text}`
+  );
+  const anonClaimNoCode = await restCall('rpc/priori_student_login_seat', {
+    method: 'POST',
+    body: {
+      p_student_key: '030101',
+      p_device_secret: 'audit_anon_probe_' + 'x'.repeat(24),
+      p_transfer_pin: '1234',
+    },
+  });
+  assert.equal(
+    Boolean(anonClaimNoCode.json?.authorized),
+    false,
+    `Anonymous login without activation code/PIN must never authorize: ${anonClaimNoCode.text}`
+  );
+  assert.ok(!anonClaimNoCode.json?.token, 'Anonymous unverified login must not return token');
+  console.log('✓ Anonymous student login cannot claim unbound or out-of-directory seats');
 
-    const bindA = await restCall('rpc/priori_student_login_seat', {
+  // 6. Optional authenticated admin & student isolation + directory tamper roundtrip
+  const teacherPw = process.env.PRIORI_TEACHER_PASSWORD || '';
+  if (process.env.PRIORI_TEST_STUDENT_ISOLATION === '1') {
+    if (!teacherPw) {
+      throw new Error(
+        'PRIORI_TEST_STUDENT_ISOLATION=1 now requires PRIORI_TEACHER_PASSWORD (because initial binding requires a teacher-issued one-time 6-digit activation code).'
+      );
+    }
+    const adminLoginForIso = await restCall('rpc/priori_teacher_login', {
       method: 'POST',
-      body: { p_student_key: stuA, p_device_secret: devA, p_transfer_pin: '1357' },
+      body: { p_password: teacherPw },
     });
-    const bindB = await restCall('rpc/priori_student_login_seat', {
-      method: 'POST',
-      body: { p_student_key: stuB, p_device_secret: devB, p_transfer_pin: '2468' },
-    });
-    assert.equal(bindA.json?.authorized, true, `Failed binding synthetic student A: ${bindA.text}`);
-    assert.equal(bindB.json?.authorized, true, `Failed binding synthetic student B: ${bindB.text}`);
+    assert.equal(adminLoginForIso.json?.authorized, true, 'Admin teacher login failed for isolation test');
+    const adminTok = adminLoginForIso.json.token;
 
     try {
-      // Student A token attempting to READ Student B -> MUST BE DENIED (42501)
-      const crossRead = await restCall('rpc/priori_student_get_records', {
+      const testSeat = process.env.PRIORI_TEST_SEAT || '010105';
+      const issueRes = await restCall('rpc/priori_teacher_issue_activation_code', {
         method: 'POST',
-        body: { p_token: bindA.json.token, p_student_key: stuB },
+        body: { p_token: adminTok, p_student_key: testSeat },
       });
-      assert.ok(
-        isDenied(crossRead),
-        `Expected Student A reading Student B to be rejected, got ${crossRead.status}: ${crossRead.text}`
-      );
+      if (!issueRes.json?.ok) {
+        console.log(
+          `ℹ️ Skipped live student isolation probe on ${testSeat} (${issueRes.json?.reason || issueRes.text}) to protect bound student data.`
+        );
+      } else {
+        const devA = 'audit_dev_a_' + Date.now() + '_' + 'a'.repeat(16);
+        const bindA = await restCall('rpc/priori_student_login_seat', {
+          method: 'POST',
+          body: {
+            p_student_key: testSeat,
+            p_device_secret: devA,
+            p_transfer_pin: '1357',
+            p_activation_code: issueRes.json.activation_code,
+          },
+        });
+        assert.equal(bindA.json?.authorized, true, `Failed activating test seat ${testSeat}: ${bindA.text}`);
+        try {
+          const siblingSeat = testSeat === '030106' ? '030105' : '030106';
+          const crossRead = await restCall('rpc/priori_student_get_records', {
+            method: 'POST',
+            body: { p_token: bindA.json.token, p_student_key: siblingSeat },
+          });
+          assert.ok(isDenied(crossRead), `Expected Student A reading ${siblingSeat} rejected: ${crossRead.text}`);
 
-      // Student A token attempting to WRITE Student B -> MUST BE DENIED (42501)
-      const crossWrite = await restCall('rpc/priori_student_upsert_record', {
-        method: 'POST',
-        body: {
-          p_token: bindA.json.token,
-          p_student_key: stuB,
-          p_paper_id: '114-math-g3',
-          p_grade: '00',
-          p_class_num: '0',
-          p_seat: '02',
-          p_score: 0,
-          p_elapsed: 5,
-          p_payload: { studentKey: stuB, paperId: '114-math-g3' },
-        },
-      });
-      assert.ok(
-        isDenied(crossWrite),
-        `Expected Student A writing Student B to be rejected, got ${crossWrite.status}: ${crossWrite.text}`
-      );
+          const tamperGradeClass = await restCall('rpc/priori_student_upsert_record', {
+            method: 'POST',
+            body: {
+              p_token: bindA.json.token,
+              p_student_key: testSeat,
+              p_paper_id: '114-math-g3',
+              p_grade: '4',
+              p_class_num: '2',
+              p_seat: testSeat.slice(4, 6),
+              p_score: 100,
+              p_elapsed: 5,
+              p_payload: { studentKey: testSeat, paperId: '114-math-g3' },
+            },
+          });
+          assert.ok(
+            isDenied(tamperGradeClass),
+            `Expected grade/class tampering to 4-2 rejected (42501), got ${tamperGradeClass.status}: ${tamperGradeClass.text}`
+          );
 
-      // Unbound device attempting to log into Student A without PIN -> MUST require PIN & leak 0 token
-      const hijackTry = await restCall('rpc/priori_student_login_seat', {
-        method: 'POST',
-        body: { p_student_key: stuA, p_device_secret: 'evil_dev_' + 'x'.repeat(24) },
-      });
-      assert.equal(hijackTry.json?.authorized, false);
-      assert.equal(hijackTry.json?.status, 'pin_required');
-      assert.ok(!hijackTry.json?.token);
+          const hijackTry = await restCall('rpc/priori_student_login_seat', {
+            method: 'POST',
+            body: { p_student_key: testSeat, p_device_secret: 'evil_dev_' + 'x'.repeat(24) },
+          });
+          assert.equal(hijackTry.json?.authorized, false);
+          assert.equal(hijackTry.json?.status, 'pin_required');
+          assert.ok(!hijackTry.json?.token);
+          console.log(`✓ Live student isolation & directory tamper rejection verified on ${testSeat}`);
+        } finally {
+          await restCall('rpc/priori_student_release_wrong_seat', {
+            method: 'POST',
+            body: { p_token: bindA.json.token },
+          });
+        }
+      }
     } finally {
-      await restCall('rpc/priori_student_release_wrong_seat', {
-        method: 'POST',
-        body: { p_token: bindA.json.token },
-      });
-      await restCall('rpc/priori_student_release_wrong_seat', {
-        method: 'POST',
-        body: { p_token: bindB.json.token },
-      });
+      await restCall('rpc/priori_teacher_logout', { method: 'POST', body: { p_token: adminTok } });
     }
-    console.log('✓ Cross-student isolation verified (Student A reading/writing Student B rejected)');
   } else {
-    console.log('ℹ️ Tip: set PRIORI_TEST_STUDENT_ISOLATION=1 to verify live Student A != Student B isolation.');
+    console.log('ℹ️ Tip: set PRIORI_TEST_STUDENT_ISOLATION=1 and PRIORI_TEACHER_PASSWORD=... to verify live activation & tamper rejection.');
   }
 
   // 7. Optional authenticated teacher & single-class isolation roundtrip
-  const teacherPw = process.env.PRIORI_TEACHER_PASSWORD || '';
   if (teacherPw) {
     const loginOk = await restCall('rpc/priori_teacher_login', {
       method: 'POST',
