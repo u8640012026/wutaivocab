@@ -274,6 +274,7 @@ export function PrioriPaperAxisSelector({
   matchedPaper,
   accentColor = 'lime',
 }) {
+  const [showQuickPills, setShowQuickPills] = useState(false);
   const pillActiveClass =
     accentColor === 'teal'
       ? 'bg-teal-600 border-teal-700 text-white shadow-sm'
@@ -373,10 +374,18 @@ export function PrioriPaperAxisSelector({
           subjects.find((s) => s.id === selSubject)?.label || selSubject;
         return (
           <div className="space-y-1.5">
-            <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-              {subjLabel}・{selYear} 年（共 {filteredPills.length} 卷）
-            </div>
             {filteredPills.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowQuickPills((v) => !v)}
+                className="text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 underline underline-offset-2 cursor-pointer"
+              >
+                {showQuickPills
+                  ? `收合 ${subjLabel}・${selYear} 年試卷快選 ▴`
+                  : `展開 ${subjLabel}・${selYear} 年試卷快選（共 ${filteredPills.length} 卷）▾`}
+              </button>
+            )}
+            {showQuickPills && filteredPills.length > 0 && (
               <div className="flex flex-wrap justify-center gap-1.5">
                 {filteredPills.map((p) => {
                   const active = matchedPaper?.paperId === p.paperId;
