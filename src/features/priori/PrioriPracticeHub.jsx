@@ -42,6 +42,8 @@ import { PrioriTeacherDashboard } from './PrioriTeacherDashboard';
 import { PrioriSpotlightGuideModal } from './PrioriSpotlightGuideModal';
 import {
   PRIORI_DRILL_DEFAULT_LIMIT,
+  getPrioriOptionDisplayOrder,
+  isPrioriOptionShuffleEligible,
   PRIORI_DRILL_LIMIT_OPTIONS,
   buildPrioriDrillCohort,
   loadPrioriRecords,
@@ -438,6 +440,16 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
 
   const activePaper = PRIORI_PAPER_MAP[activePaperId] || PRIORI_PAPERS[0];
   const currentQuestion = activeQueue[currentIdx] || null;
+  // 錯題特訓選項洗牌：僅純文字單選且非原卷圖模式才打亂「畫面順序」，作答／批改／紀錄一律使用原始索引
+  const optionDisplayOrder = useMemo(() => {
+    const identity = Array.from({ length: currentQuestion?.options?.length || 0 }, (_, i) => i);
+    if (!isMistakeRetry || showOriginalImage || !currentQuestion) return identity;
+    return getPrioriOptionDisplayOrder(
+      currentQuestion,
+      `${startedAt}|${currentQuestion._instanceKey || currentIdx}`
+    );
+  }, [isMistakeRetry, showOriginalImage, currentQuestion, startedAt, currentIdx]);
+
   const currentQuestionPaper =
     (currentQuestion?.paperId && PRIORI_PAPER_MAP[currentQuestion.paperId]) || activePaper;
 
@@ -547,6 +559,12 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
     [stopSpeech, subjectPapers, studentKey, drillLimit]
   );
 
+  // 錯題特訓：記錄每題顯示時間，2 秒內就答錯者給予溫和「請看完題目」提醒（不鎖定、不強迫停留）
+  const questionShownAtRef = useRef(Date.now());
+  useEffect(() => {
+    questionShownAtRef.current = Date.now();
+  }, [currentIdx, viewMode]);
+
   const handleSelectOption = (qId, value) => {
     if (slotFeedback) return;
     setAnswers((prev) => ({ ...prev, [qId]: value }));
@@ -573,6 +591,8 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
     if (!currentQuestion) return;
     const rawAns = answers[currentQuestion.id];
     const ok = isPrioriAnswerCorrect(currentQuestion, rawAns);
+    const answeredTooFast = !ok && Date.now() - questionShownAtRef.current < 2000;
+    const fastHint = answeredTooFast ? '⏱ 題目還沒看完喔，再想一下！ ' : '';
     const nextCheckedCount = checkedStepsCount + 1;
 
     setCheckedAnswersMap((prev) => ({ ...prev, [currentQuestion.id]: rawAns }));
@@ -644,9 +664,11 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
         correct: false,
         sunk: stepResult.needsRepeat,
         finishReason: stepResult.shouldAutoFinish ? 'completed' : null,
-        headline: stepResult.needsRepeat
-          ? `❌ 答錯了！這題已自動「沉底」排到最後面再練一次（單輪上限 ${drillMeta.maxAttempts} 題），先把關鍵提示看清楚喔！`
-          : `❌ 答錯了！本題將保留為待補強，繼續完成剩餘題目後可再開一輪精熟。`,
+        headline: `${fastHint}${
+          stepResult.needsRepeat
+            ? `❌ 答錯了！這題已自動「沉底」排到最後面再練一次（單輪上限 ${drillMeta.maxAttempts} 題），先把關鍵提示看清楚喔！`
+            : `❌ 答錯了！本題將保留為待補強，繼續完成剩餘題目後可再開一輪精熟。`
+        }`,
         detail: currentQuestion.explanationSteps?.[0] || '',
       });
     }
@@ -1851,7 +1873,8 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                               : 'sm:grid-cols-2'
                           }`}
                         >
-                          {currentQuestion.options.map((opt, oIdx) => {
+                          {optionDisplayOrder.map((oIdx, posIdx) => {
+                            const opt = currentQuestion.options[oIdx];
                             const isSelected = answers[currentQuestion.id] === oIdx;
                             const optSpeakKey = `${currentQuestion.id}-opt-${oIdx}`;
                             const optTts = currentQuestion.optionTtsTexts?.[oIdx];
@@ -1876,7 +1899,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                                         : 'bg-white dark:bg-slate-700 border border-stone-300 dark:border-slate-600 text-slate-600 dark:text-slate-200'
                                     }`}
                                   >
-                                    {oIdx + 1}
+                                    {posIdx + 1}
                                   </span>
                                   <span className="flex-1 leading-snug">
                                     <MathRichText text={opt} />
@@ -1888,7 +1911,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                                   optTts && (
                                     <button
                                       type="button"
-                                      aria-label={`朗讀選項 ${oIdx + 1}`}
+                                      aria-label={`朗讀選項 ${posIdx + 1}`}
                                       onClick={() =>
                                         speakNaturalText(
                                           optTts,
@@ -2296,7 +2319,12 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                           : 'text-rose-700 dark:text-rose-300'
                       }
                     >
-                      你的選擇：{formatPrioriAnswerLabel(q, userChoice)}
+                       你的選擇：
+                      {isMistakeRetry &&
+                      typeof userChoice === 'number' &&
+                      isPrioriOptionShuffleEligible(q)
+                        ? q.options[userChoice]
+                        : formatPrioriAnswerLabel(q, userChoice)}
                     </span>
                     <span className="text-teal-800 dark:text-teal-300">
                       {q.officialAnswerVerified ? '官方標準答案：' : '參考正解：'}
@@ -2304,7 +2332,8 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                         <span>{q.answer}</span>
                       ) : (
                         <>
-                          ({q.answer + 1}) <MathRichText text={q.options[q.answer]} />
+                          {isMistakeRetry && isPrioriOptionShuffleEligible(q) ? null : `(${q.answer + 1}) `}
+                          <MathRichText text={q.options[q.answer]} />
                         </>
                       )}
                     </span>

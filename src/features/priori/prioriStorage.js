@@ -13,6 +13,7 @@ import {
   summarizePrioriPaperState,
   reconcilePrioriPaperRecordWithPaper,
   mergePrioriPaperRecordWithPaper,
+  PRIORI_FIRST_TEST_MASTERY_SCORE,
 } from './prioriDrill';
 import {
   getPrioriTeacherSession,
@@ -327,9 +328,12 @@ export function getSubjectRemedialPool(savedRecords = {}, subjectId, yearFilter 
 export {
   PRIORI_DRILL_LIMIT_OPTIONS,
   PRIORI_DRILL_DEFAULT_LIMIT,
+  PRIORI_FIRST_TEST_MASTERY_SCORE,
   normalizePrioriDrillLimit,
   buildPrioriDrillCohort,
   stepPrioriDrillQueue,
+  isPrioriOptionShuffleEligible,
+  getPrioriOptionDisplayOrder,
 } from './prioriDrill';
 
 /**
@@ -413,6 +417,24 @@ export function recordPrioriAttempt({
     const strokes = strokesByQuestion[q.id];
     if (Array.isArray(strokes) && strokes.length > 0) {
       nextScratchpad[q.id] = compressStrokes(strokes);
+    }
+  }
+
+  // 首次正式測驗總分 ≥ 80：答對的題目直接認列精熟（streak = 2），答錯者維持 0 進入待精熟
+  const isFirstFormalTest =
+    !(prevFirstAnswers && Object.keys(prevFirstAnswers).length > 0) && !isMistakeRetry;
+  if (isFirstFormalTest && uniqueQueue.length > 0) {
+    const firstCorrectQs = uniqueQueue.filter((q) =>
+      isPrioriAnswerCorrect(q, answers[q.id])
+    );
+    const firstPct = Math.round((firstCorrectQs.length / uniqueQueue.length) * 100);
+    if (firstPct >= PRIORI_FIRST_TEST_MASTERY_SCORE) {
+      for (const q of firstCorrectQs) {
+        if ((Number(nextStreaks[q.id]) || 0) < 2) {
+          nextStreaks[q.id] = 2;
+          if (!newlyMasteredIds.includes(q.id)) newlyMasteredIds.push(q.id);
+        }
+      }
     }
   }
 

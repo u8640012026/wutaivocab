@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import {
   PRIORI_DRILL_DEFAULT_LIMIT,
+  PRIORI_FIRST_TEST_MASTERY_SCORE,
   buildPrioriDrillCohort,
   stepPrioriDrillQueue,
   normalizePrioriDrillLimit,
+  isPrioriOptionShuffleEligible,
+  getPrioriOptionDisplayOrder,
   reconcilePrioriPaperRecordWithPaper,
   mergePrioriPaperRecordWithPaper,
 } from '../src/features/priori/prioriDrill.js';
@@ -200,7 +203,11 @@ const reconciledEngG5 = reconcilePrioriPaperRecordWithPaper(preFixEngG5, engG5Pa
 assert.equal(reconciledEngG5.score, 100, '113 Eng G5 Q9=(1) must reconcile 96 -> 100');
 assert.equal(reconciledEngG5.firstScore, 100);
 assert.equal(reconciledEngG5.wrongIds.length, 0);
-assert.equal(reconciledEngG5.streaks['priori-113-eng-g5-q09'], 1);
+assert.equal(
+  reconciledEngG5.streaks['priori-113-eng-g5-q09'],
+  2,
+  'First test >= 80% upgrades correct item directly to streak=2'
+);
 
 const engG6Paper = PRIORI_PAPER_MAP['113-english-g6'];
 const staleOldWrongEngG6 = {
@@ -224,4 +231,54 @@ assert.equal(reconciledEngG6.firstScore, 0);
 assert.ok(reconciledEngG6.wrongIds.includes('priori-113-eng-g6-q23'));
 assert.equal(reconciledEngG6.streaks['priori-113-eng-g6-q23'], 0);
 
-console.log('✅ PRIORI drill cap (10/20), early exit, staggered merge & answer-key reconciliation contracts passed!');
+// Case 8: >= 80% vs < 80% first-test mastery & safe option-shuffle eligibility
+assert.equal(PRIORI_FIRST_TEST_MASTERY_SCORE, 80);
+const mathG3 = PRIORI_PAPER_MAP['114-math-g3'];
+const ans80 = {};
+const streaks80 = {};
+mathG3.questions.forEach((q, idx) => {
+  ans80[q.id] = idx < 20 ? q.answer : (q.answer + 1) % 4;
+  streaks80[q.id] = idx < 20 ? 1 : 0;
+});
+const rec80 = reconcilePrioriPaperRecordWithPaper(
+  { paperId: '114-math-g3', latestAnswers: ans80, firstAnswers: ans80, streaks: streaks80 },
+  mathG3
+);
+assert.equal(rec80.firstScore, 80);
+assert.equal(rec80.masteredCount, 20, '>= 80% first test immediately masters all 20 correct items');
+assert.equal(rec80.streaks[mathG3.questions[20].id], 0, 'Wrong items stay at streak=0');
+
+const ans76 = {};
+const streaks76 = {};
+mathG3.questions.forEach((q, idx) => {
+  ans76[q.id] = idx < 19 ? q.answer : (q.answer + 1) % 4;
+  streaks76[q.id] = idx < 19 ? 1 : 0;
+});
+const rec76 = reconcilePrioriPaperRecordWithPaper(
+  { paperId: '114-math-g3', latestAnswers: ans76, firstAnswers: ans76, streaks: streaks76 },
+  mathG3
+);
+assert.equal(rec76.firstScore, 76);
+assert.equal(rec76.masteredCount, 0, '< 80% first test keeps correct items at streak=1');
+
+const pureTextQ = {
+  id: 'sample-text',
+  questionType: 'single-choice',
+  questionText: '下列哪一個數最大？',
+  options: ['12', '34', '56', '78'],
+};
+assert.equal(isPrioriOptionShuffleEligible(pureTextQ), true);
+const order = getPrioriOptionDisplayOrder(pureTextQ, 'seed-1');
+assert.deepEqual([...order].sort((a, b) => a - b), [0, 1, 2, 3]);
+
+const figQ = { ...pureTextQ, id: 'sample-fig', figureImage: '/assets/priori/114/math-g3/q01_fig.webp' };
+assert.equal(isPrioriOptionShuffleEligible(figQ), false);
+assert.deepEqual(getPrioriOptionDisplayOrder(figQ, 'seed-1'), [0, 1, 2, 3]);
+
+const audioQ = { ...pureTextQ, id: 'sample-aud', media: { audioSrc: '/audio/priori/114/eng-g4/q01.mp3' } };
+assert.equal(isPrioriOptionShuffleEligible(audioQ), false);
+
+const refQ = { ...pureTextQ, id: 'sample-ref', options: ['甲', '乙', '丙', '以上皆是'] };
+assert.equal(isPrioriOptionShuffleEligible(refQ), false);
+
+console.log('✅ PRIORI drill cap (10/20), early exit, >=80% mastery, safe option shuffle & answer-key reconciliation contracts passed!');

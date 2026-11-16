@@ -4,6 +4,50 @@ export const PRIORI_DRILL_LIMIT_OPTIONS = [
 ];
 export const PRIORI_DRILL_DEFAULT_LIMIT = 20;
 
+/** 首測總分達此門檻（含）時，答對的題目直接認列精熟（streak = 2），不必再刷題 */
+export const PRIORI_FIRST_TEST_MASTERY_SCORE = 80;
+
+/**
+ * 錯題特訓選項洗牌資格：僅「純文字單選、無題圖／選項圖／音檔／閱讀文章、選項不互相引用」之題目才可洗牌；
+ * 其餘（圖片題、聽力題、題組、選項含「以上皆是」「(1)」等）一律維持原卷順序，避免對不上原卷。
+ */
+export function isPrioriOptionShuffleEligible(question) {
+  if (!question || question.questionType !== 'single-choice') return false;
+  const opts = Array.isArray(question.options) ? question.options : [];
+  if (opts.length < 3) return false;
+  if (question.figureImage || question.passage || question.media?.audioSrc || question.groupId) return false;
+  if (Array.isArray(question.optionImages) && question.optionImages.length > 0) return false;
+  const refPattern = /以上|皆|都是|均|同上|皆非|\([1-4]\)|（[1-4]）|[①②③④]|選項/;
+  const qText = String(question.questionText || '');
+  if (/圖/.test(qText)) return false;
+  const stepsText = (Array.isArray(question.explanationSteps) ? question.explanationSteps : []).join(' ');
+  if (/\(\s*[1-4]\s*\)|（\s*[1-4]\s*）|選項|第\s*[1-4]\s*個/.test(stepsText)) return false;
+  return !opts.some((o) => typeof o !== 'string' || !o.trim() || refPattern.test(o));
+}
+
+/**
+ * 回傳「畫面顯示順序 → 原始選項索引」對照陣列。
+ * 作答、批改與紀錄仍一律使用原始索引，只有畫面排列順序不同，因此不會影響成績與原卷對照。
+ */
+export function getPrioriOptionDisplayOrder(question, seed = '') {
+  const n = Array.isArray(question?.options) ? question.options.length : 0;
+  const identity = Array.from({ length: n }, (_, i) => i);
+  if (!isPrioriOptionShuffleEligible(question)) return identity;
+  let h = 2166136261;
+  const str = `${seed}|${question.id}`;
+  for (let i = 0; i < str.length; i += 1) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  const order = [...identity];
+  for (let i = order.length - 1; i > 0; i -= 1) {
+    h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0;
+    const j = h % (i + 1);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order.every((v, i) => v === i) ? identity : order;
+}
+
 export function normalizePrioriDrillLimit(limit) {
   return Number(limit) === 10 ? 10 : PRIORI_DRILL_DEFAULT_LIMIT;
 }
@@ -293,6 +337,19 @@ export function reconcilePrioriPaperRecordWithPaper(rec, paper = null) {
 
   const nextStreaks = { ...(rec.streaks || {}) };
   let streaksChanged = false;
+
+  // 首測總分 ≥ 80：初測答對且之後未再作答（作答次數 ≤ 1）之題目，直接認列精熟（streak = 2）
+  let firstTestHighScore = false;
+  if (firstAnswers) {
+    let fc = 0;
+    for (const q of paper.questions) {
+      if (isPrioriAnswerCorrect(q, firstAnswers[q.id])) fc += 1;
+    }
+    firstTestHighScore =
+      Math.round((fc / Math.max(1, paper.questions.length)) * 100) >=
+      PRIORI_FIRST_TEST_MASTERY_SCORE;
+  }
+
   for (const q of paper.questions) {
     if (!Object.prototype.hasOwnProperty.call(latestAnswers, q.id)) continue;
     const ans = latestAnswers[q.id];
@@ -304,6 +361,16 @@ export function reconcilePrioriPaperRecordWithPaper(rec, paper = null) {
       streaksChanged = true;
     } else if (!isCorrect && curStreak > 0) {
       nextStreaks[q.id] = 0;
+      streaksChanged = true;
+    }
+    if (
+      firstTestHighScore &&
+      isCorrect &&
+      (Number(nextStreaks[q.id]) || 0) === 1 &&
+      isPrioriAnswerCorrect(q, firstAnswers[q.id]) &&
+      (Number(rec.questionAttemptCounts?.[q.id]) || 1) <= 1
+    ) {
+      nextStreaks[q.id] = 2;
       streaksChanged = true;
     }
   }
