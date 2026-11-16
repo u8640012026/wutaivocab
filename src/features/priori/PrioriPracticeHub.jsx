@@ -63,6 +63,7 @@ import {
   PrioriQrModal,
   PrioriSubmitConfirmModal,
   PrioriPrintableSheet,
+  preloadPrioriPaperImages,
 } from './PrioriModals';
 
 const FONT_FAMILY_STYLE = {
@@ -842,6 +843,9 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
   }, []);
 
   const printQuestions = useMemo(() => {
+    if (viewMode === 'hub') {
+      return activePaper?.questions || [];
+    }
     if (viewMode === 'result' && printMode === 'wrong' && resultStats.wrongList.length > 0) {
       return resultStats.wrongList;
     }
@@ -850,11 +854,23 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
       : activePaper?.questions || [];
   }, [activePaper, printMode, resultStats.wrongList, uniqueActiveQuestions, viewMode]);
 
-  const handlePrint = (mode = 'all') => {
+  const handlePrint = async (mode = 'all', targetPaper = activePaper) => {
     setPrintMode(mode);
-    setTimeout(() => {
+    await preloadPrioriPaperImages(targetPaper);
+    await new Promise((resolve) => {
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            setTimeout(resolve, 150);
+          });
+        });
+      } else {
+        setTimeout(resolve, 150);
+      }
+    });
+    try {
       window.print();
-    }, 80);
+    } catch {}
   };
 
   const openZoom = (src, title, readOnly = false) => {
@@ -1271,7 +1287,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                         onClick={(e) => {
                           e.stopPropagation();
                           setActivePaperId(paper.paperId);
-                          handlePrint('all');
+                          handlePrint('all', paper);
                         }}
                         className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-stone-100 dark:hover:bg-slate-800 transition cursor-pointer"
                       >

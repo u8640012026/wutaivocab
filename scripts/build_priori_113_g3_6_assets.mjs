@@ -407,7 +407,14 @@ async function buildPaperAssets(paperCfg) {
           const qLines = colLines.filter((l) => l.y >= cropTop && l.y <= cropBottom);
           const optLine = qLines.find((l) => /\(1\)/.test(l.text));
           let figTop = cur.y + 18;
-          if (key === 'math-g4' && cur.num === 6) {
+          if (key === 'math-g3' && cur.num === 1) {
+            // Include both the 8 pattern squares and the 4 bottom option figures (1)-(4)
+            const figStart = findFirstInkBelow(gray, cur.y + 24, cropBottom - 40, x1, x2);
+            const figName = 'q01_fig.webp';
+            const figPath = path.join(outDir, figName);
+            await extractTrimmedWebp(pageBuf, { left: x1, top: figStart, width: colW, height: cropBottom - figStart }, figPath);
+            tiles.push({ name: figName, outPath: figPath });
+          } else if (key === 'math-g4' && cur.num === 6) {
             const askLine = qLines.find((l) => l.text.includes('下列敘述何者正確'));
             const figBot = askLine ? findLastInkAbove(gray, askLine.y - 42, figTop + 40, x1, x2) : (optLine ? optLine.y - 42 : cropBottom);
             const figName = `q06_fig.webp`;
@@ -428,7 +435,7 @@ async function buildPaperAssets(paperCfg) {
                 : postFigLine
                 ? postFigLine.y - 42
                 : cropBottom;
-            let lastStemY = cur.y + 16;
+            let lastStemY = cur.y + 26;
             for (const l of qLines) {
               if (
                 l.y > cur.y + 8 &&
@@ -437,12 +444,14 @@ async function buildPaperAssets(paperCfg) {
                 !/\(1\)/.test(l.text) &&
                 l.text.trim().length > 9
               ) {
-                lastStemY = Math.max(lastStemY, l.y + 14);
+                lastStemY = Math.max(lastStemY, l.y + 24);
               }
             }
-            if (key === 'math-g3' && cur.num === 14) lastStemY = cur.y + 110;
+            if (key === 'math-g3' && cur.num === 14) lastStemY = cur.y + 132;
             if (key === 'math-g3' && cur.num === 21) lastStemY = cur.y + 72;
             if (key === 'math-g3' && cur.num === 3) lastStemY = cur.y - 52;
+            if (key === 'math-g4' && cur.num === 23) lastStemY = cur.y + 42;
+            if (key === 'math-g5' && cur.num === 2) lastStemY = cur.y + 82;
             if (key === 'math-g5' && cur.num === 13) lastStemY = Math.max(lastStemY, cur.y + 42);
             const figStart = findFirstInkBelow(gray, lastStemY, firstOptY - 25, x1, x2);
             const figEnd = findLastInkAbove(gray, firstOptY, figStart + 20, x1, x2);

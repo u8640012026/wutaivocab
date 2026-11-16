@@ -21,7 +21,12 @@ import {
 import { PRIORI_SUBJECTS, PRIORI_PAPERS, PRIORI_PAPER_MAP } from '../../data/priori';
 import { MathRichText } from './MathRichText';
 import { PrioriScratchpadPreview } from './PrioriScratchpad';
-import { LilyEmblem, PrioriPrintableSheet, PrioriTeacherPrintModal } from './PrioriModals';
+import {
+  LilyEmblem,
+  PrioriPrintableSheet,
+  PrioriTeacherPrintModal,
+  preloadPrioriPaperImages,
+} from './PrioriModals';
 import { PrioriRosterModal } from './PrioriRosterModal';
 import {
   fetchAllPrioriTeacherRecordsWithMeta,
@@ -1639,6 +1644,24 @@ export function PrioriTeacherDashboard({ onBack }) {
                         <MathRichText text={q.questionText} />
                       </div>
 
+                      {q.passage?.image && (
+                        <img
+                          src={q.passage.image}
+                          alt={`${q.passage.title || `第 ${q.number} 題`}閱讀圖示`}
+                          loading="lazy"
+                          className="max-h-48 object-contain rounded-xl border border-stone-200 dark:border-slate-700 bg-white p-1"
+                        />
+                      )}
+
+                      {q.figureImage && (
+                        <img
+                          src={q.figureImage}
+                          alt={`第 ${q.number} 題圖示`}
+                          loading="lazy"
+                          className="max-h-48 object-contain rounded-xl border border-stone-200 dark:border-slate-700 bg-white p-1"
+                        />
+                      )}
+
                       <div className="flex flex-wrap items-center gap-3 text-xs font-black">
                         <span className={isOk ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}>
                           學生作答：
@@ -1970,6 +1993,22 @@ export function PrioriTeacherDashboard({ onBack }) {
                     <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
                       <MathRichText text={inspectedQuestion.questionText} />
                     </div>
+                    {inspectedQuestion.passage?.image && (
+                      <img
+                        src={inspectedQuestion.passage.image}
+                        alt={`${inspectedQuestion.passage.title || `第 ${inspectedQuestion.number} 題`}閱讀圖示`}
+                        loading="lazy"
+                        className="max-h-48 object-contain rounded-xl border border-stone-200 dark:border-slate-700 bg-white p-1"
+                      />
+                    )}
+                    {inspectedQuestion.figureImage && (
+                      <img
+                        src={inspectedQuestion.figureImage}
+                        alt={`第 ${inspectedQuestion.number} 題圖示`}
+                        loading="lazy"
+                        className="max-h-48 object-contain rounded-xl border border-stone-200 dark:border-slate-700 bg-white p-1"
+                      />
+                    )}
                     {(() => {
                       const st = classAnalytics.questionStats.find(
                         (item) => item.question.id === inspectedQuestion.id
@@ -2215,8 +2254,17 @@ export function PrioriTeacherDashboard({ onBack }) {
                                   </div>
                                   <div className="text-[10px] font-bold text-slate-400 truncate max-w-[220px]">
                                     {q.conceptTitle}
+                                    {q.figureImage || q.passage?.image ? ' · 🖼️ 含題圖' : ''}
                                     {st.scratchpadCount > 0 ? ` · ✏️${st.scratchpadCount}` : ''}
                                   </div>
+                                  {(q.figureImage || q.passage?.image) && (
+                                    <img
+                                      src={q.figureImage || q.passage?.image}
+                                      alt={`第 ${q.number} 題圖示預覽`}
+                                      loading="lazy"
+                                      className="h-10 max-w-[140px] object-contain rounded border border-stone-200 dark:border-slate-700 bg-white p-0.5 mt-1"
+                                    />
+                                  )}
                                 </div>
                               </button>
                             </td>
@@ -2510,15 +2558,25 @@ export function PrioriTeacherDashboard({ onBack }) {
         onClose={() => setIsPrintModalOpen(false)}
         initialPaperId={printablePaper?.paperId}
         initialShowAnswerKey={printShowAnswerKey}
-        onConfirmPrint={(paperId, includeKey) => {
+        onConfirmPrint={async (paperId, includeKey) => {
           setPrintTargetPaperId(paperId);
           setPrintShowAnswerKey(includeKey);
           setIsPrintModalOpen(false);
-          setTimeout(() => {
-            try {
-              window.print();
-            } catch {}
-          }, 80);
+          await preloadPrioriPaperImages(PRIORI_PAPER_MAP[paperId]);
+          await new Promise((resolve) => {
+            if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+              window.requestAnimationFrame(() => {
+                window.requestAnimationFrame(() => {
+                  setTimeout(resolve, 150);
+                });
+              });
+            } else {
+              setTimeout(resolve, 150);
+            }
+          });
+          try {
+            window.print();
+          } catch {}
         }}
       />
 

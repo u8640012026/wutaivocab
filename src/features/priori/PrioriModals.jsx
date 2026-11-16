@@ -529,6 +529,61 @@ export function PrioriQrModal({
 }
 
 /**
+ * 預載入並解碼試卷中所有題目圖表、閱讀篇章插圖與題幹截圖，避免 window.print() 時空白缺圖
+ */
+export async function preloadPrioriPaperImages(paper, timeoutMs = 4500) {
+  if (typeof window === 'undefined' || typeof Image === 'undefined') return;
+  const questions = Array.isArray(paper?.questions) ? paper.questions : [];
+  const urls = Array.from(
+    new Set(
+      questions
+        .flatMap((q) => [q?.figureImage, q?.passage?.image, q?.questionImage])
+        .filter((u) => typeof u === 'string' && u.trim().length > 0)
+    )
+  );
+  if (urls.length === 0) return;
+
+  const loadTasks = urls.map(
+    (src) =>
+      new Promise((resolve) => {
+        try {
+          const img = new Image();
+          img.decoding = 'sync';
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            resolve();
+          };
+          img.onload = () => {
+            if (typeof img.decode === 'function') {
+              img.decode().then(finish).catch(finish);
+            } else {
+              finish();
+            }
+          };
+          img.onerror = finish;
+          img.src = src;
+          if (img.complete) {
+            if (typeof img.decode === 'function') {
+              img.decode().then(finish).catch(finish);
+            } else {
+              finish();
+            }
+          }
+        } catch {
+          resolve();
+        }
+      })
+  );
+
+  await Promise.race([
+    Promise.all(loadTasks),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
+/**
  * 教師指定列印彈窗（科目 × 年度 × 年級 + 含正解／空白卷切換）
  */
 export function PrioriTeacherPrintModal({
@@ -546,9 +601,21 @@ export function PrioriTeacherPrintModal({
   const [selYear, setSelYear] = useState(String(initialPaper?.year || '114'));
   const [selGrade, setSelGrade] = useState(String(initialPaper?.grade || '3'));
   const [includeAnswerKey, setIncludeAnswerKey] = useState(initialShowAnswerKey);
+  const [printingBusy, setPrintingBusy] = useState(false);
+
+  const matchedPaper =
+    papers.find(
+      (p) =>
+        p.subject === selSubject &&
+        String(p.year) === String(selYear) &&
+        String(p.grade) === String(selGrade)
+    ) || null;
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setPrintingBusy(false);
+      return;
+    }
     const p = papers.find((item) => item.paperId === initialPaperId) || papers[0];
     if (p) {
       setSelSubject(p.subject);
@@ -558,15 +625,12 @@ export function PrioriTeacherPrintModal({
     setIncludeAnswerKey(initialShowAnswerKey);
   }, [isOpen, initialPaperId, initialShowAnswerKey, papers]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!isOpen || !matchedPaper) return;
+    preloadPrioriPaperImages(matchedPaper);
+  }, [isOpen, matchedPaper]);
 
-  const matchedPaper =
-    papers.find(
-      (p) =>
-        p.subject === selSubject &&
-        String(p.year) === String(selYear) &&
-        String(p.grade) === String(selGrade)
-    ) || null;
+  if (!isOpen) return null;
 
   return (
     <div
@@ -641,11 +705,21 @@ export function PrioriTeacherPrintModal({
             </p>
             <button
               type="button"
-              onClick={() => onConfirmPrint(matchedPaper.paperId, includeAnswerKey)}
-              className="w-full py-2.5 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white font-black text-sm shadow-md flex items-center justify-center gap-2 transition cursor-pointer"
+              disabled={printingBusy}
+              onClick={async () => {
+                if (printingBusy) return;
+                setPrintingBusy(true);
+                try {
+                  await preloadPrioriPaperImages(matchedPaper);
+                  await onConfirmPrint?.(matchedPaper.paperId, includeAnswerKey);
+                } finally {
+                  setPrintingBusy(false);
+                }
+              }}
+              className="w-full py-2.5 rounded-2xl bg-teal-600 hover:bg-teal-500 disabled:opacity-60 text-white font-black text-sm shadow-md flex items-center justify-center gap-2 transition cursor-pointer"
             >
               <Printer className="w-4 h-4" />
-              確定列印此試卷
+              {printingBusy ? '正在載入圖片並準備列印…' : '確定列印此試卷'}
             </button>
           </div>
         ) : (
@@ -712,7 +786,7 @@ export function PrioriPrintableSheet({ paper, questions, answers, showAnswerKey 
   let lastGroupId = null;
 
   return (
-    <div className="hidden print:block bg-white text-black p-6 space-y-5 font-sans">
+    <div className="fixed -left-[99999px] top-0 w-[210mm] h-0 overflow-hidden opacity-0 pointer-events-none select-none print:static print:left-auto print:w-full print:h-auto print:overflow-visible print:opacity-100 print:pointer-events-auto print:select-auto print:block bg-white text-black p-6 space-y-5 font-sans">
       <div className="border-b-2 border-slate-800 pb-3 flex items-end justify-between">
         <div>
           <h1 className="text-xl font-black">
@@ -743,6 +817,15 @@ export function PrioriPrintableSheet({ paper, questions, answers, showAnswerKey 
               {showPassage && (
                 <div className="border-2 border-slate-400 rounded-xl p-3 bg-slate-50 break-inside-avoid space-y-1.5">
                   <div className="text-xs font-black text-slate-800">{q.passage.title}</div>
+                  {q.passage.image && (
+                    <img
+                      src={q.passage.image}
+                      alt={`${q.passage.title || `第 ${q.number} 題`}閱讀圖示`}
+                      loading="eager"
+                      decoding="sync"
+                      className="max-h-56 object-contain my-1.5"
+                    />
+                  )}
                   {q.passage.paragraphs?.map((p, idx) => (
                     <p key={idx} className="text-xs leading-relaxed">
                       {p}
@@ -769,7 +852,9 @@ export function PrioriPrintableSheet({ paper, questions, answers, showAnswerKey 
                   <img
                     src={q.figureImage}
                     alt={`第 ${q.number} 題圖示`}
-                    className="max-h-36 object-contain"
+                    loading="eager"
+                    decoding="sync"
+                    className="max-h-44 object-contain my-1.5"
                   />
                 )}
                 {q.questionType === 'alphabet-pair' ? (

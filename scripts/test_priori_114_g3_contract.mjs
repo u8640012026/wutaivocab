@@ -129,13 +129,13 @@ function assertCleanTts(text, label) {
 
 async function main() {
   // 1. Index & Registry Checks
-  assert.equal(PRIORI_PAPERS.length, 25, 'PRIORI_PAPERS must list all 25 published papers (115 Math G3 + 114 G3-G6 3-subjects + 113 G3-G6 3-subjects)');
-  assert.equal(PRIORI_STATS.totalPapers, 25);
-  assert.equal(PRIORI_STATS.totalQuestions, 625);
+  assert.equal(PRIORI_PAPERS.length, 37, 'PRIORI_PAPERS must list all 37 published papers (115 Math G3 + 114 G3-G6 + 113 G3-G6 + 112 G3-G6)');
+  assert.equal(PRIORI_STATS.totalPapers, 37);
+  assert.equal(PRIORI_STATS.totalQuestions, 925);
   assert.ok(PRIORI_PAPER_MAP['114-math-g3']);
   assert.ok(PRIORI_PAPER_MAP['114-chinese-g3']);
   assert.ok(PRIORI_PAPER_MAP['114-english-g3']);
-  assert.equal(Object.keys(PRIORI_QUESTION_INDEX).length, 625);
+  assert.equal(Object.keys(PRIORI_QUESTION_INDEX).length, 925);
 
   // 2. Meta Checks
   const metas = [

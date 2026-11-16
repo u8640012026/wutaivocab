@@ -135,10 +135,10 @@ async function validateWebpAsset(publicRelPath) {
 async function run() {
   console.log('=== PRIORI Year-114 Grades 4–6 Contract Verification ===');
 
-  assert.equal(PRIORI_PAPERS.length, 25, 'PRIORI_PAPERS must list all 25 published papers');
-  assert.equal(PRIORI_STATS.totalPapers, 25);
-  assert.equal(PRIORI_STATS.totalQuestions, 625);
-  assert.equal(Object.keys(PRIORI_QUESTION_INDEX).length, 625);
+  assert.equal(PRIORI_PAPERS.length, 37, 'PRIORI_PAPERS must list all 37 published papers');
+  assert.equal(PRIORI_STATS.totalPapers, 37);
+  assert.equal(PRIORI_STATS.totalQuestions, 925);
+  assert.equal(Object.keys(PRIORI_QUESTION_INDEX).length, 925);
 
   for (const subj of PRIORI_SUBJECTS) {
     assert.deepEqual(
@@ -195,6 +195,9 @@ async function run() {
 
       assert.ok(q.questionImage, `${q.id} missing questionImage`);
       checkedImages.add(q.questionImage);
+      if (/圖片/.test(q.prompt || '')) {
+        assert.ok(q.figureImage || q.passage?.image, `${q.id} mentions "圖片" in prompt but has neither figureImage nor passage.image`);
+      }
       if (q.figureImage) {
         figCount += 1;
         checkedImages.add(q.figureImage);
@@ -241,7 +244,7 @@ async function run() {
   console.log(
     `✓ Validated 9 Year-114 G4–G6 papers (225 Qs), ${checkedImages.size} WebP images, ${checkedAudios.size} official MP3 clips.`
   );
-  console.log('✓ Total catalog: 25 papers / 625 questions passed.');
+  console.log('✓ Total catalog: 37 papers / 925 questions passed.');
 }
 
 run().catch((err) => {

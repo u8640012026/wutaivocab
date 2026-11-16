@@ -1450,7 +1450,10 @@ async function run() {
           await new Promise(r => setTimeout(r, 100));
         }
         Array.from(printDialog?.querySelectorAll('button') || []).find(b => (b.innerText || '').includes('確定列印此試卷'))?.click();
-        await new Promise(r => setTimeout(r, 200));
+        const printDeadline = Date.now() + 3000;
+        while (Date.now() < printDeadline && (window.__printCalls || 0) <= prevPrintCalls) {
+          await new Promise(r => setTimeout(r, 100));
+        }
         const teacherPrintText = document.querySelector('[class*="print:block"]')?.textContent || '';
         const teacherPrintOk =
           !!teacherPrintBtn &&
@@ -2186,6 +2189,41 @@ async function run() {
     `);
     assert.equal(check113MathG5?.ok, true, `113-math-g5 UI check failed: ${JSON.stringify(check113MathG5)}`);
     console.log('✓ Test J (Year-113 G3–G6 sampling, Eng G5 Q9 (1) / G6 Q23 (2) official grading & auto-reconciliation verified) passed');
+
+    // Test K: Printable sheet renders all 22 figureImage <img> elements (complete && naturalWidth > 0) for 113-english-g5 + Year-112 smoke
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&paper=113-english-g5` });
+    await sleep(900);
+    const printImgCheck = await client.eval(`
+      (async () => {
+        const imgs = Array.from(document.querySelectorAll('div[class*="-left-[99999px]"] img[src*="/assets/priori/113/eng-g5/q"]'));
+        const deadline = Date.now() + 4000;
+        while (Date.now() < deadline) {
+          if (imgs.length >= 22 && imgs.every((img) => img.complete && img.naturalWidth > 0)) break;
+          await new Promise((r) => setTimeout(r, 150));
+        }
+        const figImgs = imgs.filter((img) => /q\\d+_fig\\.webp/.test(img.getAttribute('src') || ''));
+        const loadedFigs = figImgs.filter((img) => img.complete && img.naturalWidth > 0);
+        return {
+          totalPrintImgs: imgs.length,
+          figCount: figImgs.length,
+          loadedFigCount: loadedFigs.length,
+          ok: figImgs.length === 22 && loadedFigs.length === 22,
+        };
+      })()
+    `);
+    assert.equal(printImgCheck?.ok, true, `Printable sheet 113-english-g5 figureImage DOM check failed: ${JSON.stringify(printImgCheck)}`);
+
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&paper=112-math-g3` });
+    await sleep(600);
+    const check112MathG3 = await client.eval(`
+      (() => {
+        const bodyText = document.body.innerText || '';
+        const imgEl = document.querySelector('img[src*="/assets/priori/112/math-g3/"]');
+        return { ok: bodyText.includes('112 年') && !!imgEl && imgEl.complete && imgEl.naturalWidth > 0 };
+      })()
+    `);
+    assert.equal(check112MathG3?.ok, true, `112-math-g3 UI check failed: ${JSON.stringify(check112MathG3)}`);
+    console.log('✓ Test K (Printable sheet 113-english-g5 22 figureImage DOM load + Year-112 112-math-g3 UI check) passed');
 
     assert.equal(client.exceptions.length, 0, `Page exceptions: ${client.exceptions.join('; ')}`);
     assert.equal(client.consoleErrors.length, 0, `Console errors: ${client.consoleErrors.join('; ')}`);
