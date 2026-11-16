@@ -24,6 +24,7 @@ import {
   Zap,
   LogOut,
   Smartphone,
+  Compass,
 } from 'lucide-react';
 import {
   PRIORI_SUBJECTS,
@@ -38,6 +39,7 @@ import { MathRichText } from './MathRichText';
 import { PrioriScratchpad, PrioriScratchpadPreview } from './PrioriScratchpad';
 import { PrioriAlphabetPad } from './PrioriAlphabetPad';
 import { PrioriTeacherDashboard } from './PrioriTeacherDashboard';
+import { PrioriSpotlightGuideModal } from './PrioriSpotlightGuideModal';
 import {
   PRIORI_DRILL_DEFAULT_LIMIT,
   PRIORI_DRILL_LIMIT_OPTIONS,
@@ -192,6 +194,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
   const [zoomTitle, setZoomTitle] = useState('');
   const [zoomReadOnly, setZoomReadOnly] = useState(false);
   const [isQrOpen, setIsQrOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isSubmitConfirmOpen, setIsSubmitConfirmOpen] = useState(false);
   const [speakingKey, setSpeakingKey] = useState(null);
 
@@ -1014,6 +1017,21 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
               >
                 <Lock className="w-3.5 h-3.5" />
                 <span>教師後台</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  stopSpeech();
+                  setViewMode('hub');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  setIsGuideOpen(true);
+                }}
+                title="開啟聚光燈互動式使用說明"
+                className="px-3 py-1.5 rounded-full bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-300 dark:border-cyan-700 text-cyan-800 dark:text-cyan-200 text-xs font-black flex items-center gap-1 hover:bg-cyan-100 transition cursor-pointer"
+              >
+                <Compass className="w-3.5 h-3.5" />
+                <span>操作說明</span>
               </button>
             </div>
           </header>
@@ -2566,6 +2584,12 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
           </div>
         );
       })()}
+
+      {/* 聚光燈互動式使用說明彈窗 */}
+      <PrioriSpotlightGuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+      />
 
       {/* 瀏覽器原生列印視圖（外部一律隱藏正解，教師含正解卷於教師後台提供） */}
       {viewMode !== 'teacher' && (

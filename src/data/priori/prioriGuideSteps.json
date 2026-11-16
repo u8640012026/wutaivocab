@@ -1,0 +1,140 @@
+{
+  "student": [
+    {
+      "id": "student-1-identity",
+      "title": "步驟 1：選班級座號並自設 4 碼密碼",
+      "desc": "點右上角身分膠囊選擇「年級、班級、座號」。第一次使用會請你自設一組好記的「4 碼換機密碼」，以後用這台 iPad 都免重登！",
+      "image": "/assets/priori/guide/student_1_identity.webp",
+      "rect": {
+        "x": 27.81,
+        "y": 10.03,
+        "w": 9.22,
+        "h": 5.12
+      },
+      "demoTyping": "2026",
+      "typingLabel": "示範自設 4 碼",
+      "actionHint": "點亮區或下一步繼續"
+    },
+    {
+      "id": "student-2-subject",
+      "title": "步驟 2：挑選「國語科」與「五年級」",
+      "desc": "在首頁上方先選科目（舉例：點「國語科」），再點選自己的年級（舉例：「五年級」），下方就會整理出對應的歷屆試卷。",
+      "image": "/assets/priori/guide/student_2_subject.webp",
+      "rect": {
+        "x": 26.63,
+        "y": 24.7,
+        "w": 11.47,
+        "h": 12.44
+      },
+      "actionHint": "點亮區或下一步繼續"
+    },
+    {
+      "id": "student-3-start",
+      "title": "步驟 3：點開「114 年五年級國語科」開始練習",
+      "desc": "找到目標年度的試卷卡片，點右側「開始練習」或「再次練習」按鈕，即可進入全真線上作答畫面。",
+      "image": "/assets/priori/guide/student_3_start.webp",
+      "rect": {
+        "x": 16.25,
+        "y": 37.38,
+        "w": 67.5,
+        "h": 9.27
+      },
+      "actionHint": "點亮區或下一步繼續"
+    },
+    {
+      "id": "student-4-exam",
+      "title": "步驟 4：雙欄作答＋「原卷 / 朗讀」自由切換",
+      "desc": "閱讀題組採左文右題並排，右上角可切換「原卷／朗讀」模式（數學科還可展開 iPad 計算紙手寫筆跡）。選好答案後按右上「交卷」。",
+      "image": "/assets/priori/guide/student_4_exam.webp",
+      "rect": {
+        "x": 70.73,
+        "y": 2.23,
+        "w": 27.31,
+        "h": 5.12
+      },
+      "actionHint": "點亮區或下一步繼續"
+    },
+    {
+      "id": "student-5-drill",
+      "title": "步驟 5：錯題沉底特訓（連對 2 次即精熟）",
+      "desc": "交卷後如果有答錯的題目，點「開始錯題特訓」就能把錯題集中重練；每題累計連對 2 次就會標記為「🌟 已精熟」！",
+      "image": "/assets/priori/guide/student_5_drill.webp",
+      "rect": {
+        "x": 12.38,
+        "y": 15.3,
+        "w": 47.17,
+        "h": 6.34
+      },
+      "actionHint": "完成學生導覽"
+    }
+  ],
+  "teacher": [
+    {
+      "id": "teacher-1-qr",
+      "title": "步驟 1：一鍵「派卷 QR Code」給全班掃碼",
+      "desc": "點首頁上方「派卷 QR」，選擇「科目 × 年度 × 年級」就會即時產生專屬 QR Code，學生平板一掃就直達該卷。",
+      "image": "/assets/priori/guide/teacher_1_qr.webp",
+      "rect": {
+        "x": 32.5,
+        "y": 19.36,
+        "w": 35,
+        "h": 61.28
+      },
+      "actionHint": "點亮區或下一步繼續"
+    },
+    {
+      "id": "teacher-2-print",
+      "title": "步驟 2：快速列印「空白練習卷 / 教師解答卷」",
+      "desc": "在教師後台點「列印解答卷（含正解）」，挑好科目、年度與年級即可直接預覽並印出含題圖的紙本試卷或解答卷。",
+      "image": "/assets/priori/guide/teacher_2_print.webp",
+      "rect": {
+        "x": 32.5,
+        "y": 30.46,
+        "w": 35,
+        "h": 39.09
+      },
+      "actionHint": "點亮區或下一步繼續"
+    },
+    {
+      "id": "teacher-3-overview",
+      "title": "步驟 3：後台看成績（初測成績 vs 精熟後成果）",
+      "desc": "進入教師後台後（此處以示範班級畫面呈現），可一鍵切換「初測成績（預設）」與「精熟後成果」，清楚對照學生補救前後表現。",
+      "image": "/assets/priori/guide/teacher_3_overview.webp",
+      "rect": {
+        "x": 51.42,
+        "y": 26.1,
+        "w": 17.34,
+        "h": 5.61
+      },
+      "actionHint": "點亮區或下一步繼續"
+    },
+    {
+      "id": "teacher-4-question",
+      "title": "步驟 4：「2. 依題目」檢視全班答對率與計算紙",
+      "desc": "往下滑到「2. 依題目」矩陣，可直接看出全班哪一題最常錯、快速預覽題目附圖（🖼️ 含題圖），也能點開單題檢視學生的計算紙筆跡。",
+      "image": "/assets/priori/guide/teacher_4_question.webp",
+      "rect": {
+        "x": 6.29,
+        "y": 1,
+        "w": 86.25,
+        "h": 51.22
+      },
+      "actionHint": "點亮區或下一步繼續"
+    },
+    {
+      "id": "teacher-5-pin",
+      "title": "步驟 5：學生忘記密碼時「改設 / 批次設 4 碼」",
+      "desc": "若有學生忘記換機密碼，老師直接在後台點「改設 4 碼」或「批次設 4 碼密碼」，輸入新 4 碼即可立即重設，原有作答成績完全保留！",
+      "image": "/assets/priori/guide/teacher_5_pin.webp",
+      "rect": {
+        "x": 68.12,
+        "y": 26.31,
+        "w": 10.7,
+        "h": 5.18
+      },
+      "demoTyping": "1234",
+      "typingLabel": "示範重設 4 碼",
+      "actionHint": "完成教師導覽"
+    }
+  ]
+}

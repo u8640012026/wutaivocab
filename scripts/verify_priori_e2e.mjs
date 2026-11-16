@@ -805,7 +805,10 @@ async function run() {
         // Click compact Printer icon on 114-math-g3 & verify external student print hides answers
         const printBtn = document.querySelector('button[aria-label="列印114 年篩選測驗 三年級數學科學習單"]');
         printBtn?.click();
-        await new Promise(r => setTimeout(r, 150));
+        const hubPrintDeadline = Date.now() + 3000;
+        while (Date.now() < hubPrintDeadline && (window.__printCalls || 0) < 1) {
+          await new Promise(r => setTimeout(r, 100));
+        }
         const printSheetText = document.querySelector('[class*="print:block"]')?.textContent || '';
         const studentPrintClean =
           printSheetText.includes('學生練習卷') &&
@@ -2224,6 +2227,35 @@ async function run() {
     `);
     assert.equal(check112MathG3?.ok, true, `112-math-g3 UI check failed: ${JSON.stringify(check112MathG3)}`);
     console.log('✓ Test K (Printable sheet 113-english-g5 22 figureImage DOM load + Year-112 112-math-g3 UI check) passed');
+
+    // Test L: Spotlight interactive guide capsule button & modal flow
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori` });
+    await sleep(600);
+    const guideCheck = await client.eval(`
+      (async () => {
+        const guideBtn = Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('操作說明'));
+        if (!guideBtn) return { ok: false, reason: 'missing-guide-btn' };
+        guideBtn.click();
+        await new Promise((r) => setTimeout(r, 200));
+        const dlg = document.querySelector('[role="dialog"][aria-label*="互動式使用說明"]');
+        const hasWelcome = (dlg?.innerText || '').includes('歡迎來到霧臺國小學習扶助練習網站說明');
+        const studentBtn = Array.from(dlg?.querySelectorAll('button') || []).find((b) => (b.innerText || '').includes('我是學生'));
+        studentBtn?.click();
+        await new Promise((r) => setTimeout(r, 300));
+        const img = dlg?.querySelector('img');
+        const imgLoaded = !!img && img.complete && img.naturalWidth > 0;
+        const nextBtn = Array.from(dlg?.querySelectorAll('button') || []).find((b) => (b.innerText || '').trim() === '下一步');
+        nextBtn?.click();
+        await new Promise((r) => setTimeout(r, 200));
+        const step2Ok = (dlg?.innerText || '').includes('2 / 5');
+        dlg?.querySelector('button[aria-label="關閉導覽"]')?.click();
+        await new Promise((r) => setTimeout(r, 150));
+        const closed = !document.querySelector('[role="dialog"][aria-label*="互動式使用說明"]');
+        return { ok: hasWelcome && imgLoaded && step2Ok && closed, hasWelcome, imgLoaded, step2Ok, closed };
+      })()
+    `);
+    assert.equal(guideCheck?.ok, true, `Spotlight guide E2E check failed: ${JSON.stringify(guideCheck)}`);
+    console.log('✓ Test L (Spotlight interactive guide capsule, student 5-step WebP load & navigation) passed');
 
     assert.equal(client.exceptions.length, 0, `Page exceptions: ${client.exceptions.join('; ')}`);
     assert.equal(client.consoleErrors.length, 0, `Console errors: ${client.consoleErrors.join('; ')}`);
