@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
+import { renderPdfPagesWithChrome } from './lib/renderPdfPagesWithChrome.mjs';
 
 const require = createRequire(import.meta.url);
-const { PDFParse } = require('pdf-parse');
 const sharp = require('sharp');
 const ffmpeg = require('ffmpeg-static');
 
@@ -173,9 +173,7 @@ async function renderPdfCrops(pdfPath, outDir, crops, contactSheetPath, accentHe
   fs.mkdirSync(path.dirname(contactSheetPath), { recursive: true });
 
   console.log(`\nRendering ${path.basename(pdfPath)} at scale=3...`);
-  const parser = new PDFParse({ data: fs.readFileSync(pdfPath) });
-  await parser.load();
-  const shot = await parser.getScreenshot({ scale: 3 });
+  const shot = { pages: await renderPdfPagesWithChrome(pdfPath, 3) };
 
   const generatedTiles = [];
   for (const crop of crops) {

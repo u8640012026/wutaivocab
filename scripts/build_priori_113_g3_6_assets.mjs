@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ffmpeg from 'ffmpeg-static';
-import { PDFParse } from 'pdf-parse';
+import { renderPdfPagesWithChrome } from './lib/renderPdfPagesWithChrome.mjs';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import sharp from 'sharp';
 
@@ -319,9 +319,7 @@ async function buildPaperAssets(paperCfg) {
   fs.mkdirSync(outDir, { recursive: true });
 
   const layout = await analyzePdfLayout(pdfPath);
-  const parser = new PDFParse({ data: fs.readFileSync(pdfPath) });
-  await parser.load();
-  const shot = await parser.getScreenshot({ scale: SCALE });
+  const shot = { pages: await renderPdfPagesWithChrome(pdfPath, SCALE) };
   const grays = await Promise.all(shot.pages.map((pg) => decodePageGrayscale(pg.data)));
 
   const tiles = [];

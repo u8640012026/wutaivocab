@@ -22,7 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ffmpeg from 'ffmpeg-static';
-import { PDFParse } from 'pdf-parse';
+import { renderPdfPagesWithChrome } from './lib/renderPdfPagesWithChrome.mjs';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import sharp from 'sharp';
 
@@ -174,10 +174,8 @@ async function decodePageRgb(pageBuf) {
 
 /** Render every page of a PDF at SCALE */
 async function renderPdf(pdfPath) {
-  const parser = new PDFParse({ data: fs.readFileSync(pdfPath) });
-  await parser.load();
-  const shot = await parser.getScreenshot({ scale: SCALE });
-  return shot.pages.map((p) => p.data);
+  const pages = await renderPdfPagesWithChrome(pdfPath, SCALE);
+  return pages.map((p) => p.data);
 }
 
 /** vertical column-divider detection (dark vertical rule between the two text columns) */
@@ -617,12 +615,13 @@ async function extractMathAnswers(cfg) {
           const r = rgb.data[o];
           const g = rgb.data[o + 1];
           const b = rgb.data[o + 2];
-          if (r > 150 && g < 110 && b < 110) c++;
+          if (r > 160 && (r - g) > 60 && (r - b) > 60) c++;
         }
       }
       return { n: Number(it.str.replace(/\D/g, '')), c };
     });
-    const red = redCounts.filter((r) => r.c >= 12);
+    const maxC = Math.max(...redCounts.map((r) => r.c));
+    const red = redCounts.filter((r) => r.c >= Math.max(80, maxC * 0.5));
     if (red.length !== 1) throw new Error(`${cfg.key} q${q}: expected exactly 1 red option, got ${JSON.stringify(redCounts)}`);
     answers.push(red[0].n - 1);
     evidence.push(redCounts.map((r) => r.c).join('/'));

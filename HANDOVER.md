@@ -160,6 +160,12 @@ node scripts/test_priori_sql_pg.mjs ; if ($LASTEXITCODE -eq 0) { npm run lint } 
 
 ## 七、 學習扶助篩選測驗 (`PRIORI`) Stage 0 盤點與新對話交接規格
 
+> [!CAUTION]
+> **PDF 轉圖鐵律（嚴禁使用 `pdf-parse` `getScreenshot()`）**：
+> - `pdf-parse` 的 `getScreenshot()` 在 Node.js 環境缺少繁體中文 CMap 與系統中文字型，會導致題圖／文章圖內的「公分、單位、國字、注音」發生**字型替換變形（看似 OCR 失敗）**。
+> - **日後凡製作 `111 / 110 / 109 / 108` 等任何 PRIORI 試卷截圖**，一律必須匯入共用模組 [`scripts/lib/renderPdfPagesWithChrome.mjs`](scripts/lib/renderPdfPagesWithChrome.mjs)（`renderPdfPagesWithChrome(pdfPath, SCALE)`），透過本機 Chrome DirectWrite 完整繁中字型引擎＋`pdfjs-dist` (`cMapUrl` + `standardFontDataUrl` + `useSystemFonts: true`) 轉製無失真頁面底圖後再裁切 `.webp`。
+> - 切圖與總覽拼圖產生後，盡量以純本機腳本與契約測試（如 `"圖片"` 必備圖檢查＋Sharp 門禁）把關，或產出 `tmp/<年度>_sheets/*.png` 供人工列印目檢，**避免讓 AI 多模態視覺批次讀大圖消耗額度**。
+
 > **工作區交接指引**：`PRIORI/115篩選測驗/`（亦位於本機 `C:\Users\user\Documents\chatgpt\PRIORI\115篩選測驗\`）原始 PDF 與 MP3 **僅存於 Windows 本機（已列於 `.gitignore` `/PRIORI/`）**，由**本機桌面板 Antigravity 開新對話**接手開發。開工前請先確認 Git 遠端對齊最新 `u8640012026/wutaivocab` `main`（避免主工作區停在舊 commit 或另有隔離 worktree 衝突），且全程不可覆蓋本機未追蹤原始資料。
 
 ### 1. Stage 0 本機素材盤點現況（不得擅自推入 Git）

@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { renderPdfPagesWithChrome } from './lib/renderPdfPagesWithChrome.mjs';
 
 const require = createRequire(import.meta.url);
-const { PDFParse } = require('pdf-parse');
 const sharp = require('sharp');
 
 const PDF_PATH = path.resolve('PRIORI/115篩選測驗/數學/115年篩選測驗數學科3年級試卷.pdf');
@@ -59,10 +59,7 @@ async function buildAssets() {
   fs.mkdirSync(path.dirname(CONTACT_SHEET_PATH), { recursive: true });
 
   console.log('Rendering PDF pages at scale=3...');
-  const buf = fs.readFileSync(PDF_PATH);
-  const parser = new PDFParse({ data: buf });
-  await parser.load();
-  const shot = await parser.getScreenshot({ scale: 3 });
+  const shot = { pages: await renderPdfPagesWithChrome(PDF_PATH, 3) };
 
   const allCrops = [...FIGURE_CROPS, ...QUESTION_CROPS];
   const generatedTiles = [];

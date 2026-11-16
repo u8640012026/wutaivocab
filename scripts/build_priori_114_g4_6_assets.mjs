@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import sharp from 'sharp';
-import { PDFParse } from 'pdf-parse';
+import { renderPdfPagesWithChrome } from './lib/renderPdfPagesWithChrome.mjs';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import ffmpegStatic from 'ffmpeg-static';
 
@@ -275,10 +275,7 @@ async function processPaper(paper) {
     throw new Error(`${paper.key}: Expected 25 question markers, got ${markers.length}`);
   }
 
-  const parser = new PDFParse({ data: fs.readFileSync(pdfPath) });
-  await parser.load();
-  const shot = await parser.getScreenshot({ scale: SCALE });
-  await parser.destroy();
+  const shot = { pages: await renderPdfPagesWithChrome(pdfPath, SCALE) };
 
   // Compute raw ink profile per page & col
   const pageRaws = [];
