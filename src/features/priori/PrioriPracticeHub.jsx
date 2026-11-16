@@ -65,6 +65,7 @@ import {
   LilyEmblem,
   PrioriZoomModal,
   PrioriQrModal,
+  PrioriTeacherPrintModal,
   PrioriSubmitConfirmModal,
   PrioriPrintableSheet,
   preloadPrioriPaperImages,
@@ -197,6 +198,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
   const [zoomReadOnly, setZoomReadOnly] = useState(false);
   const [isQrOpen, setIsQrOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isStudentPrintOpen, setIsStudentPrintOpen] = useState(false);
   const [isSubmitConfirmOpen, setIsSubmitConfirmOpen] = useState(false);
   const [speakingKey, setSpeakingKey] = useState(null);
 
@@ -1327,7 +1329,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                         onClick={(e) => {
                           e.stopPropagation();
                           setActivePaperId(paper.paperId);
-                          handlePrint('all', paper);
+                          setIsStudentPrintOpen(true);
                         }}
                         className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-stone-100 dark:hover:bg-slate-800 transition cursor-pointer"
                       >
@@ -2618,6 +2620,18 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
       <PrioriSpotlightGuideModal
         isOpen={isGuideOpen}
         onClose={() => setIsGuideOpen(false)}
+      />
+
+      <PrioriTeacherPrintModal
+        isOpen={isStudentPrintOpen}
+        onClose={() => setIsStudentPrintOpen(false)}
+        initialPaperId={activePaperId}
+        initialShowAnswerKey={false}
+        teacherMode={false}
+        onConfirmPrint={async () => {
+          setIsStudentPrintOpen(false);
+          await handlePrint('all', activePaper);
+        }}
       />
 
       {/* 瀏覽器原生列印視圖（外部一律隱藏正解，教師含正解卷於教師後台提供） */}

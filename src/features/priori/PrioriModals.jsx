@@ -618,6 +618,7 @@ export function PrioriTeacherPrintModal({
   onClose,
   initialPaperId,
   initialShowAnswerKey = true,
+  teacherMode = true,
   papers = PRIORI_PAPERS,
   subjects = PRIORI_SUBJECTS,
   onConfirmPrint,
@@ -628,6 +629,7 @@ export function PrioriTeacherPrintModal({
   const [selYear, setSelYear] = useState(String(initialPaper?.year || '114'));
   const [selGrade, setSelGrade] = useState(String(initialPaper?.grade || '3'));
   const [includeAnswerKey, setIncludeAnswerKey] = useState(initialShowAnswerKey);
+  const [printFormat, setPrintFormat] = useState('a4');
   const [printingBusy, setPrintingBusy] = useState(false);
 
   const matchedPaper =
@@ -650,12 +652,19 @@ export function PrioriTeacherPrintModal({
       setSelGrade(String(p.grade));
     }
     setIncludeAnswerKey(initialShowAnswerKey);
+    setPrintFormat('a4');
   }, [isOpen, initialPaperId, initialShowAnswerKey, papers]);
 
   useEffect(() => {
     if (!isOpen || !matchedPaper) return;
     preloadPrioriPaperImages(matchedPaper);
   }, [isOpen, matchedPaper]);
+
+  const hasOriginal = Boolean(
+    matchedPaper &&
+      ([112, 113, 114].includes(Number(matchedPaper.year)) ||
+        matchedPaper.paperId === '115-math-g3')
+  );
 
   if (!isOpen) return null;
 
@@ -686,7 +695,7 @@ export function PrioriTeacherPrintModal({
           </button>
         </div>
 
-        <PrioriPaperAxisSelector
+        {teacherMode && <PrioriPaperAxisSelector
           idPrefix="print"
           selSubject={selSubject}
           setSelSubject={setSelSubject}
@@ -698,9 +707,33 @@ export function PrioriTeacherPrintModal({
           subjects={subjects}
           matchedPaper={matchedPaper}
           accentColor="teal"
-        />
+        />}
 
-        <div className="grid grid-cols-2 gap-2 text-xs font-black">
+        <div className="text-left space-y-1.5">
+          <div className="text-xs font-black text-slate-600 dark:text-slate-300">列印格式</div>
+          <div className="grid grid-cols-2 gap-2 text-xs font-black">
+            {[
+              { value: 'a3', label: '原卷 A3' },
+              { value: 'a4', label: '練習卷 A4' },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={printFormat === value}
+                onClick={() => setPrintFormat(value)}
+                className={`py-2 px-3 rounded-xl border-2 transition cursor-pointer ${
+                  printFormat === value
+                    ? 'bg-teal-600 border-teal-700 text-white shadow-sm'
+                    : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {teacherMode && <div className="grid grid-cols-2 gap-2 text-xs font-black">
           <button
             type="button"
             onClick={() => setIncludeAnswerKey(true)}
@@ -723,14 +756,30 @@ export function PrioriTeacherPrintModal({
           >
             空白練習卷（不含正解）
           </button>
-        </div>
+        </div>}
 
         {matchedPaper ? (
           <div className="space-y-3">
             <p className="text-xs font-black text-slate-700 dark:text-slate-200">
               {matchedPaper.title}（{matchedPaper.totalQuestions} 題）
             </p>
-            <button
+            {printFormat === 'a3' && !hasOriginal ? (
+              <p className="text-xs font-bold text-amber-800 dark:text-amber-300">這份試卷的原卷 PDF 尚未提供，請選擇 A4 練習卷。</p>
+            ) : printFormat === 'a3' && Number(matchedPaper.year) === 115 && includeAnswerKey && teacherMode ? (
+              <p className="text-xs font-bold text-amber-800 dark:text-amber-300">115 年原卷答案尚未提供，請選擇空白卷或 A4 教師參考卷。</p>
+            ) : printFormat === 'a3' ? (
+              <>
+                <p className="text-xs text-slate-600 dark:text-slate-300">PDF 開啟後，請使用瀏覽器或 PDF 閱讀器的列印功能並選擇 A3 紙張。{matchedPaper.subject === 'english' && Number(matchedPaper.grade) === 3 ? '三年級英語原卷使用紙筆作答。' : ''}</p>
+                <a
+                  href={`/assets/priori/original/${matchedPaper.paperId}-${teacherMode && includeAnswerKey ? 'answer' : 'student'}.pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white font-black text-sm shadow-md flex items-center justify-center gap-2"
+                >
+                  <Printer className="w-4 h-4" />開啟原卷 PDF 列印
+                </a>
+              </>
+            ) : <button
               type="button"
               disabled={printingBusy}
               onClick={async () => {
@@ -747,7 +796,7 @@ export function PrioriTeacherPrintModal({
             >
               <Printer className="w-4 h-4" />
               {printingBusy ? '正在載入圖片並準備列印…' : '確定列印此試卷'}
-            </button>
+            </button>}
           </div>
         ) : (
           <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 p-4 text-xs font-bold text-amber-800 dark:text-amber-200">

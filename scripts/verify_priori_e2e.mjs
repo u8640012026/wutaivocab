@@ -805,12 +805,24 @@ async function run() {
         // Click compact Printer icon on 114-math-g3 & verify external student print hides answers
         const printBtn = document.querySelector('button[aria-label="列印114 年篩選測驗 三年級數學科學習單"]');
         printBtn?.click();
+        await new Promise(r => setTimeout(r, 150));
+        const studentPrintDialog = document.querySelector('[role="dialog"][aria-label="選擇列印試卷與版本"]');
+        Array.from(studentPrintDialog?.querySelectorAll('button') || []).find(b => (b.innerText || '').trim() === '原卷 A3')?.click();
+        const originalLinkDeadline = Date.now() + 3000;
+        while (Date.now() < originalLinkDeadline && !studentPrintDialog?.querySelector('a[href$="-student.pdf"]')) {
+          await new Promise(r => setTimeout(r, 100));
+        }
+        const studentOriginalHref = studentPrintDialog?.querySelector('a[href$="-student.pdf"]')?.getAttribute('href');
+        const studentOriginalOk = studentOriginalHref === '/assets/priori/original/114-math-g3-student.pdf' && !studentPrintDialog?.querySelector('a[href$="-answer.pdf"]');
+        Array.from(studentPrintDialog?.querySelectorAll('button') || []).find(b => (b.innerText || '').trim() === '練習卷 A4')?.click();
+        await new Promise(r => setTimeout(r, 100));
+        Array.from(studentPrintDialog?.querySelectorAll('button') || []).find(b => (b.innerText || '').includes('確定列印此試卷'))?.click();
         const hubPrintDeadline = Date.now() + 3000;
         while (Date.now() < hubPrintDeadline && (window.__printCalls || 0) < 1) {
           await new Promise(r => setTimeout(r, 100));
         }
         const printSheetText = document.querySelector('[class*="print:block"]')?.textContent || '';
-        const studentPrintClean =
+        const studentPrintClean = studentOriginalOk &&
           printSheetText.includes('學生練習卷') &&
           !printSheetText.includes('正解：') &&
           !printSheetText.includes('未作答');
@@ -852,7 +864,7 @@ async function run() {
         return {
           ok: hasTitle && has114Row && has115Row && descOrderOk && hasUnattemptedText && hasTeacherBadge && hasGuestHint && hasGradePills && hasEmblems && !overflow && qrHasPaperUrl && window.__printCalls >= 1 && studentPrintClean && has114Chi && chiNoPrematureRemedial && has114ChiG5 && has114EngG5 && has114Eng && engNoPrematureRemedial && has114MathG4 && has114MathG6,
           hasTitle, has114Row, has115Row, descOrderOk, hasUnattemptedText, hasTeacherBadge, hasGuestHint, hasGradePills, hasEmblems, overflow, qrHasPaperUrl,
-          printCalls: window.__printCalls, studentPrintClean, has114Chi, chiNoPrematureRemedial, has114ChiG5, has114EngG5, has114Eng, engNoPrematureRemedial, has114MathG4, has114MathG6,
+          printCalls: window.__printCalls, studentPrintClean, studentOriginalHref, studentOriginalOk, printSheetText: printSheetText.slice(0, 150), has114Chi, chiNoPrematureRemedial, has114ChiG5, has114EngG5, has114Eng, engNoPrematureRemedial, has114MathG4, has114MathG6,
         };
       })()
     `);
@@ -1452,13 +1464,30 @@ async function run() {
           setSelect(pGrade, '3');
           await new Promise(r => setTimeout(r, 100));
         }
+        Array.from(printDialog?.querySelectorAll('button') || []).find(b => (b.innerText || '').trim() === '原卷 A3')?.click();
+        await new Promise(r => setTimeout(r, 100));
+        const teacherAnswerHref = printDialog?.querySelector('a[href$="-answer.pdf"]')?.getAttribute('href');
+        Array.from(printDialog?.querySelectorAll('button') || []).find(b => (b.innerText || '').includes('空白練習卷'))?.click();
+        await new Promise(r => setTimeout(r, 100));
+        const teacherBlankHref = printDialog?.querySelector('a[href$="-student.pdf"]')?.getAttribute('href');
+        setSelect(pSubj, 'math');
+        setSelect(pYear, '115');
+        await new Promise(r => setTimeout(r, 100));
+        Array.from(printDialog?.querySelectorAll('button') || []).find(b => (b.innerText || '').includes('教師解答卷'))?.click();
+        await new Promise(r => setTimeout(r, 100));
+        const missing115Answer = (printDialog?.innerText || '').includes('115 年原卷答案尚未提供') && !printDialog?.querySelector('a[href$="-answer.pdf"]');
+        const originalPrintOk = teacherAnswerHref === '/assets/priori/original/114-chinese-g3-answer.pdf' && teacherBlankHref === '/assets/priori/original/114-chinese-g3-student.pdf' && missing115Answer;
+        setSelect(pSubj, 'chinese');
+        setSelect(pYear, '114');
+        Array.from(printDialog?.querySelectorAll('button') || []).find(b => (b.innerText || '').trim() === '練習卷 A4')?.click();
+        await new Promise(r => setTimeout(r, 100));
         Array.from(printDialog?.querySelectorAll('button') || []).find(b => (b.innerText || '').includes('確定列印此試卷'))?.click();
         const printDeadline = Date.now() + 3000;
         while (Date.now() < printDeadline && (window.__printCalls || 0) <= prevPrintCalls) {
           await new Promise(r => setTimeout(r, 100));
         }
         const teacherPrintText = document.querySelector('[class*="print:block"]')?.textContent || '';
-        const teacherPrintOk =
+        const teacherPrintOk = originalPrintOk &&
           !!teacherPrintBtn &&
           !!printDialog &&
           (window.__printCalls || 0) > prevPrintCalls &&
