@@ -1489,29 +1489,35 @@ export function PrioriTeacherDashboard({ onBack }) {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1">
-                  {PRIORI_PAPERS.map((p) => {
-                    const isPicked = activePaper?.paperId === p.paperId;
-                    return (
-                      <button
-                        key={p.paperId}
-                        type="button"
-                        onClick={() => {
-                          setSelectedSubject(p.subject);
-                          setSelectedYear(String(p.year));
-                          setSelectedPaperGrade(String(p.grade));
-                          setInspectedQuestionId(null);
-                        }}
-                        className={`px-2 py-1 rounded-lg text-[11px] font-black border transition cursor-pointer ${
-                          isPicked
-                            ? 'bg-teal-700 border-teal-800 text-white shadow-sm'
-                            : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-teal-400'
-                        }`}
-                      >
-                        {p.year} {p.gradeLabel}
-                        {p.subjectLabel}
-                      </button>
-                    );
-                  })}
+                  {PRIORI_PAPERS.filter(
+                    (p) =>
+                      p.subject === selectedSubject &&
+                      String(p.year) === String(selectedYear)
+                  )
+                    .sort((a, b) => Number(a.grade) - Number(b.grade))
+                    .map((p) => {
+                      const isPicked = activePaper?.paperId === p.paperId;
+                      return (
+                        <button
+                          key={p.paperId}
+                          type="button"
+                          onClick={() => {
+                            setSelectedSubject(p.subject);
+                            setSelectedYear(String(p.year));
+                            setSelectedPaperGrade(String(p.grade));
+                            setInspectedQuestionId(null);
+                          }}
+                          className={`px-2 py-1 rounded-lg text-[11px] font-black border transition cursor-pointer ${
+                            isPicked
+                              ? 'bg-teal-700 border-teal-800 text-white shadow-sm'
+                              : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-teal-400'
+                          }`}
+                        >
+                          {p.year} {p.gradeLabel}
+                          {p.subjectLabel}
+                        </button>
+                      );
+                    })}
                 </div>
               </div>
 

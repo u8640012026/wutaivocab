@@ -362,29 +362,47 @@ export function PrioriPaperAxisSelector({
         </div>
       </div>
 
-      {/* 快速點選已建置試卷膠囊 */}
-      <div className="flex flex-wrap justify-center gap-1.5">
-        {papers.map((p) => {
-          const active = matchedPaper?.paperId === p.paperId;
-          return (
-            <button
-              key={p.paperId}
-              type="button"
-              onClick={() => {
-                setSelSubject(p.subject);
-                setSelYear(String(p.year));
-                setSelGrade(String(p.grade));
-              }}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition cursor-pointer ${
-                active ? pillActiveClass : pillIdleClass
-              }`}
-            >
-              {p.year} {p.gradeLabel}
-              {p.subjectLabel}
-            </button>
-          );
-        })}
-      </div>
+      {/* 依目前選取科別與年度篩選並依年級排序之快速試卷膠囊 */}
+      {(() => {
+        const filteredPills = papers
+          .filter(
+            (p) => p.subject === selSubject && String(p.year) === String(selYear)
+          )
+          .sort((a, b) => Number(a.grade) - Number(b.grade));
+        const subjLabel =
+          subjects.find((s) => s.id === selSubject)?.label || selSubject;
+        return (
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              {subjLabel}・{selYear} 年（共 {filteredPills.length} 卷）
+            </div>
+            {filteredPills.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {filteredPills.map((p) => {
+                  const active = matchedPaper?.paperId === p.paperId;
+                  return (
+                    <button
+                      key={p.paperId}
+                      type="button"
+                      onClick={() => {
+                        setSelSubject(p.subject);
+                        setSelYear(String(p.year));
+                        setSelGrade(String(p.grade));
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition cursor-pointer ${
+                        active ? pillActiveClass : pillIdleClass
+                      }`}
+                    >
+                      {p.year} {p.gradeLabel}
+                      {p.subjectLabel}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
