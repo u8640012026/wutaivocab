@@ -368,7 +368,7 @@ export function reconcilePrioriPaperRecordWithPaper(rec, paper = null) {
       isCorrect &&
       (Number(nextStreaks[q.id]) || 0) === 1 &&
       isPrioriAnswerCorrect(q, firstAnswers[q.id]) &&
-      (Number(rec.questionAttemptCounts?.[q.id]) || 1) <= 1
+      Number(rec.questionAttemptCounts?.[q.id]) === 1
     ) {
       nextStreaks[q.id] = 2;
       streaksChanged = true;
@@ -467,33 +467,13 @@ export function mergePrioriPaperRecordWithPaper(localRec, cloudRec, paper = null
     }
   }
 
-  const olderFirst =
-    older.firstAnswers && typeof older.firstAnswers === 'object' ? older.firstAnswers : null;
-  const newerFirst =
-    newer.firstAnswers && typeof newer.firstAnswers === 'object' ? newer.firstAnswers : null;
-  let mergedFirstAnswers = olderFirst || newerFirst || null;
-  if (olderFirst && newerFirst) {
-    mergedFirstAnswers = { ...olderFirst };
-    for (const [qid, newerFirstVal] of Object.entries(newerFirst)) {
-      const q = qById[qid];
-      const olderFirstHas = q
-        ? hasPrioriAnswer(q, olderFirst[qid])
-        : olderFirst[qid] !== undefined && olderFirst[qid] !== null && olderFirst[qid] !== '';
-      const newerFirstHas = q
-        ? hasPrioriAnswer(q, newerFirstVal)
-        : newerFirstVal !== undefined && newerFirstVal !== null && newerFirstVal !== '';
-      if (!olderFirstHas && newerFirstHas) {
-        mergedFirstAnswers[qid] = newerFirstVal;
-      }
-    }
-  }
-
-  const firstCandidate =
-    olderFirst && Object.keys(olderFirst).length > 0
-      ? older
-      : newerFirst && Object.keys(newerFirst).length > 0
-      ? newer
-      : older;
+  const candidates = [older, newer].filter(
+    (record) => record.firstAnswers && typeof record.firstAnswers === 'object' && Object.keys(record.firstAnswers).length > 0
+  );
+  const firstCandidate = candidates.length === 2 && candidates.every((record) => record.firstSubmittedAt)
+    ? candidates.sort((a, b) => new Date(a.firstSubmittedAt) - new Date(b.firstSubmittedAt))[0]
+    : candidates[0] || older;
+  const mergedFirstAnswers = firstCandidate.firstAnswers || null;
 
   const mergedScratchpad = { ...(older.scratchpad || {}) };
   for (const [qid, strokes] of Object.entries(newer.scratchpad || {})) {

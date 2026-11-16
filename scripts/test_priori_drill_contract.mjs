@@ -152,8 +152,25 @@ assert.equal(mergedStaggered.latestScore, 8, 'Staggered merge must recompute lat
 assert.equal(mergedStaggered.correctCount, 2, 'Staggered merge must recompute correctCount = 2');
 assert.equal(mergedStaggered.masteredCount, 2, 'Staggered merge must recompute masteredCount = 2');
 assert.equal(mergedStaggered.masteredIds.length, 2);
-assert.equal(mergedStaggered.firstScore, 8, 'Staggered merge must backfill missing firstAnswers for Q2 -> 8');
-assert.equal(mergedStaggered.firstCorrectCount, 2);
+assert.equal(mergedStaggered.firstScore, 4, 'Keep the first submission as an intact snapshot');
+assert.equal(mergedStaggered.firstCorrectCount, 1);
+
+const firstHalf = Object.fromEntries(mathPaper.questions.slice(0, 10).map(q => [q.id, q.answer]));
+const secondHalf = Object.fromEntries(mathPaper.questions.slice(10, 20).map(q => [q.id, q.answer]));
+const partialRecord = (answers, submittedAt, updatedAt) => ({
+  firstAnswers: answers,
+  latestAnswers: answers,
+  streaks: Object.fromEntries(Object.keys(answers).map(id => [id, 1])),
+  questionAttemptCounts: Object.fromEntries(Object.keys(answers).map(id => [id, 1])),
+  firstSubmittedAt: submittedAt,
+  updatedAt,
+});
+const partialA = partialRecord(firstHalf, '2026-11-15T10:00:00Z', '2026-11-15T11:00:00Z');
+const partialB = partialRecord(secondHalf, '2026-11-15T10:05:00Z', '2026-11-15T10:05:00Z');
+const mergedPartial = mergePrioriPaperRecordWithPaper(partialA, partialB, mathPaper);
+assert.equal(mergedPartial.firstScore, 40, 'Separate partial submissions must not become an 80-point initial test');
+assert.equal(mergedPartial.masteredCount, 0, 'A merged score must not trigger first-test mastery');
+assert.deepEqual(mergedPartial.firstAnswers, firstHalf, 'First submission time determines the baseline');
 
 // Case 6: Later device actively submits wrong answer for Q1 -> latestScore updates & streak resets, while frozen firstScore preserves Q1 initial right
 const wrongOverrideQ1 = (q1.answer + 1) % 4;
@@ -177,7 +194,7 @@ assert.equal(mergedAfterWrong.correctCount, 1);
 assert.equal(mergedAfterWrong.masteredCount, 1);
 assert.equal(mergedAfterWrong.streaks[q1.id], 0);
 assert.equal(mergedAfterWrong.firstAnswers[q1.id], q1.answer, 'Initial firstAnswers[Q1] remains frozen');
-assert.equal(mergedAfterWrong.firstScore, 8, 'Frozen firstScore retains Q1 initial answer + Q2');
+assert.equal(mergedAfterWrong.firstScore, 4, 'Frozen firstScore retains the original submission');
 
 // Case 7: Auto-reconcile pre-fix miskeyed records for 113-english-g5 (Q9 -> 0) and 113-english-g6 (Q23 -> 1)
 const engG5Paper = PRIORI_PAPER_MAP['113-english-g5'];
@@ -205,8 +222,8 @@ assert.equal(reconciledEngG5.firstScore, 100);
 assert.equal(reconciledEngG5.wrongIds.length, 0);
 assert.equal(
   reconciledEngG5.streaks['priori-113-eng-g5-q09'],
-  2,
-  'First test >= 80% upgrades correct item directly to streak=2'
+  1,
+  'Legacy records without attempt counts retain their streak'
 );
 
 const engG6Paper = PRIORI_PAPER_MAP['113-english-g6'];
@@ -241,7 +258,7 @@ mathG3.questions.forEach((q, idx) => {
   streaks80[q.id] = idx < 20 ? 1 : 0;
 });
 const rec80 = reconcilePrioriPaperRecordWithPaper(
-  { paperId: '114-math-g3', latestAnswers: ans80, firstAnswers: ans80, streaks: streaks80 },
+  { paperId: '114-math-g3', latestAnswers: ans80, firstAnswers: ans80, streaks: streaks80, questionAttemptCounts: Object.fromEntries(mathG3.questions.map(q => [q.id, 1])) },
   mathG3
 );
 assert.equal(rec80.firstScore, 80);

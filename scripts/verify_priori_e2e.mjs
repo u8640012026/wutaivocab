@@ -1709,7 +1709,7 @@ async function run() {
     }
     assert.ok(mergedRow, `Expected cloud record merged to score 8; rows=${JSON.stringify(client.prioriRecords)}`);
 
-    // Hub reflects recomputed 8 分 on fresh reload & hydrated record has score=8, firstScore=8, correctCount=2
+    // Hub shows the merged latest score while the first submission remains intact.
     await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori` });
     await sleep(700);
     const hubMerged = await client.eval(`
@@ -1722,7 +1722,7 @@ async function run() {
         const localAll = JSON.parse(localStorage.getItem('wutai_priori_v1_030105') || '{}');
         const rec = localAll['114-math-g3'] || null;
         return {
-          ok: text.includes('8 分') && rec?.score === 8 && rec?.firstScore === 8 && rec?.correctCount === 2 && rec?.firstCorrectCount === 2,
+          ok: text.includes('8 分') && rec?.score === 8 && rec?.firstScore === 4 && rec?.correctCount === 2 && rec?.firstCorrectCount === 1,
           text,
           recSummary: rec ? { score: rec.score, firstScore: rec.firstScore, correctCount: rec.correctCount, firstCorrectCount: rec.firstCorrectCount, masteredCount: rec.masteredCount } : null,
         };
@@ -1875,7 +1875,7 @@ async function run() {
         return {
           ok:
             legacyBlocked &&
-            initialText.includes('8 分') &&
+            initialText.includes('4 分') &&
             initialText.includes('已設碼（綁 2 台）') &&
             masteryText.includes('8 分') &&
             singleNoticeText.includes('030106') &&

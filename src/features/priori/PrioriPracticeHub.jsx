@@ -637,7 +637,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
         finishReason: 'cap_reached',
         headline: ok
           ? `🏁 答對了！目前已達本輪 ${drillMeta.maxAttempts} 題練習上限，即將結算本次進度。`
-          : `🏁 答錯囉！已達本輪 ${drillMeta.maxAttempts} 題練習上限（不無限重考），請先看過提示後結算，若要繼續精熟可再開新一輪！`,
+          : `${fastHint}🏁 答錯囉！已達本輪 ${drillMeta.maxAttempts} 題練習上限（不無限重考），請先看過提示後結算，若要繼續精熟可再開新一輪！`,
         detail:
           currentQuestion.explanationSteps?.[
             ok ? Math.max(0, (currentQuestion.explanationSteps?.length || 1) - 1) : 0

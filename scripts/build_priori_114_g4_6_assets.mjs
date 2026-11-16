@@ -453,7 +453,9 @@ async function processPaper(paper) {
         figBot = o1.y - 76;
       }
       // Adjust figTop below wrapped 2-line question header if needed (e.g. G4 Q2, Q7, Q9, Q13, Q22, Q23; G5 Q10, Q22, Q25)
-      if (paper.key === 'math-g4' && [7, 9, 22, 23].includes(qNum)) {
+      if (paper.key === 'math-g4' && qNum === 2) {
+        figTop = qb.markerY;
+      } else if (paper.key === 'math-g4' && [7, 9, 22, 23].includes(qNum)) {
         figTop = qb.markerY + 86;
       } else if (paper.key === 'math-g4' && qNum === 13) {
         figTop = qb.markerY + 40;
