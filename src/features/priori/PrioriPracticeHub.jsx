@@ -1208,7 +1208,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                     <div
                       role="group"
                       aria-label="選擇特訓回合題數上限"
-                      className="inline-flex items-center rounded-xl bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-800 p-0.5 text-[11px] font-black"
+                      className="mt-2 inline-flex flex-wrap items-center rounded-xl bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-800 p-0.5 text-[11px] font-black"
                     >
                       {PRIORI_DRILL_LIMIT_OPTIONS.map((opt) => {
                         const active = drillLimit === opt.count;
@@ -1244,7 +1244,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                               drillLimit
                             )
                           }
-                          className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-200 font-black text-xs flex items-center gap-1 cursor-pointer"
+                          className="mt-2 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-200 font-black text-xs flex items-center gap-1 cursor-pointer"
                         >
                           <Zap className="w-3.5 h-3.5" />
                           <span>僅練錯題 ({subjectRemedialPool.wrongQuestions.length})</span>

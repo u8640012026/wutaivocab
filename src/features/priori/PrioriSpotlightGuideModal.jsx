@@ -139,7 +139,7 @@ export function PrioriSpotlightGuideModal({ isOpen, onClose }) {
                 <span>我是學生（進行測驗）</span>
               </div>
               <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed">
-                以「114 年五年級國語卷」為例，帶你學會選座號、自設 4 碼、朗讀切換與錯題連對 2 次特訓。
+                以「114 年五年級國語卷」為例，帶你選座號、切換朗讀並練習待加強題。
               </p>
               <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-700 dark:text-emerald-300 pt-1">
                 開始學生導覽（{GUIDE_STEPS.student.length} 步）

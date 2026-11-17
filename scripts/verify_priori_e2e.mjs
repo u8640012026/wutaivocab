@@ -2297,6 +2297,36 @@ async function run() {
       })()
     `);
     assert.equal(guideCheck?.ok, true, `Spotlight guide E2E check failed: ${JSON.stringify(guideCheck)}`);
+    for (const size of [{ width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 1280, height: 800 }]) {
+      await client.send('Emulation.setDeviceMetricsOverride', { ...size, deviceScaleFactor: 1, mobile: false });
+      for (const role of ['學生', '老師']) {
+        const responsiveGuide = await client.eval(`
+          (async () => {
+            const role = ${JSON.stringify(role)};
+            const findButton = (node, text) => Array.from(node?.querySelectorAll('button') || []).find(b => (b.innerText || '').includes(text));
+            findButton(document, '操作說明')?.click();
+            await new Promise(r => setTimeout(r, 120));
+            const dlg = document.querySelector('[role="dialog"][aria-label*="互動式使用說明"]');
+            findButton(dlg, '我是' + role)?.click();
+            const problems = [];
+            for (let step = 1; step <= 5; step++) {
+              await new Promise(r => setTimeout(r, 160));
+              const img = dlg?.querySelector('img');
+              const next = findButton(dlg, step === 5 ? '完成' : '下一步');
+              const box = next?.getBoundingClientRect();
+              const deadline = Date.now() + 3000;
+              while (img && !img.complete && Date.now() < deadline) await new Promise(r => setTimeout(r, 100));
+              if (!img?.naturalWidth || !box || box.left < 0 || box.right > innerWidth || box.top < 0 || box.bottom > innerHeight) problems.push(step);
+              next?.click();
+            }
+            await new Promise(r => setTimeout(r, 100));
+            return { role, problems, closed: !document.querySelector('[role="dialog"][aria-label*="互動式使用說明"]') };
+          })()
+        `);
+        assert.deepEqual(responsiveGuide?.problems, [], `Guide ${role} overflow or image error at ${size.width}x${size.height}`);
+        assert.equal(responsiveGuide?.closed, true, `Guide ${role} did not finish at ${size.width}x${size.height}`);
+      }
+    }
     console.log('✓ Test L (Spotlight interactive guide capsule, student 5-step WebP load & navigation) passed');
 
     assert.equal(client.exceptions.length, 0, `Page exceptions: ${client.exceptions.join('; ')}`);
