@@ -209,7 +209,7 @@ export function PrioriSpotlightGuideModal({ isOpen, onClose }) {
           <div className="relative w-full bg-slate-950/10 flex-1 min-h-0 flex items-center justify-center p-2 sm:p-3 overflow-hidden">
             <div className="relative w-full max-w-[820px] aspect-[1280/820] rounded-2xl overflow-hidden border border-slate-300 dark:border-slate-700 shadow-inner bg-white select-none">
               <img
-                src={currentStep?.image}
+                src={currentStep?.image ? `${currentStep.image}?v=20261117` : undefined}
                 alt={currentStep?.title}
                 className="w-full h-full object-contain block"
                 draggable={false}
