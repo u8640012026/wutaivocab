@@ -1202,7 +1202,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-start gap-2">
+                <div className="flex flex-col items-start gap-2">
                   <details className="text-xs font-bold">
                     <summary className="cursor-pointer px-2 py-1.5 text-slate-600 dark:text-slate-300">練習設定</summary>
                     <div
@@ -1268,9 +1268,10 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                   >
                     <Flame className="w-3.5 h-3.5" />
                     <span>
-                      再練待加強題（{subjectRemedialPool.allRemedialQuestions.length} 題）
+                      再練待加強題（本輪最多 {drillLimit} 次）
                     </span>
                   </button>
+                  <span className="text-xs text-slate-600 dark:text-slate-300">共 {subjectRemedialPool.allRemedialQuestions.length} 題待加強，可分批練習</span>
                 </div>
               </section>
             ) : (
@@ -2153,15 +2154,16 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                     className="inline-flex items-center gap-1.5 rounded-2xl bg-rose-700 px-4 py-2.5 text-sm font-black text-white transition hover:bg-rose-600"
                   >
                     <Flame className="h-4 w-4" />
-                    再練待加強題（{nextRetryPool.length} 題）
+                    再練待加強題（本輪最多 {drillLimit} 次）
                   </button>
                 )}
+                {nextRetryPool.length > 0 && <span className="text-xs font-bold text-slate-600 dark:text-slate-300">共 {nextRetryPool.length} 題待加強，可分批練習</span>}
                 {resultStats.wrongList.length > 0 && (
                   <a
                     href={`#review-${resultStats.wrongList[0].id}`}
                     className="rounded-2xl border border-stone-200 px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-stone-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
-                    看錯題
+                    往下看錯題解析 ↓
                   </a>
                 )}
               </div>

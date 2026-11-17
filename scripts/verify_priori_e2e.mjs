@@ -1059,7 +1059,7 @@ async function run() {
 
         const body = document.body.innerText || '';
         const retryBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('再練待加強題'));
-        const reviewLink = Array.from(document.querySelectorAll('a')).find(a => a.innerText === '看錯題');
+        const reviewLink = Array.from(document.querySelectorAll('a')).find(a => a.innerText === '往下看錯題解析 ↓');
         const more = Array.from(document.querySelectorAll('details')).find(d => d.querySelector('summary')?.innerText === '更多操作');
         const resultActionsOk = !!retryBtn && reviewLink?.getAttribute('href') === '#review-priori-114-math-g3-q02' && more && !more.open;
         const hasScore = (body.includes('4') && (body.includes('1 / 25') || body.includes('1/25')));

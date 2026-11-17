@@ -1049,6 +1049,29 @@ export function PrioriTeacherDashboard({ onBack }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {rosterEntries.length === 0 && (
+              <button
+                type="button"
+                onClick={() => setIsRosterModalOpen(true)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black border flex items-center gap-1.5 transition cursor-pointer ${
+                  rosterEntries.length > 0
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200'
+                    : rosterEnvelope
+                    ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 animate-pulse'
+                    : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                }`}
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>
+                  {rosterEntries.length > 0
+                    ? `名冊已解鎖 (${rosterEntries.length})`
+                    : rosterEnvelope
+                    ? `解鎖名冊 (${rosterEnvelope.count || 0})`
+                    : '匯入加密名冊'}
+                </span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setIsPrintModalOpen(true)}
@@ -1283,6 +1306,19 @@ export function PrioriTeacherDashboard({ onBack }) {
                   </>
                 )}
 
+                <select
+                  aria-label="矩陣試卷年級"
+                  value={selectedPaperGrade}
+                  onChange={(e) => setSelectedPaperGrade(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800 text-xs font-black text-slate-700 dark:text-slate-200"
+                >
+                  {PAPER_GRADE_OPTIONS.map((pg) => (
+                    <option key={pg} value={pg}>
+                      {pg}年級試卷
+                    </option>
+                  ))}
+                </select>
+
                 <div
                   role="group"
                   aria-label="測驗階段切換"
@@ -1485,40 +1521,31 @@ export function PrioriTeacherDashboard({ onBack }) {
                       依科目看歷年（115–108）
                     </button>
                   </div>
-                  <select
-                    aria-label="矩陣試卷年級"
-                    value={selectedPaperGrade}
-                    onChange={(e) => setSelectedPaperGrade(e.target.value)}
-                    className="px-2.5 py-1.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800 text-xs font-black text-slate-700 dark:text-slate-200"
-                  >
-                    {PAPER_GRADE_OPTIONS.map((pg) => (
-                      <option key={pg} value={pg}>
-                        {pg}年級試卷
-                      </option>
-                    ))}
-                  </select>
+
                 </>
               )}
-              <button
-                type="button"
-                onClick={() => setIsRosterModalOpen(true)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black border flex items-center gap-1.5 transition cursor-pointer ${
-                  rosterEntries.length > 0
-                    ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200'
-                    : rosterEnvelope
-                    ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 animate-pulse'
-                    : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
-                }`}
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>
-                  {rosterEntries.length > 0
-                    ? `名冊已解鎖 (${rosterEntries.length})`
-                    : rosterEnvelope
-                    ? `解鎖名冊 (${rosterEnvelope.count || 0})`
-                    : '匯入加密名冊'}
-                </span>
-              </button>
+              {rosterEntries.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsRosterModalOpen(true)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black border flex items-center gap-1.5 transition cursor-pointer ${
+                    rosterEntries.length > 0
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200'
+                      : rosterEnvelope
+                      ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 animate-pulse'
+                      : 'bg-stone-50 dark:bg-slate-800 border-stone-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                  }`}
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>
+                    {rosterEntries.length > 0
+                      ? `名冊已解鎖 (${rosterEntries.length})`
+                      : rosterEnvelope
+                      ? `解鎖名冊 (${rosterEnvelope.count || 0})`
+                      : '匯入加密名冊'}
+                  </span>
+                </button>
+              )}
               {activeTab === 'matrix' && !inspectedCell && !isDemoView && (
                 <button
                   type="button"
