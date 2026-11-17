@@ -832,7 +832,7 @@ async function run() {
         await new Promise(r => setTimeout(r, 200));
         const chiTxt = document.body.innerText || '';
         const has114Chi = chiTxt.includes('114 年') && chiTxt.includes('三年級國語科');
-        const chiNoPrematureRemedial = !chiTxt.includes('開始特訓');
+        const chiNoPrematureRemedial = !chiTxt.includes('再練待加強題');
 
         // Verify Grade 5 Chinese card
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').trim() === '五年級')?.click();
@@ -847,7 +847,7 @@ async function run() {
         await new Promise(r => setTimeout(r, 150));
         const engTxt = document.body.innerText || '';
         const has114Eng = engTxt.includes('114 年') && engTxt.includes('三年級英語科');
-        const engNoPrematureRemedial = !engTxt.includes('開始特訓');
+        const engNoPrematureRemedial = !engTxt.includes('再練待加強題');
 
         // Switch back to 數學科 & verify Grade 4 / Grade 6 cards then restore Grade 3
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('數學科'))?.click();
@@ -1058,6 +1058,10 @@ async function run() {
         await new Promise(r => setTimeout(r, 400));
 
         const body = document.body.innerText || '';
+        const retryBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('再練待加強題'));
+        const reviewLink = Array.from(document.querySelectorAll('a')).find(a => a.innerText === '看錯題');
+        const more = Array.from(document.querySelectorAll('details')).find(d => d.querySelector('summary')?.innerText === '更多操作');
+        const resultActionsOk = !!retryBtn && reviewLink?.getAttribute('href') === '#review-priori-114-math-g3-q02' && more && !more.open;
         const hasScore = (body.includes('4') && (body.includes('1 / 25') || body.includes('1/25')));
         const q1Review = document.querySelector('#review-priori-114-math-g3-q01');
         const expandBtn = Array.from(q1Review?.querySelectorAll('button') || []).find(b => (b.innerText || '').includes('展開全部'));
@@ -1069,8 +1073,8 @@ async function run() {
         const hasPadReplay = !!q1Review?.querySelector('[aria-label="第 1 題計算紙紀錄"]');
 
         return {
-          ok: hasUnansweredConfirm && hasScore && hasAllSteps && hasStreak1 && hasPadReplay,
-          hasUnansweredConfirm, hasScore, hasAllSteps, hasStreak1, hasPadReplay,
+          ok: resultActionsOk && hasUnansweredConfirm && hasScore && hasAllSteps && hasStreak1 && hasPadReplay,
+          resultActionsOk, hasUnansweredConfirm, hasScore, hasAllSteps, hasStreak1, hasPadReplay,
           scorePreview: body.slice(0, 350),
           storageKeys: Object.keys(localStorage),
         };
@@ -1092,23 +1096,27 @@ async function run() {
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('回練習館') || (b.innerText || '').includes('選卷'))?.click();
         await new Promise(r => setTimeout(r, 250));
 
-        // Confirm Chinese & English remedial pools are untouched (no 開始特訓 button in Chinese/English tabs)
+        // Confirm Chinese & English remedial pools are untouched (no 再練待加強題 button in Chinese/English tabs)
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('國語科'))?.click();
         await new Promise(r => setTimeout(r, 180));
-        const chiIsolated = !(document.body.innerText || '').includes('開始特訓');
+        const chiIsolated = !(document.body.innerText || '').includes('再練待加強題');
 
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('英語科'))?.click();
         await new Promise(r => setTimeout(r, 180));
-        const engIsolated = !(document.body.innerText || '').includes('開始特訓');
+        const engIsolated = !(document.body.innerText || '').includes('再練待加強題');
 
         // Back to 數學科 and inspect remedial section + launch sinking drill
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('數學科'))?.click();
         await new Promise(r => setTimeout(r, 250));
         const mathSection = document.querySelector('[aria-label="數學科待補強與錯題沉底特訓專區"]');
         const mathSectionText = mathSection?.innerText || '';
-        const hasShortLongToggles = mathSectionText.includes('10 題短測') && mathSectionText.includes('20 題長測');
+        const settings = mathSection?.querySelector('details');
+        const settingsCollapsed = settings && !settings.open;
+        settings?.querySelector('summary')?.click();
+        const hasShortLongToggles = settingsCollapsed && settings.open && settings.innerText.includes('10 題短測') && settings.innerText.includes('20 題長測');
+        settings?.querySelector('summary')?.click();
         const launchBtn = Array.from(mathSection?.querySelectorAll('button') || []).find(b =>
-          (b.innerText || '').includes('開始特訓')
+          (b.innerText || '').includes('再練待加強題')
         );
         if (!launchBtn) return { ok: false, reason: 'Missing math sinking drill button', chiIsolated, engIsolated, mathSectionText };
         launchBtn.click();
@@ -1149,7 +1157,7 @@ async function run() {
         const savePartialBtn = Array.from(exitDialog?.querySelectorAll('button') || []).find(b => (b.innerText || '').includes('保存已練 1 題進度'));
         savePartialBtn?.click();
         await new Promise(r => setTimeout(r, 250));
-        const partialExitOk = (document.body.innerText || '').includes('已保存中途批改完成的 1 題紀錄');
+        const partialExitOk = (document.body.innerText || '').includes('已留存本輪 1 次作答的進度');
 
         return {
           ok: chiIsolated && engIsolated && hasShortLongToggles && hasExplicitCapBanner && hasSinkFeedback && hasSinkBtn && queueExtended && partialExitOk,
@@ -1261,7 +1269,7 @@ async function run() {
         Array.from(document.querySelectorAll('[role="dialog"] button')).find(b => (b.innerText || '').includes('確定交卷'))?.click();
         await new Promise(r => setTimeout(r, 400));
         const body = document.body.innerText || '';
-        const has3Right = body.includes('本輪通過 3 / 25 題') && body.includes('12 分');
+        const has3Right = body.includes('答對 3 / 25 題') && body.includes('12 分');
         const q1Review = document.querySelector('#review-priori-114-eng-g3-q01');
         const q1Text = q1Review?.innerText || '';
         const hasEngMastery = q1Text.includes('V') && q1Text.includes('v') && q1Text.includes('連對 1 次');
@@ -1355,10 +1363,13 @@ async function run() {
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').trim() === '初測成績（預設）')?.click();
         await new Promise(r => setTimeout(r, 150));
 
+        const tools = document.getElementById('priori-teacher-more-tools');
+        const toolsCollapsed = tools && !tools.open;
+        tools?.querySelector('summary')?.click();
         // Switch matrix view to '依科目看歷年（115–108）' -> unattempted years show '-' & switch back to '依年度看國／數／英'
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('依科目看歷年'))?.click();
         await new Promise(r => setTimeout(r, 200));
-        const bySubjColsOk = (matrixSection?.innerText || '').includes('115 年') && (matrixSection?.innerText || '').includes('108 年');
+        const bySubjColsOk = toolsCollapsed && tools.open && (matrixSection?.innerText || '').includes('115 年') && (matrixSection?.innerText || '').includes('108 年');
         const hasDashCells = Array.from(matrixSection?.querySelectorAll('tbody td') || [])
           .some(td => (td.innerText || '').trim() === '-');
 
@@ -1451,7 +1462,7 @@ async function run() {
 
         // Verify Teacher Print Picker Modal -> pick 114 Chinese Grade 3 with Answer Key & print
         const prevPrintCalls = window.__printCalls || 0;
-        const teacherPrintBtn = Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('列印解答卷（含正解）'));
+        const teacherPrintBtn = Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('列印試卷'));
         teacherPrintBtn?.click();
         await new Promise(r => setTimeout(r, 200));
         const printDialog = document.querySelector('[role="dialog"][aria-label="選擇列印試卷與版本"]');
@@ -1864,6 +1875,8 @@ async function run() {
         await new Promise((r) => setTimeout(r, 300));
         const singleNoticeText = document.getElementById('priori-teacher-binding-notice')?.innerText || '';
 
+        document.querySelector('#priori-teacher-more-tools summary')?.click();
+
         // 2) Uncheck overwrite checkbox -> batch set 4-digit PIN '3344' for class 3-1 WITHOUT overwriting existing PINs -> updates 4 seats, skips 030105 & 030106
         document.getElementById('priori-teacher-batch-pin-btn')?.click();
         await new Promise((r) => setTimeout(r, 150));
@@ -2124,7 +2137,7 @@ async function run() {
         Array.from(document.querySelectorAll('[role="dialog"] button')).find((b) => (b.innerText || '').includes('確定交卷'))?.click();
         await new Promise((r) => setTimeout(r, 400));
         const body = document.body.innerText || '';
-        return { ok: body.includes('4 分') && body.includes('本輪通過 1 / 25 題'), snippet: body.slice(0, 400) };
+        return { ok: body.includes('4 分') && body.includes('答對 1 / 25 題'), snippet: body.slice(0, 400) };
       })()
     `);
     assert.equal(check113EngG5Q9?.ok, true, `113-english-g5 Q9 official (1) grading failed: ${JSON.stringify(check113EngG5Q9)}`);
@@ -2146,7 +2159,7 @@ async function run() {
         Array.from(document.querySelectorAll('[role="dialog"] button')).find((b) => (b.innerText || '').includes('確定交卷'))?.click();
         await new Promise((r) => setTimeout(r, 400));
         const body = document.body.innerText || '';
-        return { ok: body.includes('4 分') && body.includes('本輪通過 1 / 25 題'), snippet: body.slice(0, 400) };
+        return { ok: body.includes('4 分') && body.includes('答對 1 / 25 題'), snippet: body.slice(0, 400) };
       })()
     `);
     assert.equal(check113EngG6Q23?.ok, true, `113-english-g6 Q23 official (2) grading failed: ${JSON.stringify(check113EngG6Q23)}`);

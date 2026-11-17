@@ -859,6 +859,9 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
     const score = Math.round((correctCount / Math.max(1, uniqueActiveQuestions.length)) * 100);
     return { wrongList, unmasteredList, correctCount, score };
   }, [uniqueActiveQuestions, isMistakeRetry, checkedAnswersMap, answers, activePaper?.paperId, lastSubmissionByPaper, savedRecords]);
+  const nextRetryPool = isMistakeRetry && resultStats.unmasteredList.length > 0
+    ? resultStats.unmasteredList
+    : resultStats.wrongList;
 
   const baseOrigin = useMemo(() => {
     return typeof window !== 'undefined' &&
@@ -1185,7 +1188,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                 <div className="flex flex-wrap items-center gap-2 text-xs font-black">
                   <span className="px-2.5 py-1 rounded-xl bg-rose-600 text-white flex items-center gap-1">
                     <Flame className="w-3.5 h-3.5" />
-                    <span>{activeSubjectInfo.label}・錯題沉底特訓</span>
+                    <span>{activeSubjectInfo.label}・待加強題</span>
                   </span>
                   {subjectRemedialPool.wrongQuestions.length > 0 && (
                     <span className="text-rose-700 dark:text-rose-300">
@@ -1199,52 +1202,55 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* 10 題短測 / 20 題長測 */}
-                  <div
-                    role="group"
-                    aria-label="選擇特訓回合題數上限"
-                    className="inline-flex items-center rounded-xl bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-800 p-0.5 text-[11px] font-black"
-                  >
-                    {PRIORI_DRILL_LIMIT_OPTIONS.map((opt) => {
-                      const active = drillLimit === opt.count;
-                      return (
-                        <button
-                          key={opt.count}
-                          type="button"
-                          onClick={() => setDrillLimit(opt.count)}
-                          className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                            active
-                              ? 'bg-rose-600 text-white shadow-xs'
-                              : 'text-rose-700 dark:text-rose-200 hover:bg-rose-50 dark:hover:bg-slate-700'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div className="flex flex-wrap items-start gap-2">
+                  <details className="text-xs font-bold">
+                    <summary className="cursor-pointer px-2 py-1.5 text-slate-600 dark:text-slate-300">練習設定</summary>
+                    <div
+                      role="group"
+                      aria-label="選擇特訓回合題數上限"
+                      className="inline-flex items-center rounded-xl bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-800 p-0.5 text-[11px] font-black"
+                    >
+                      {PRIORI_DRILL_LIMIT_OPTIONS.map((opt) => {
+                        const active = drillLimit === opt.count;
+                        return (
+                          <button
+                            key={opt.count}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => setDrillLimit(opt.count)}
+                            className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                              active
+                                ? 'bg-rose-600 text-white shadow-xs'
+                                : 'text-rose-700 dark:text-rose-200 hover:bg-rose-50 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                  {subjectRemedialPool.wrongQuestions.length > 0 &&
-                    subjectRemedialPool.progressQuestions.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          startQuiz(
-                            PRIORI_PAPER_MAP[subjectRemedialPool.wrongQuestions[0].paperId] ||
-                              subjectPapers[0],
-                            subjectRemedialPool.wrongQuestions,
-                            true,
-                            true,
-                            drillLimit
-                          )
-                        }
-                        className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-200 font-black text-xs flex items-center gap-1 cursor-pointer"
-                      >
-                        <Zap className="w-3.5 h-3.5" />
-                        <span>僅練錯題 ({subjectRemedialPool.wrongQuestions.length})</span>
-                      </button>
-                    )}
+                    {subjectRemedialPool.wrongQuestions.length > 0 &&
+                      subjectRemedialPool.progressQuestions.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            startQuiz(
+                              PRIORI_PAPER_MAP[subjectRemedialPool.wrongQuestions[0].paperId] ||
+                                subjectPapers[0],
+                              subjectRemedialPool.wrongQuestions,
+                              true,
+                              true,
+                              drillLimit
+                            )
+                          }
+                          className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-200 font-black text-xs flex items-center gap-1 cursor-pointer"
+                        >
+                          <Zap className="w-3.5 h-3.5" />
+                          <span>僅練錯題 ({subjectRemedialPool.wrongQuestions.length})</span>
+                        </button>
+                      )}
+                  </details>
 
                   <button
                     type="button"
@@ -1262,7 +1268,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                   >
                     <Flame className="w-3.5 h-3.5" />
                     <span>
-                      開始特訓（{subjectRemedialPool.allRemedialQuestions.length} 題｜上限 {drillLimit}）
+                      再練待加強題（{subjectRemedialPool.allRemedialQuestions.length} 題）
                     </span>
                   </button>
                 </div>
@@ -1274,7 +1280,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
               >
                 <Award className="w-4 h-4 shrink-0" />
                 <span>
-                  🌟 {activeSubjectInfo.label}已練習題目全數精熟（連對 2 次，共{' '}
+                  🌟 {activeSubjectInfo.label}已練習題目全數精熟（共{' '}
                   {subjectRemedialPool.totalPracticedQuestions} 題）
                 </span>
               </div>
@@ -1542,15 +1548,6 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => setIsQrOpen(true)}
-                className="px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 bg-stone-50 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-teal-400 transition cursor-pointer"
-                title="顯示 QR code 給學生平板掃描"
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">派卷 QR</span>
-              </button>
             </div>
           </header>
 
@@ -2069,10 +2066,6 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
       {/* ══════════════════════════════════════════════════════════════ */}
       {viewMode === 'result' && (
         <div className="relative z-10 flex-1 w-full max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 animate-fadeIn print:hidden">
-          <div className="rounded-2xl bg-amber-50/95 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 p-3 sm:p-3.5 text-xs font-bold text-amber-900 dark:text-amber-200 leading-relaxed">
-            💡 {activePaper.answerSourceNote}本練習館作答紀錄完全獨立，不會改動單字館金幣與英語檢定館成績。
-          </div>
-
           {cloudSyncNotice?.type === 'error' && (
             <div
               role="alert"
@@ -2087,18 +2080,18 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
               <div>
                 <p className="text-xs font-black text-teal-700 dark:text-teal-300">
                   {isSubjectDrill
-                    ? `${activeSubjectInfo.label}・錯題沉底特訓成果`
-                    : `${activePaper.title}${isMistakeRetry ? '（錯題沉底訂正）' : ''}`}
+                    ? `${activeSubjectInfo.label}・加強練習結果`
+                    : `${activePaper.title}${isMistakeRetry ? '（加強練習）' : ''}`}
                 </p>
                 <div className="flex flex-wrap items-baseline gap-3 mt-1">
                   <span className="text-3xl sm:text-4xl font-black text-teal-800 dark:text-teal-200 tabular-nums">
                     {resultStats.score} 分
                   </span>
                   <span className="text-sm font-black text-slate-600 dark:text-slate-300 tabular-nums">
-                    本輪通過 {resultStats.correctCount} / {uniqueActiveQuestions.length} 題 ・ 用時{' '}
+                    答對 {resultStats.correctCount} / {uniqueActiveQuestions.length} 題 ・ 用時{' '}
                     {formatDuration(elapsedSeconds)}
                   </span>
-                  {(() => {
+                  {!isSubjectDrill && (() => {
                     const rec =
                       lastSubmissionByPaper[activePaper.paperId] ||
                       savedRecords[activePaper.paperId];
@@ -2107,8 +2100,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                       <span className="px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-xs font-black flex items-center gap-1 tabular-nums">
                         <Award className="w-3.5 h-3.5" />
                         <span>
-                          🌟 {activePaper.year}年精熟進度：{rec.masteredCount || 0} /{' '}
-                          {activePaper.questions.length} 題（連續答對 2 次）
+                          已精熟 {rec.masteredCount || 0} / {activePaper.questions.length} 題
                         </span>
                       </span>
                     );
@@ -2137,12 +2129,12 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
               >
                 <span>
                   {drillMeta.finishReason === 'all_mastered'
-                    ? `🎉 本輪範圍錯題已全數達成連對 2 次精熟（0 待補強），共作答 ${checkedStepsCount} 題提前完成！`
+                    ? `本輪的題目都練熟了！共作答 ${checkedStepsCount} 次。`
                     : drillMeta.finishReason === 'cap_reached'
-                    ? `🏁 已完成本輪上限 ${drillMeta.maxAttempts} 題練習並結束結算；若要繼續把剩下錯題練熟，點下方「錯題沉底再練」再開一輪即可！`
+                    ? `已練習 ${drillMeta.maxAttempts} 次，可以再開一輪。`
                     : drillMeta.finishReason === 'exited_early'
-                    ? `💾 已保存中途批改完成的 ${checkedStepsCount} 題紀錄，其餘題目維持原精熟狀態。`
-                    : `已完成本輪沉底特訓（共批改 ${checkedStepsCount} 題／上限 ${drillMeta.maxAttempts} 題）。`}
+                    ? `已留存本輪 ${checkedStepsCount} 次作答的進度。`
+                    : `本輪已練習 ${checkedStepsCount} 次。`}
                 </span>
                 {drillMeta.overflowCount > 0 && (
                   <span className="px-2 py-0.5 rounded-lg bg-white/80 dark:bg-slate-900/60 border border-current/20">
@@ -2151,6 +2143,52 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                 )}
               </div>
             )}
+
+            {(nextRetryPool.length > 0 || resultStats.wrongList.length > 0) && (
+              <div className="flex flex-wrap items-center gap-2.5 border-t border-stone-100 pt-3 dark:border-slate-800">
+                {nextRetryPool.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => startQuiz(activePaper, nextRetryPool, true, isSubjectDrill, drillLimit)}
+                    className="inline-flex items-center gap-1.5 rounded-2xl bg-rose-700 px-4 py-2.5 text-sm font-black text-white transition hover:bg-rose-600"
+                  >
+                    <Flame className="h-4 w-4" />
+                    再練待加強題（{nextRetryPool.length} 題）
+                  </button>
+                )}
+                {resultStats.wrongList.length > 0 && (
+                  <a
+                    href={`#review-${resultStats.wrongList[0].id}`}
+                    className="rounded-2xl border border-stone-200 px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-stone-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    看錯題
+                  </a>
+                )}
+              </div>
+            )}
+
+            <details className="text-xs font-bold text-slate-600 dark:text-slate-300">
+              <summary className="cursor-pointer py-1.5">更多操作</summary>
+              <div className="mt-2 flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => startQuiz(activePaper)}
+                  className="flex items-center gap-1.5 rounded-xl bg-stone-100 px-3 py-2 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  整卷重新作答
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePrint(resultStats.wrongList.length > 0 ? 'wrong' : 'all')}
+                  className="flex items-center gap-1.5 rounded-xl bg-stone-100 px-3 py-2 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+                >
+                  <Printer className="h-4 w-4" />
+                  {resultStats.wrongList.length > 0 ? '列印錯題學習單' : '列印全卷學習單'}
+                </button>
+              </div>
+              {activePaper.answerSourceNote && <p className="mt-2 leading-relaxed">{activePaper.answerSourceNote}</p>}
+            </details>
 
             <div className="flex flex-wrap gap-1.5 pt-1">
               {uniqueActiveQuestions.map((q) => {
@@ -2172,55 +2210,6 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                   </a>
                 );
               })}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-stone-100 dark:border-slate-800">
-              {(() => {
-                const nextRetryPool = isMistakeRetry
-                  ? resultStats.unmasteredList.length > 0
-                    ? resultStats.unmasteredList
-                    : resultStats.wrongList
-                  : resultStats.wrongList;
-                return nextRetryPool.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      startQuiz(activePaper, nextRetryPool, true, isSubjectDrill, drillLimit)
-                    }
-                    className="px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition cursor-pointer"
-                  >
-                    <Flame className="w-4 h-4" />
-                    <span>
-                      錯題沉底再練（{nextRetryPool.length} 題｜上限 {drillLimit}）
-                    </span>
-                  </button>
-                ) : (
-                  <span className="px-4 py-2 rounded-2xl bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 font-black text-xs sm:text-sm flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>本輪題目全部精熟過關！太棒了！</span>
-                  </span>
-                );
-              })()}
-
-              <button
-                type="button"
-                onClick={() => startQuiz(activePaper)}
-                className="px-4 py-2.5 rounded-2xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs sm:text-sm flex items-center gap-1.5 transition cursor-pointer"
-              >
-                <RotateCcw className="w-4 h-4" />
-                <span>整卷重新作答</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handlePrint(resultStats.wrongList.length > 0 ? 'wrong' : 'all')}
-                className="px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-800 border-2 border-teal-200 dark:border-teal-700 hover:border-teal-400 text-teal-800 dark:text-teal-200 font-black text-xs sm:text-sm flex items-center gap-1.5 transition cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>
-                  {resultStats.wrongList.length > 0 ? '列印錯題學習單' : '列印全卷學習單'}
-                </span>
-              </button>
             </div>
           </section>
 
@@ -2245,6 +2234,7 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                 <article
                   key={q.id}
                   id={`review-${q.id}`}
+                  tabIndex={-1}
                   className={`rounded-3xl bg-white/95 dark:bg-slate-900/95 border-2 p-4 sm:p-5 shadow-sm space-y-3 ${
                     isCorrect && !wasSunk
                       ? 'border-emerald-200 dark:border-emerald-800/70'
