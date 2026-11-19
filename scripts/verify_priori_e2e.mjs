@@ -47,7 +47,7 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function waitForHttp(url, timeoutMs = 15000) {
+async function waitForHttp(url, timeoutMs = 30000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
@@ -55,6 +55,23 @@ async function waitForHttp(url, timeoutMs = 15000) {
       if (res.ok) return;
     } catch {}
     await sleep(200);
+  }
+  throw new Error(`Timeout waiting for ${url}`);
+}
+
+async function waitForChromePageTab(cdpPort, timeoutMs = 45000) {
+  const url = `http://127.0.0.1:${cdpPort}/json/list`;
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const tabs = await res.json();
+        const pageTab = tabs.find((t) => t.type === 'page' && t.webSocketDebuggerUrl) || tabs[0];
+        if (pageTab?.webSocketDebuggerUrl) return pageTab;
+      }
+    } catch {}
+    await sleep(250);
   }
   throw new Error(`Timeout waiting for ${url}`);
 }
@@ -691,19 +708,25 @@ async function run() {
       '--disable-gpu',
     ];
     if (process.platform !== 'win32') {
-      chromeFlags.push('--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage');
+      chromeFlags.push(
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-background-networking',
+        '--disable-extensions',
+        '--metrics-recording-only'
+      );
     }
 
     chrome = spawn(CHROME_PATH, chromeFlags, { stdio: ['ignore', 'ignore', 'pipe'] });
     chrome.stderr?.on('data', (d) => { chromeLog += d.toString(); });
 
+    let pageTab;
     try {
-      await waitForHttp(`http://127.0.0.1:${CDP_PORT}/json/list`);
+      pageTab = await waitForChromePageTab(CDP_PORT, 45000);
     } catch (err) {
       throw new Error(`${err.message}\nChrome stderr: ${chromeLog}`);
     }
-    const tabs = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json/list`)).json();
-    const pageTab = tabs.find((t) => t.type === 'page') || tabs[0];
     assert.ok(pageTab?.webSocketDebuggerUrl, 'Missing CDP page tab');
 
     client = new CDP(pageTab.webSocketDebuggerUrl);
@@ -736,7 +759,7 @@ async function run() {
 
     const portalResult = await client.eval(`
       (async () => {
-        const deadline = Date.now() + 8000;
+        const deadline = Date.now() + 12000;
         let heading = null;
         while (Date.now() < deadline) {
           heading = Array.from(document.querySelectorAll('h3')).find(el => (el.innerText || '').includes('學習扶助練習館'));
@@ -745,7 +768,7 @@ async function run() {
         }
         if (!heading) return { ok: false, reason: 'Portal card missing' };
         heading.click();
-        const hubDeadline = Date.now() + 4000;
+        const hubDeadline = Date.now() + 8000;
         while (Date.now() < hubDeadline) {
           if ((document.body.innerText || '').includes('霧臺國小・學習扶助自主練習館')) break;
           await new Promise(r => setTimeout(r, 120));
@@ -2261,9 +2284,15 @@ async function run() {
     await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&paper=112-math-g3` });
     await sleep(600);
     const check112MathG3 = await client.eval(`
-      (() => {
+      (async () => {
+        const deadline = Date.now() + 4000;
+        let imgEl = null;
+        while (Date.now() < deadline) {
+          imgEl = document.querySelector('img[src*="/assets/priori/112/math-g3/"]');
+          if ((document.body.innerText || '').includes('112 年') && imgEl?.complete && imgEl.naturalWidth > 0) break;
+          await new Promise((r) => setTimeout(r, 120));
+        }
         const bodyText = document.body.innerText || '';
-        const imgEl = document.querySelector('img[src*="/assets/priori/112/math-g3/"]');
         return { ok: bodyText.includes('112 年') && !!imgEl && imgEl.complete && imgEl.naturalWidth > 0 };
       })()
     `);
@@ -2273,8 +2302,14 @@ async function run() {
     await sleep(600);
     const check111MathG3 = await client.eval(`
       (async () => {
+        const deadline = Date.now() + 4000;
+        let imgEl = null;
+        while (Date.now() < deadline) {
+          imgEl = document.querySelector('img[src*="/assets/priori/111/math-g3/"]');
+          if ((document.body.innerText || '').includes('111 年') && imgEl?.complete && imgEl.naturalWidth > 0) break;
+          await new Promise((r) => setTimeout(r, 120));
+        }
         const bodyText = document.body.innerText || '';
-        const imgEl = document.querySelector('img[src*="/assets/priori/111/math-g3/"]');
         const pdfRes = await fetch('/assets/priori/original/111-math-g3-student.pdf');
         return {
           ok: bodyText.includes('111 年') && !!imgEl && imgEl.complete && imgEl.naturalWidth > 0 && pdfRes.ok,
@@ -2288,12 +2323,18 @@ async function run() {
     await sleep(600);
     const check111EngG3 = await client.eval(`
       (async () => {
+        const deadline = Date.now() + 4000;
+        let hasAudioBtn = false;
+        while (Date.now() < deadline) {
+          hasAudioBtn = Array.from(document.querySelectorAll('button')).some((b) => (b.innerText || '').includes('播放官方聽力'));
+          if ((document.body.innerText || '').includes('111 年') && hasAudioBtn) break;
+          await new Promise((r) => setTimeout(r, 120));
+        }
         const bodyText = document.body.innerText || '';
-        const hasAudioBtn = Array.from(document.querySelectorAll('button')).some((b) => (b.innerText || '').includes('播放官方聽力'));
         const mp3Res = await fetch('/audio/priori/111/eng-g3/q01.mp3');
         const q22Chip = Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').trim() === '22');
         q22Chip?.click();
-        await new Promise((r) => setTimeout(r, 180));
+        await new Promise((r) => setTimeout(r, 200));
         const q22NoAudio = !Array.from(document.querySelectorAll('button')).some((b) => (b.innerText || '').includes('播放官方聽力'));
         return {
           ok: bodyText.includes('111 年') && hasAudioBtn && mp3Res.ok && q22NoAudio,
