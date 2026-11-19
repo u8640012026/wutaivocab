@@ -84,7 +84,7 @@ export const PRIORI_110_MATH_G5_QUESTIONS = [
     id: 'priori-110-math-g5-q03',
     number: 3,
     questionImage: '/assets/priori/110/math-g5/q03.webp',
-    figureImage: '/assets/priori/110/math-g5/q03_fig.webp',
+    figureImage: '/assets/priori/110/math-g5/q03_fig_v2.webp',
     questionText: '下圖是線對稱圖形，請問 A 點的對稱點為何？',
     options: ['B 點', 'C 點', 'D 點', 'E 點'],
     answer: 3,

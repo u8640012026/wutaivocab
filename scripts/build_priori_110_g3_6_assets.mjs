@@ -87,6 +87,13 @@ const CHI_FIG_QUESTIONS = {
 };
 const FIG_OVERRIDES = {};
 
+// Rectangles within the full question crop. Retain point labels and row names;
+// fail if the upstream rendering changes instead of silently cropping wrong.
+const VERIFIED_QUESTION_FIGURES = {
+  'math-g5': { 3: { sourceWidth: 1054, sourceHeight: 485, left: 92, top: 61, width: 520, height: 344 } },
+  'eng-g5': { 25: { sourceWidth: 1114, sourceHeight: 353, left: 4, top: 55, width: 495, height: 293 } },
+};
+
 function isRowWhite(gray, y, x1, x2) {
   if (y < 0 || y >= gray.height) return true;
   const off = y * gray.width;
@@ -877,17 +884,27 @@ async function buildPaper(cfg) {
 
     let figureImage = null;
     if (wantFig) {
+      const verifiedRect = VERIFIED_QUESTION_FIGURES[key]?.[num];
       const autoRect = figureRect(cfg, num, c, pg, gray);
-      if (!autoRect) {
+      if (!autoRect && !verifiedRect) {
         warnings.push(`q${num}: figure expected but none detected`);
       } else {
-        const figName = `q${String(num).padStart(2, '0')}_fig.webp`;
+        const figName = `q${String(num).padStart(2, '0')}_fig${verifiedRect ? '_v2' : ''}.webp`;
         const figPath = path.join(outDir, figName);
-        await extractTrimmedWebp(
-          bufs[c.page],
-          { left: autoRect.x1, top: autoRect.top, width: autoRect.x2 - autoRect.x1, height: autoRect.bottom - autoRect.top },
-          figPath
-        );
+        if (verifiedRect) {
+          const { sourceWidth, sourceHeight, ...rect } = verifiedRect;
+          const meta = await sharp(qPath).metadata();
+          if (meta.width !== sourceWidth || meta.height !== sourceHeight) {
+            throw new Error(`${key} q${num}: question crop changed; recheck figure coordinates`);
+          }
+          await sharp(qPath).extract(rect).webp({ quality: 95 }).toFile(figPath);
+        } else {
+          await extractTrimmedWebp(
+            bufs[c.page],
+            { left: autoRect.x1, top: autoRect.top, width: autoRect.x2 - autoRect.x1, height: autoRect.bottom - autoRect.top },
+            figPath
+          );
+        }
         tiles.push({ name: figName, outPath: figPath });
         figureImage = `${pubBase}/${figName}`;
       }

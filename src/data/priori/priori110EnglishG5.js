@@ -357,7 +357,7 @@ const READING_P2S_SPECS = [
     steps: [
       '讀懂表格兩列（Kevin 與 May）和三欄圖示（游泳 swim、唱歌 sing、跳舞 dance）：',
       'Kevin：游泳打勾、唱歌打勾、跳舞打叉；May：游泳打叉、唱歌打勾、跳舞打勾。',
-      '核對選項：(1) Kevin 會唱歌（錯）；(2) May 會跳舞（錯）；(3) May 會跳舞，Kevin 不會（May can dance. Kevin can’t.）完全正確。選 (3)。',
+      '核對選項：(1) 說 Kevin 不會唱歌，與表格不符；(2) 說 May 不會跳舞，也與表格不符；(3) May 會跳舞，Kevin 不會，符合表格。選 (3)。',
     ],
   },
 ];
@@ -460,7 +460,7 @@ export const PRIORI_110_ENGLISH_G5_QUESTIONS = [
       id: `priori-110-eng-g5-q${qStr}`,
       number: item.num,
       questionImage: `/assets/priori/110/eng-g5/q${qStr}.webp`,
-      figureImage: `/assets/priori/110/eng-g5/q${qStr}_fig.webp`,
+      figureImage: `/assets/priori/110/eng-g5/q${qStr}_fig${item.num === 25 ? '_v2' : ''}.webp`,
       questionText: `第二部分（三）圖片配對句子（第 ${item.num} 題）\n請依照左邊圖片選出最適合的英語句子：`,
       options: item.options,
       answer: item.answer,
