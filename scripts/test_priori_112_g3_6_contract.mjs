@@ -252,10 +252,10 @@ async function run() {
       }
 
       assert.ok(q.questionImage, `${q.id} missing questionImage`);
-      if (/圖片/.test(q.prompt || '')) {
+      if (/圖片/.test(q.questionText || q.prompt || '')) {
         assert.ok(
           q.figureImage || q.passage?.image,
-          `${q.id} mentions "圖片" in prompt but has neither figureImage nor passage.image`
+          `${q.id} mentions "圖片" in questionText but has neither figureImage nor passage.image`
         );
       }
       checkedImages.add(q.questionImage);

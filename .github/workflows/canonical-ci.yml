@@ -71,6 +71,7 @@ jobs:
           node scripts/test_priori_114_g3_contract.mjs
           node scripts/test_priori_114_g4_6_contract.mjs
           node scripts/test_priori_115_math_g3_contract.mjs
+          node scripts/screen_priori_content.mjs . tmp/priori_screen --strict
 
       - name: 🐘 Run Real PostgreSQL + pgcrypto SQL & Migration Security Tests
         run: node scripts/test_priori_sql_pg.mjs

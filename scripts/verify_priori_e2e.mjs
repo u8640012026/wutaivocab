@@ -1338,11 +1338,21 @@ async function run() {
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
         const wrongPwDeadline = Date.now() + 4000;
         let wrongPwMsg = false;
+        let loginBtnReady = false;
         while (Date.now() < wrongPwDeadline) {
           wrongPwMsg = (document.body.innerText || '').includes('教師密碼錯誤');
-          const btnReady = Array.from(document.querySelectorAll('button')).some(b => (b.innerText || '').includes('驗證進入教師診斷台'));
-          if (wrongPwMsg && btnReady) break;
+          const btn = Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('驗證進入教師診斷台'));
+          loginBtnReady = Boolean(btn && !btn.disabled);
+          if (wrongPwMsg && loginBtnReady) break;
           await new Promise(r => setTimeout(r, 100));
+        }
+        if (!wrongPwMsg || !loginBtnReady) {
+          return {
+            ok: false,
+            reason: 'Wrong-password attempt did not surface error or re-enable login button before timeout',
+            wrongPwMsg,
+            loginBtnReady,
+          };
         }
 
         setInput(pwInput, 'ci-mock-admin-pw');
@@ -1886,11 +1896,21 @@ async function run() {
           setInput(pwInput, 'wt7902230');
           Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
           const legacyDeadline = Date.now() + 4000;
+          let legacyBtnReady = false;
           while (Date.now() < legacyDeadline) {
             legacyBlocked = (document.body.innerText || '').includes('教師密碼錯誤');
-            const btnReady = Array.from(document.querySelectorAll('button')).some((b) => (b.innerText || '').includes('驗證進入教師診斷台'));
-            if (legacyBlocked && btnReady) break;
+            const btn = Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('驗證進入教師診斷台'));
+            legacyBtnReady = Boolean(btn && !btn.disabled);
+            if (legacyBlocked && legacyBtnReady) break;
             await new Promise((r) => setTimeout(r, 100));
+          }
+          if (!legacyBlocked || !legacyBtnReady) {
+            return {
+              ok: false,
+              reason: 'Legacy-password attempt did not surface error or re-enable login button before timeout',
+              legacyBlocked,
+              legacyBtnReady,
+            };
           }
 
           setInput(pwInput, 'ci-mock-admin-pw');
