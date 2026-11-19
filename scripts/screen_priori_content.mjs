@@ -8,7 +8,7 @@ const args = process.argv.slice(2);
 const strictMode = args.includes('--strict');
 const spotYearIdx = args.indexOf('--spot-check');
 const spotCheckYear = spotYearIdx >= 0 ? Number(args[spotYearIdx + 1]) : null;
-const positional = args.filter((a, i) => !a.startsWith('--') && i !== spotYearIdx + 1);
+const positional = args.filter((a, i) => !a.startsWith('--') && !(spotYearIdx >= 0 && i === spotYearIdx + 1));
 
 const repo = path.resolve(positional[0] || '.');
 const out = path.resolve(positional[1] || path.join(repo, 'tmp', 'priori_screen'));
