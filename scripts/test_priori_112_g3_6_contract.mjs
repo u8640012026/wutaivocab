@@ -179,10 +179,10 @@ async function validateWebpAsset(publicRelPath) {
 async function run() {
   console.log('=== PRIORI Year-112 Grades 3–6 (All 12 Papers) Contract Verification ===');
 
-  assert.equal(PRIORI_PAPERS.length, 49, 'PRIORI_PAPERS must list all 49 published papers');
-  assert.equal(PRIORI_STATS.totalPapers, 49);
-  assert.equal(PRIORI_STATS.totalQuestions, 1225);
-  assert.equal(Object.keys(PRIORI_QUESTION_INDEX).length, 1225);
+  assert.equal(PRIORI_PAPERS.length, 61, 'PRIORI_PAPERS must list all 61 published papers');
+  assert.equal(PRIORI_STATS.totalPapers, 61);
+  assert.equal(PRIORI_STATS.totalQuestions, 1525);
+  assert.equal(Object.keys(PRIORI_QUESTION_INDEX).length, 1525);
 
   for (const subj of PRIORI_SUBJECTS) {
     assert.deepEqual(
@@ -301,7 +301,7 @@ async function run() {
   console.log(
     `✓ Validated 12 Year-112 G3–G6 papers (300 Qs), ${checkedImages.size} referenced WebP images, ${checkedAudios.size} official MP3 clips.`
   );
-  console.log('✓ Total catalog: 49 papers / 1,225 questions passed.');
+  console.log('✓ Total catalog: 61 papers / 1,525 questions passed.');
 }
 
 run().catch((err) => {

@@ -662,7 +662,7 @@ export function PrioriTeacherPrintModal({
 
   const hasOriginal = Boolean(
     matchedPaper &&
-      ([111, 112, 113, 114].includes(Number(matchedPaper.year)) ||
+      ([110, 111, 112, 113, 114].includes(Number(matchedPaper.year)) ||
         matchedPaper.paperId === '115-math-g3')
   );
 

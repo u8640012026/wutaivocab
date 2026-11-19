@@ -2401,7 +2401,55 @@ async function run() {
       })()
     `);
     assert.equal(check111EngG3?.ok, true, `111-english-g3 UI/MP3 check failed: ${JSON.stringify(check111EngG3)}`);
-    console.log('✓ Test K (Printable sheet 113-english-g5 22 figureImage DOM load + Year-112 & Year-111 Math/Eng G3 UI/A3/MP3 checks) passed');
+
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&paper=110-math-g3` });
+    await sleep(600);
+    const check110MathG3 = await client.eval(`
+      (async () => {
+        const deadline = Date.now() + 4000;
+        let imgEl = null;
+        while (Date.now() < deadline) {
+          imgEl = document.querySelector('img[src*="/assets/priori/110/math-g3/"]');
+          if ((document.body.innerText || '').includes('110 年') && imgEl?.complete && imgEl.naturalWidth > 0) break;
+          await new Promise((r) => setTimeout(r, 120));
+        }
+        const bodyText = document.body.innerText || '';
+        const pdfRes = await fetch('/assets/priori/original/110-math-g3-student.pdf');
+        return {
+          ok: bodyText.includes('110 年') && !!imgEl && imgEl.complete && imgEl.naturalWidth > 0 && pdfRes.ok,
+          pdfStatus: pdfRes.status,
+        };
+      })()
+    `);
+    assert.equal(check110MathG3?.ok, true, `110-math-g3 UI/PDF check failed: ${JSON.stringify(check110MathG3)}`);
+
+    await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori&paper=110-english-g3` });
+    await sleep(600);
+    const check110EngG3 = await client.eval(`
+      (async () => {
+        const deadline = Date.now() + 4000;
+        let hasAudioBtn = false;
+        while (Date.now() < deadline) {
+          hasAudioBtn = Array.from(document.querySelectorAll('button')).some((b) => (b.innerText || '').includes('播放官方聽力'));
+          if ((document.body.innerText || '').includes('110 年') && hasAudioBtn) break;
+          await new Promise((r) => setTimeout(r, 120));
+        }
+        const bodyText = document.body.innerText || '';
+        const mp3Res = await fetch('/audio/priori/110/eng-g3/q01.mp3');
+        const q22Chip = Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').trim() === '22');
+        q22Chip?.click();
+        await new Promise((r) => setTimeout(r, 200));
+        const q22NoAudio = !Array.from(document.querySelectorAll('button')).some((b) => (b.innerText || '').includes('播放官方聽力'));
+        return {
+          ok: bodyText.includes('110 年') && hasAudioBtn && mp3Res.ok && q22NoAudio,
+          hasAudioBtn,
+          mp3Status: mp3Res.status,
+          q22NoAudio,
+        };
+      })()
+    `);
+    assert.equal(check110EngG3?.ok, true, `110-english-g3 UI/MP3 check failed: ${JSON.stringify(check110EngG3)}`);
+    console.log('✓ Test K (Printable sheet 113-english-g5 22 figureImage DOM load + Year-112, Year-111 & Year-110 Math/Eng G3 UI/A3/MP3 checks) passed');
 
     // Test L: Spotlight interactive guide capsule button & modal flow
     await client.send('Page.navigate', { url: `${BASE_URL}/?view=priori` });

@@ -101,8 +101,8 @@ for (const paper of PRIORI_PAPERS) {
         flags.push('english-listening-tts-leak-review');
       }
     }
-    if (paper.subject === 'english' && paper.year >= 111 && paper.year <= 114) {
-      const expected = q.number <= (paper.grade === 3 ? (paper.year === 111 ? 21 : 25) : 10);
+    if (paper.subject === 'english' && paper.year >= 110 && paper.year <= 114) {
+      const expected = q.number <= (paper.grade === 3 ? (paper.year <= 111 ? 21 : 25) : 10);
       if (expected && !audio) flags.push('audio-missing-vs-existing-year-convention');
       if (!expected && audio) flags.push('audio-outside-existing-year-convention');
     }
