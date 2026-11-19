@@ -1319,13 +1319,14 @@ async function run() {
           el.dispatchEvent(new Event('input', { bubbles: true }));
         };
         const setSelect = (el, val) => {
+          if (!el) throw new Error('setSelect target element is null (value=' + val + ')');
           const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
           setter.call(el, val);
           el.dispatchEvent(new Event('change', { bubbles: true }));
         };
 
         let pwInput = null;
-        const pwDeadline = Date.now() + 5000;
+        const pwDeadline = Date.now() + 6000;
         while (Date.now() < pwDeadline) {
           pwInput = document.getElementById('priori-teacher-password');
           if (pwInput) break;
@@ -1335,17 +1336,38 @@ async function run() {
 
         setInput(pwInput, 'wrongpass');
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
-        await new Promise(r => setTimeout(r, 200));
-        const wrongPwMsg = (document.body.innerText || '').includes('教師密碼錯誤');
+        const wrongPwDeadline = Date.now() + 4000;
+        let wrongPwMsg = false;
+        while (Date.now() < wrongPwDeadline) {
+          wrongPwMsg = (document.body.innerText || '').includes('教師密碼錯誤');
+          const btnReady = Array.from(document.querySelectorAll('button')).some(b => (b.innerText || '').includes('驗證進入教師診斷台'));
+          if (wrongPwMsg && btnReady) break;
+          await new Promise(r => setTimeout(r, 100));
+        }
 
         setInput(pwInput, 'ci-mock-admin-pw');
         Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
         let matrixSection = null;
-        const matrixDeadline = Date.now() + 5000;
+        let gradeSel = null;
+        let classSel = null;
+        const matrixDeadline = Date.now() + 8000;
         while (Date.now() < matrixDeadline) {
           matrixSection = document.querySelector('section[aria-label="班級成績總覽矩陣"]');
-          if (matrixSection) break;
+          gradeSel = document.querySelector('select[aria-label="篩選年級"]');
+          classSel = document.querySelector('select[aria-label="篩選班級"]');
+          if (matrixSection && gradeSel && classSel) break;
           await new Promise(r => setTimeout(r, 120));
+        }
+        if (!matrixSection || !gradeSel || !classSel) {
+          return {
+            ok: false,
+            reason: 'Missing matrixSection or selects after login',
+            wrongPwMsg,
+            hasMatrix: !!matrixSection,
+            hasGradeSel: !!gradeSel,
+            hasClassSel: !!classSel,
+            bodyHead: (document.body.innerText || '').slice(0, 300),
+          };
         }
         const getSeatNums = () => Array.from(matrixSection?.querySelectorAll('tbody tr td:first-child') || [])
           .map(td => parseInt((td.innerText || '').replace(/\\D+/g, ''), 10))
@@ -1355,8 +1377,6 @@ async function run() {
         const realClassClean = !(matrixSection?.innerText || '').includes('巴奈');
 
         // Test 5年乙班 headcount (19人) + inline local seat name input (zero PII leaked)
-        const gradeSel = document.querySelector('select[aria-label="篩選年級"]');
-        const classSel = document.querySelector('select[aria-label="篩選班級"]');
         setSelect(gradeSel, '5');
         await new Promise(r => setTimeout(r, 150));
         setSelect(classSel, '2');
@@ -1849,23 +1869,39 @@ async function run() {
           el.dispatchEvent(new Event('input', { bubbles: true }));
         };
         const setSelect = (el, val) => {
+          if (!el) throw new Error('setSelect target element is null in Test I (value=' + val + ')');
           const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
           setter.call(el, val);
           el.dispatchEvent(new Event('change', { bubbles: true }));
         };
-        const pwInput = document.getElementById('priori-teacher-password');
+        let pwInput = null;
+        const pwDeadline = Date.now() + 6000;
+        while (Date.now() < pwDeadline) {
+          pwInput = document.getElementById('priori-teacher-password');
+          if (pwInput) break;
+          await new Promise((r) => setTimeout(r, 120));
+        }
         let legacyBlocked = false;
         if (pwInput) {
           setInput(pwInput, 'wt7902230');
           Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
-          await new Promise((r) => setTimeout(r, 350));
-          legacyBlocked = (document.body.innerText || '').includes('教師密碼錯誤');
+          const legacyDeadline = Date.now() + 4000;
+          while (Date.now() < legacyDeadline) {
+            legacyBlocked = (document.body.innerText || '').includes('教師密碼錯誤');
+            const btnReady = Array.from(document.querySelectorAll('button')).some((b) => (b.innerText || '').includes('驗證進入教師診斷台'));
+            if (legacyBlocked && btnReady) break;
+            await new Promise((r) => setTimeout(r, 100));
+          }
 
           setInput(pwInput, 'ci-mock-admin-pw');
           Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').includes('驗證進入教師診斷台'))?.click();
-          const deadline = Date.now() + 5000;
+          const deadline = Date.now() + 8000;
           while (Date.now() < deadline) {
-            if (document.querySelector('section[aria-label="班級成績總覽矩陣"]')) break;
+            if (
+              document.querySelector('section[aria-label="班級成績總覽矩陣"]') &&
+              document.querySelector('select[aria-label="篩選年級"]') &&
+              document.querySelector('select[aria-label="篩選班級"]')
+            ) break;
             await new Promise((r) => setTimeout(r, 120));
           }
         }
