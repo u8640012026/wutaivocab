@@ -87,11 +87,35 @@ const CHI_FIG_QUESTIONS = {
 };
 const FIG_OVERRIDES = {};
 
-// Rectangles within the full question crop. Retain point labels and row names;
+// Question crops that needed footer/barcode clamping and cache-busting _v2 output.
+const VERIFIED_QUESTION_CROPS = {
+  'eng-g3': new Set([15]),
+};
+
+// Rectangles within the full question crop. Retain point labels, parentheses, units, and row names;
 // fail if the upstream rendering changes instead of silently cropping wrong.
 const VERIFIED_QUESTION_FIGURES = {
-  'math-g5': { 3: { sourceWidth: 1054, sourceHeight: 485, left: 92, top: 61, width: 520, height: 344 } },
-  'eng-g5': { 25: { sourceWidth: 1114, sourceHeight: 353, left: 4, top: 55, width: 495, height: 293 } },
+  'math-g3': {
+    15: { sourceWidth: 1137, sourceHeight: 257, left: 147, top: 82, width: 644, height: 113 },
+  },
+  'math-g4': {
+    18: { sourceWidth: 1058, sourceHeight: 346, left: 104, top: 66, width: 542, height: 175 },
+  },
+  'math-g5': {
+    3: { sourceWidth: 1054, sourceHeight: 485, left: 92, top: 61, width: 520, height: 344 },
+    7: { sourceWidth: 1061, sourceHeight: 322, left: 87, top: 64, width: 644, height: 154 },
+    16: { sourceWidth: 1030, sourceHeight: 467, left: 108, top: 74, width: 772, height: 315 },
+  },
+  'math-g6': {
+    11: { sourceWidth: 878, sourceHeight: 783, left: 106, top: 77, width: 532, height: 350 },
+    14: { sourceWidth: 1051, sourceHeight: 655, left: 107, top: 142, width: 674, height: 433 },
+  },
+  'eng-g3': {
+    15: { sourceWidth: 1050, sourceHeight: 481, left: 142, top: 127, width: 908, height: 354 },
+  },
+  'eng-g5': {
+    25: { sourceWidth: 1114, sourceHeight: 353, left: 4, top: 55, width: 495, height: 293 },
+  },
 };
 
 function isRowWhite(gray, y, x1, x2) {
@@ -357,6 +381,7 @@ function computeCrops(cfg, pages, grays, questions, headers) {
     const gray = grays[p];
     const pg = pages[p];
     const footerLine = pg.lines.find((l) => l.y > 3300 && /基本學習內容|第\s*\d+\s*頁/.test(l.text));
+    const barcodeLine = pg.lines.find((l) => l.y > 3200 && /\*\d+\*/.test(l.text));
     const footerLimit = footerLine ? footerLine.y - 34 : 3355;
     for (let col = 0; col <= 1; col++) {
       const { x1, x2 } = colRange(pg, col, cfg.key);
@@ -396,6 +421,9 @@ function computeCrops(cfg, pages, grays, questions, headers) {
           }
 
           let ceiling = footerLimit;
+          if (VERIFIED_QUESTION_CROPS[cfg.key]?.has(cur.num) && barcodeLine) {
+            ceiling = Math.min(ceiling, barcodeLine.y - 95);
+          }
           if (nextQ) {
             const gap = findWhiteGapSplit(gray, cur.y + 45, nextQ.y - 14, x1, x2, 16);
             ceiling = gap.mid ?? nextQ.y - 48;
@@ -870,7 +898,8 @@ async function buildPaper(cfg) {
     const c = crops[num];
     const pg = pages[c.page];
     const gray = grays[c.page];
-    const qName = `q${String(num).padStart(2, '0')}.webp`;
+    const cropV2 = Boolean(VERIFIED_QUESTION_CROPS[key]?.has(num));
+    const qName = `q${String(num).padStart(2, '0')}${cropV2 ? '_v2' : ''}.webp`;
     const qPath = path.join(outDir, qName);
     await extractTrimmedWebp(bufs[c.page], { left: c.x1, top: c.top, width: c.x2 - c.x1, height: c.bottom - c.top }, qPath);
     tiles.push({ name: qName, outPath: qPath });

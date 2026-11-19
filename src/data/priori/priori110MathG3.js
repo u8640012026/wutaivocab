@@ -352,7 +352,7 @@ export const PRIORI_110_MATH_G3_QUESTIONS = [
     id: 'priori-110-math-g3-q15',
     number: 15,
     questionImage: '/assets/priori/110/math-g3/q15.webp',
-    figureImage: '/assets/priori/110/math-g3/q15_fig.webp',
+    figureImage: '/assets/priori/110/math-g3/q15_fig_v2.webp',
     questionText: '下圖是一條數線，( ) 內要填入哪個數？',
     options: ['17', '19', '20', '22'],
     answer: 2,

@@ -248,13 +248,14 @@ export const PRIORI_110_ENGLISH_G3_QUESTIONS = [
 
   ...DIALOGUE_PIC_SPEC.map((item) => {
     const qStr = String(item.num).padStart(2, '0');
+    const suffix = item.num === 15 ? '_v2' : '';
     return {
       ...BASE_META,
       id: `priori-110-eng-g3-q${qStr}`,
       number: item.num,
       questionType: 'single-choice',
-      questionImage: `/assets/priori/110/eng-g3/q${qStr}.webp`,
-      figureImage: `/assets/priori/110/eng-g3/q${qStr}_fig.webp`,
+      questionImage: `/assets/priori/110/eng-g3/q${qStr}${suffix}.webp`,
+      figureImage: `/assets/priori/110/eng-g3/q${qStr}_fig${suffix}.webp`,
       questionText: `第二部分（二）聽辨常用語與動作（第 ${item.num} 題）\n請先播放官方聽力句子，再依左邊圖片選出最適合的圖片編號。`,
       options: ['圖片 (1)', '圖片 (2)', '圖片 (3)'],
       optionLabels: ['(1)', '(2)', '(3)'],

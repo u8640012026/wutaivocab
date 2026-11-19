@@ -440,7 +440,7 @@ export const PRIORI_110_MATH_G4_QUESTIONS = [
     id: 'priori-110-math-g4-q18',
     number: 18,
     questionImage: '/assets/priori/110/math-g4/q18.webp',
-    figureImage: '/assets/priori/110/math-g4/q18_fig.webp',
+    figureImage: '/assets/priori/110/math-g4/q18_fig_v2.webp',
     questionText: '下圖是一條數線，( ) 內要填入哪個數？',
     options: ['7 又 2/4', '7 又 2/5', '7 又 2/6', '7 又 3/6'],
     answer: 1,
