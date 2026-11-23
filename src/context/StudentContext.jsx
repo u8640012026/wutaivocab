@@ -5,8 +5,13 @@ import {
   updateStudentCoins as apiUpdateCoins,
   updateStudentQuestPoints as apiUpdateQuestPoints,
   updateStudentInventory as apiUpdateInventory,
-  updateStudentDailyQuest as apiUpdateDailyQuest
+  updateStudentDailyQuest as apiUpdateDailyQuest,
+  syncStudentGrimoireToCloud,
+  updateStudentTransferPin as apiUpdateTransferPin,
+  executeStudentSelfTransfer
 } from '../services/supabase';
+import { hydrateGrimoireFromProfile } from '../utils/grimoireHelper';
+import { mergeDailyQuestPreservingMeta } from '../services/accountTransferHelper';
 import {
   formatStudentId,
   parseStudentId,
@@ -43,6 +48,10 @@ export const StudentProvider = ({ children }) => {
               const avatarId = localStorage.getItem(`wutai_avatar_${lastId}`) || profile.avatar_id || 'boy_scout';
               const frameId = localStorage.getItem(`wutai_frame_${lastId}`) || profile.avatar_frame || 'frame_slate';
               const enriched = { ...profile, avatar_id: avatarId, avatar_frame: frameId };
+              const hydrated = hydrateGrimoireFromProfile(lastId, enriched);
+              if (hydrated.localHadNewer) {
+                syncStudentGrimoireToCloud(lastId, hydrated.progress, hydrated.history).catch(() => {});
+              }
               setCurrentStudent(enriched);
               if (profile.has_just_reset_semester) {
                 setSemesterNotice(profile.last_reset_notice || '🎉 歡迎進入新學期！全新學期競賽已開跑！');
@@ -134,6 +143,11 @@ export const StudentProvider = ({ children }) => {
 
       const saved = await upsertStudentProfile(profileToSave);
       const finalProfile = saved || profileToSave;
+
+      const hydrated = hydrateGrimoireFromProfile(studentId, finalProfile);
+      if (hydrated.localHadNewer) {
+        syncStudentGrimoireToCloud(studentId, hydrated.progress, hydrated.history).catch(() => {});
+      }
 
       setCurrentStudent(finalProfile);
       localStorage.setItem(LAST_STUDENT_ID_KEY, studentId);
@@ -272,11 +286,17 @@ export const StudentProvider = ({ children }) => {
   }, [currentStudent]);
 
   /**
-   * 更新每日任務
+   * 更新每日任務（保留 _grimoire / _transfer_pin 等系統中繼欄位）
    */
   const updateDailyQuest = useCallback(async (dailyQuestData) => {
     if (!currentStudent?.student_id || typeof dailyQuestData !== 'object') return;
-    setCurrentStudent(prev => prev ? { ...prev, daily_quest: dailyQuestData } : null);
+    setCurrentStudent(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        daily_quest: mergeDailyQuestPreservingMeta(prev.daily_quest || {}, dailyQuestData)
+      };
+    });
 
     try {
       await apiUpdateDailyQuest(currentStudent.student_id, dailyQuestData);
@@ -326,9 +346,52 @@ export const StudentProvider = ({ children }) => {
     try {
       const refreshed = await fetchStudentProfile(currentStudent.student_id);
       if (refreshed) {
+        const hydrated = hydrateGrimoireFromProfile(currentStudent.student_id, refreshed);
+        if (hydrated.localHadNewer) {
+          syncStudentGrimoireToCloud(currentStudent.student_id, hydrated.progress, hydrated.history).catch(() => {});
+        }
         setCurrentStudent(refreshed);
       }
     } catch (e) {}
+  }, [currentStudent?.student_id]);
+
+  /**
+   * 設定或變更 4 碼換機／換號密碼
+   */
+  const setTransferPin = useCallback(async (pin4) => {
+    if (!currentStudent?.student_id) {
+      return { success: false, error: '請先登入正式 6 碼座號。' };
+    }
+    const res = await apiUpdateTransferPin(currentStudent.student_id, pin4);
+    if (res.success && res.profile) {
+      setCurrentStudent(prev => prev ? {
+        ...prev,
+        daily_quest: mergeDailyQuestPreservingMeta(prev.daily_quest || {}, res.profile.daily_quest || {})
+      } : res.profile);
+    }
+    return res;
+  }, [currentStudent?.student_id]);
+
+  /**
+   * 軌道二：以舊 6 碼座號 ＋ 4 碼換機密碼自行匯入舊資料
+   */
+  const importOldSeatData = useCallback(async (sourceStudentId, pin4) => {
+    if (!currentStudent?.student_id) {
+      return { success: false, error: '請先登入您的新座號後再執行匯入。' };
+    }
+    const res = await executeStudentSelfTransfer({
+      sourceStudentId,
+      pin4,
+      targetStudentId: currentStudent.student_id
+    });
+    if (res.success && res.targetProfile) {
+      setCurrentStudent(prev => ({
+        ...res.targetProfile,
+        avatar_id: prev?.avatar_id || 'boy_scout',
+        avatar_frame: prev?.avatar_frame || 'frame_slate'
+      }));
+    }
+    return res;
   }, [currentStudent?.student_id]);
 
   /**
@@ -393,6 +456,8 @@ export const StudentProvider = ({ children }) => {
     updateDailyQuest,
     claimTeacherBonus,
     refreshStudentProfile,
+    setTransferPin,
+    importOldSeatData,
     isOwnGradeBook,
     studentGrade: currentStudent?.grade || '00',
     coins: currentStudent?.coins || 0,

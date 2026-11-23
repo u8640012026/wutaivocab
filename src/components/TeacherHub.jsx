@@ -17,10 +17,12 @@ import {
   Lock, ArrowLeft, PlusCircle, Trash2, CheckCircle2, AlertCircle,
   FileSpreadsheet, Sparkles, Trophy, Swords, Shield, Activity,
   Megaphone, Download, RotateCw, Search, Calendar, Filter, Users,
-  Database, Clock, AlertTriangle, FileCheck2, ZoomIn, Award, BarChart3
+  Database, Clock, AlertTriangle, FileCheck2, ZoomIn, Award, BarChart3,
+  GraduationCap
 } from 'lucide-react';
 import { ExamAuditZone } from './exam/ExamAuditZone';
 import { TeacherMasteryAnalytics } from './exam/TeacherMasteryAnalytics';
+import { TeacherPromotionZone } from './TeacherPromotionZone';
 
 class ExamAuditErrorBoundary extends React.Component {
   state = { hasError: false };
@@ -576,7 +578,7 @@ export const TeacherHub = ({ onBack, words = [], onRefreshWords, onOpenShowcase,
       )}
 
       {/* ── 主功能分頁切換卡 ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-6">
         <button
           onClick={() => setActiveTab('words')}
           className={`p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
@@ -647,6 +649,18 @@ export const TeacherHub = ({ onBack, words = [], onRefreshWords, onOpenShowcase,
         >
           <Activity className="w-4 h-4" />
           <span>雲端系統體檢</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('promotion')}
+          className={`p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+            activeTab === 'promotion'
+              ? 'bg-violet-600 text-white shadow-md shadow-violet-600/30 scale-[1.02]'
+              : 'bg-white/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-white border border-slate-200 dark:border-slate-700'
+          }`}
+        >
+          <GraduationCap className="w-4 h-4" />
+          <span>學年升級換號</span>
         </button>
 
         <button
@@ -1242,6 +1256,12 @@ export const TeacherHub = ({ onBack, words = [], onRefreshWords, onOpenShowcase,
         <div className="space-y-6">
           <TeacherMasteryAnalytics />
         </div>
+      )}
+      {/* ============================================================ */}
+      {/* ── TAB 8: 學年升級與座號移轉中心 ── */}
+      {/* ============================================================ */}
+      {activeTab === 'promotion' && (
+        <TeacherPromotionZone onNotify={(type, msg) => showToast(msg, type)} />
       )}
     </div>
   );

@@ -132,6 +132,81 @@ export const GRIMOIRE_GAME_MODES = [
 ];
 
 const STORAGE_PREFIX = 'wutai_grimoire_progress_';
+const STORAGE_HISTORY_PREFIX = 'wutai_grimoire_history_';
+let cloudSyncHandler = null;
+
+/**
+ * 註冊八冊秘典雲端同步回呼（由 supabase.js 註冊，避免循環引用）
+ */
+export const registerGrimoireCloudSync = (handler) => {
+  cloudSyncHandler = typeof handler === 'function' ? handler : null;
+};
+
+/**
+ * 聯集融合兩份八冊進度（逐冊逐遊戲取最高星數 Math.max，永不覆蓋遺失）
+ */
+export const mergeGrimoireProgress = (a = {}, b = {}) => {
+  const merged = {};
+  const bookKeys = new Set([
+    ...Object.keys(a && typeof a === 'object' ? a : {}),
+    ...Object.keys(b && typeof b === 'object' ? b : {})
+  ]);
+  bookKeys.forEach((bKey) => {
+    const recA = (a && typeof a[bKey] === 'object' && a[bKey]) ? a[bKey] : {};
+    const recB = (b && typeof b[bKey] === 'object' && b[bKey]) ? b[bKey] : {};
+    const modeKeys = new Set([...Object.keys(recA), ...Object.keys(recB)]);
+    const bookOut = {};
+    modeKeys.forEach((mKey) => {
+      const val = Math.max(Number(recA[mKey]) || 0, Number(recB[mKey]) || 0);
+      if (val > 0) bookOut[mKey] = val;
+    });
+    if (Object.keys(bookOut).length > 0) {
+      merged[bKey] = bookOut;
+    }
+  });
+  return merged;
+};
+
+/**
+ * 聯集融合兩份歷屆八星封存紀錄（依學年度去重，取最高星數／最高項數）
+ */
+export const mergeGrimoireHistory = (histA = [], histB = []) => {
+  const byKey = new Map();
+  const list = [
+    ...(Array.isArray(histA) ? histA : []),
+    ...(Array.isArray(histB) ? histB : [])
+  ];
+  list.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') return;
+    const yearKey = String(entry.academicYear || entry.academic_year || '').trim();
+    const gradeKey = String(entry.grade || '').trim();
+    if (!yearKey) return;
+    const mapKey = `${yearKey}::${gradeKey}`;
+    const prev = byKey.get(mapKey);
+    const curStars = Number(entry.masteredStars) || 0;
+    const curModes = Number(entry.totalMasteredModes) || 0;
+    if (
+      !prev ||
+      curStars > (Number(prev.masteredStars) || 0) ||
+      (curStars === (Number(prev.masteredStars) || 0) && curModes >= (Number(prev.totalMasteredModes) || 0))
+    ) {
+      byKey.set(mapKey, {
+        academicYear: yearKey,
+        grade: gradeKey,
+        masteredStars: curStars,
+        totalMasteredModes: curModes,
+        titleName: entry.titleName || getMasterTitle(curStars).name,
+        books: (entry.books && typeof entry.books === 'object') ? entry.books : {},
+        archivedAt: entry.archivedAt || new Date().toISOString()
+      });
+    }
+  });
+  return Array.from(byKey.values()).sort((x, y) => {
+    const numDiff = (parseInt(y.academicYear, 10) || 0) - (parseInt(x.academicYear, 10) || 0);
+    if (numDiff !== 0) return numDiff;
+    return String(y.archivedAt || '').localeCompare(String(x.archivedAt || ''));
+  });
+};
 
 /**
  * 取得特定學生的八冊進度資料庫
@@ -149,16 +224,89 @@ export const getStudentGrimoireData = (studentId = 'guest') => {
  */
 export const saveStudentGrimoireData = (studentId = 'guest', data) => {
   try {
-    localStorage.setItem(`${STORAGE_PREFIX}${studentId}`, JSON.stringify(data));
+    localStorage.setItem(`${STORAGE_PREFIX}${studentId}`, JSON.stringify(data || {}));
   } catch (e) {}
 };
 
 /**
- * 取得單冊進度百分比 (0 ~ 100%) 與三星遊戲數
+ * 取得特定學生的歷屆八星封存紀錄
  */
-export const getBookProgress = (studentId, bookId) => {
-  const allData = getStudentGrimoireData(studentId);
-  const bookRecord = allData[String(bookId)] || {};
+export const getStudentGrimoireHistory = (studentId = 'guest') => {
+  try {
+    const raw = localStorage.getItem(`${STORAGE_HISTORY_PREFIX}${studentId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+  } catch (e) {}
+  return [];
+};
+
+/**
+ * 儲存學生歷屆八星封存紀錄
+ */
+export const saveStudentGrimoireHistory = (studentId = 'guest', history = []) => {
+  try {
+    localStorage.setItem(`${STORAGE_HISTORY_PREFIX}${studentId}`, JSON.stringify(Array.isArray(history) ? history : []));
+  } catch (e) {}
+};
+
+/**
+ * 顯式覆寫本機八冊進度與歷屆封存（用於學年升級／座號搬移後的乾淨切換）
+ */
+export const replaceLocalGrimoire = (studentId, progress = {}, history = []) => {
+  if (!studentId) return;
+  saveStudentGrimoireData(studentId, progress || {});
+  saveStudentGrimoireHistory(studentId, Array.isArray(history) ? history : []);
+};
+
+/**
+ * 將雲端學生檔案中的八星進度與本機進行聯集同步
+ */
+export const hydrateGrimoireFromProfile = (studentId, profile) => {
+  if (!studentId || !profile) {
+    return {
+      progress: getStudentGrimoireData(studentId || 'guest'),
+      history: getStudentGrimoireHistory(studentId || 'guest'),
+      localHadNewer: false
+    };
+  }
+  const dq = (profile.daily_quest && typeof profile.daily_quest === 'object') ? profile.daily_quest : {};
+  const cloudProgress = (dq._grimoire && typeof dq._grimoire === 'object') ? dq._grimoire : {};
+  const cloudHistory = Array.isArray(dq._grimoire_history) ? dq._grimoire_history : [];
+  const resetVersion = Number(dq._grimoire_epoch) || 0;
+
+  // 若雲端曾執行過學年升級重置（_grimoire_epoch 提升），以雲端當年度進度為準不讓舊本機殘影復活
+  let localEpoch = 0;
+  try {
+    localEpoch = Number(localStorage.getItem(`wutai_grimoire_epoch_${studentId}`)) || 0;
+  } catch (e) {}
+
+  const localProgress = resetVersion > localEpoch ? {} : getStudentGrimoireData(studentId);
+  const localHistory = getStudentGrimoireHistory(studentId);
+
+  const mergedProgress = mergeGrimoireProgress(localProgress, cloudProgress);
+  const mergedHistory = mergeGrimoireHistory(localHistory, cloudHistory);
+
+  saveStudentGrimoireData(studentId, mergedProgress);
+  saveStudentGrimoireHistory(studentId, mergedHistory);
+  try {
+    if (resetVersion > localEpoch) {
+      localStorage.setItem(`wutai_grimoire_epoch_${studentId}`, String(resetVersion));
+    }
+  } catch (e) {}
+
+  const localHadNewer = JSON.stringify(mergedProgress) !== JSON.stringify(cloudProgress) ||
+    JSON.stringify(mergedHistory) !== JSON.stringify(cloudHistory);
+
+  return { progress: mergedProgress, history: mergedHistory, localHadNewer };
+};
+
+/**
+ * 由純資料物件計算單冊進度（供本機、雲端快照與單元測試共用）
+ */
+export const computeBookProgressFromData = (allData, bookId) => {
+  const bookRecord = (allData && typeof allData === 'object' && allData[String(bookId)]) || {};
   
   // 計算在該冊獲得 3 星 (或通關) 的遊戲數
   let threeStarCount = 0;
@@ -210,10 +358,18 @@ export const getBookProgress = (studentId, bookId) => {
 };
 
 /**
- * 取得全八冊完整進程總結 (含點亮的星數 0~8、總通關項數 0~80)
+ * 取得單冊進度百分比 (0 ~ 100%) 與三星遊戲數
  */
-export const getGrimoireSummary = (studentId) => {
-  const booksProgress = GRIMOIRE_BOOKS.map(b => getBookProgress(studentId, b.id));
+export const getBookProgress = (studentId, bookId) => {
+  const allData = getStudentGrimoireData(studentId);
+  return computeBookProgressFromData(allData, bookId);
+};
+
+/**
+ * 由純資料物件計算全八冊總結
+ */
+export const computeGrimoireSummaryFromData = (allData) => {
+  const booksProgress = GRIMOIRE_BOOKS.map(b => computeBookProgressFromData(allData, b.id));
   const masteredCount = booksProgress.filter(b => b.isMastered).length; // 亮起之星星數 (0 ~ 8)
   const totalMasteredModes = booksProgress.reduce((sum, b) => sum + b.threeStarCount, 0); // 總精通項數 (0 ~ 80)
 
@@ -223,6 +379,50 @@ export const getGrimoireSummary = (studentId) => {
     totalMasteredModes,
     maxModes: 80,
     titleInfo: getMasterTitle(masteredCount)
+  };
+};
+
+/**
+ * 打包單一學年度的八星封存快照（若該年度完全無任何星數則回傳 null）
+ */
+export const buildGrimoireYearArchiveEntry = (allData, academicYear, grade = '') => {
+  if (!allData || typeof allData !== 'object') return null;
+  const hasAnyStar = Object.values(allData).some(
+    bookObj => bookObj && typeof bookObj === 'object' && Object.values(bookObj).some(v => (Number(v) || 0) > 0)
+  );
+  if (!hasAnyStar) return null;
+
+  const summary = computeGrimoireSummaryFromData(allData);
+  const books = {};
+  summary.booksProgress.forEach((bp) => {
+    books[String(bp.bookId)] = {
+      percent: bp.percent,
+      threeStarCount: bp.threeStarCount,
+      isMastered: bp.isMastered
+    };
+  });
+
+  return {
+    academicYear: String(academicYear || ''),
+    grade: String(grade || ''),
+    masteredStars: summary.masteredStars,
+    totalMasteredModes: summary.totalMasteredModes,
+    titleName: summary.titleInfo.name,
+    books,
+    archivedAt: new Date().toISOString()
+  };
+};
+
+/**
+ * 取得全八冊完整進程總結 (含點亮的星數 0~8、總通關項數 0~80、歷屆封存)
+ */
+export const getGrimoireSummary = (studentId) => {
+  const allData = getStudentGrimoireData(studentId);
+  const summary = computeGrimoireSummaryFromData(allData);
+  const history = getStudentGrimoireHistory(studentId);
+  return {
+    ...summary,
+    history
   };
 };
 
@@ -249,7 +449,7 @@ export const mapModeToGrimoireId = (mode) => {
 };
 
 /**
- * 記錄學生在某冊某遊戲的三星戰績
+ * 記錄學生在某冊某遊戲的三星戰績（同步寫入本機與雲端雙軌）
  */
 export const recordGrimoireStar = (studentId, bookId, gameId, stars = 3) => {
   if (!studentId || !bookId || !gameId) return;
@@ -265,6 +465,14 @@ export const recordGrimoireStar = (studentId, bookId, gameId, stars = 3) => {
       allData[bKey]['quiz-listening'] = Math.max(allData[bKey]['quiz-listening'] || 0, stars);
     }
     saveStudentGrimoireData(studentId, allData);
+
+    // 正式座號（非訪客）背景同步至雲端，跨裝置即時連續
+    const sid = String(studentId);
+    if (cloudSyncHandler && sid.length === 6 && !sid.startsWith('99')) {
+      try {
+        cloudSyncHandler(sid, allData, getStudentGrimoireHistory(sid));
+      } catch (e) {}
+    }
   }
 };
 

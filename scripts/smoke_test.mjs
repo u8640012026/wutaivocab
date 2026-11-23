@@ -557,6 +557,35 @@ async function run() {
     console.log('  ✓ TeacherHub: ExamAuditZone tab switch & 3-track review UI verified');
   }
 
+  // ── 教師台學年升級與座號移轉中心驗測 (TeacherPromotionZone) ──
+  const promoTabClicked = await client.evaluate(`
+    (() => {
+      const btn = Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('學年升級換號'));
+      if (btn) { btn.click(); return true; }
+      return false;
+    })()
+  `);
+  await new Promise(r => setTimeout(r, 600));
+  const promoZoneCheck = await client.evaluate(`
+    (() => {
+      const zone = document.querySelector('[data-teacher-promotion-zone="true"]');
+      const text = document.body.innerText || '';
+      return {
+        hasZone: Boolean(zone),
+        hasTitle: text.includes('學年升級與座號移轉中心'),
+        hasGrades: text.includes('一年級') && text.includes('六年級'),
+        hasPresets: text.includes('預填年級 +1 建議') && text.includes('學期中換號模式'),
+        hasError: text.includes('畫面載入遇到小插曲')
+      };
+    })()
+  `);
+  if (!promoTabClicked || !promoZoneCheck.hasZone || !promoZoneCheck.hasTitle || !promoZoneCheck.hasGrades || promoZoneCheck.hasError) {
+    failures.push({ target: 'TeacherHub PromotionZone', details: { promoTabClicked, promoZoneCheck } });
+    console.log('  ❌ TeacherHub PromotionZone failed:', promoZoneCheck);
+  } else {
+    console.log('  ✓ TeacherHub: PromotionZone grade tabs, presets & conflict UI verified');
+  }
+
   // ── 試題附圖 4 方案體驗台驗測 (ImageZoomShowcase) ──
   await client.send('Page.navigate', { url: `${BASE_URL}/?view=zoom-showcase` });
   await waitForAppReady();
@@ -882,7 +911,10 @@ async function run() {
           await new Promise(r => setTimeout(r, 80));
         }
         const heading = Array.from(document.querySelectorAll('h2')).map(h => (h.innerText || '').trim()).find(Boolean) || '';
-        const matched = bank.find(item => heading.includes(item.zh));
+        const availTiles = Array.from(document.querySelectorAll('button[data-sentence-bank-tile]:not([disabled])')).map(b => (b.innerText || '').trim());
+        const exactMatches = bank.filter(item => heading === item.zh);
+        const candidates = exactMatches.length > 0 ? exactMatches : bank.filter(item => heading.includes(item.zh)).sort((a, b) => b.zh.length - a.zh.length);
+        const matched = candidates.find(item => item.tokens.length === availTiles.length && item.tokens.every(t => availTiles.includes(t))) || candidates[0];
         if (!matched) {
           return { ok: false, step, reason: 'No matching sentence for heading: ' + heading };
         }
@@ -956,7 +988,10 @@ async function run() {
           await new Promise(r => setTimeout(r, 60));
         }
         const heading = Array.from(document.querySelectorAll('h2')).map(h => (h.innerText || '').trim()).find(Boolean) || '';
-        const matched = bank.find(item => heading.includes(item.zh));
+        const availTiles = Array.from(document.querySelectorAll('button[data-sentence-bank-tile]:not([disabled])')).map(b => (b.innerText || '').trim());
+        const exactMatches = bank.filter(item => heading === item.zh);
+        const candidates = exactMatches.length > 0 ? exactMatches : bank.filter(item => heading.includes(item.zh)).sort((a, b) => b.zh.length - a.zh.length);
+        const matched = candidates.find(item => item.tokens.length === availTiles.length && item.tokens.every(t => availTiles.includes(t))) || candidates[0];
         if (!matched) {
           return { ok: false, step, reason: 'No matching sentence for heading: ' + heading };
         }
@@ -986,7 +1021,11 @@ async function run() {
           return { ok: false, step, reason: 'Did not advance to ' + targetPrefix };
         }
       }
-      await new Promise(r => setTimeout(r, 400));
+      for (let w = 0; w < 35; w++) {
+        await new Promise(r => setTimeout(r, 150));
+        if (!(document.body.innerText || '').includes('比對本週全校 Top 50 門檻中')) break;
+      }
+      await new Promise(r => setTimeout(r, 150));
       const finalText = document.body.innerText || '';
       const rawGrimoire = localStorage.getItem('wutai_grimoire_progress_guest');
       const grimoire = rawGrimoire ? JSON.parse(rawGrimoire) : {};

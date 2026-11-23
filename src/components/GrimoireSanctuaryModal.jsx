@@ -22,7 +22,12 @@ export const GrimoireSanctuaryModal = ({
 }) => {
   const [activeTheme, setActiveTheme] = useState(cardTheme);
   const [selectedBookId, setSelectedBookId] = useState(1);
+  const [selectedHistoryKey, setSelectedHistoryKey] = useState(null);
   const summary = getGrimoireSummary(studentId);
+  const historyList = Array.isArray(summary.history) ? summary.history : [];
+  const activeHistoryEntry = selectedHistoryKey
+    ? historyList.find(h => `${h.academicYear}::${h.grade || ''}` === selectedHistoryKey) || null
+    : null;
 
   const selectedBook = GRIMOIRE_BOOKS.find(b => b.id === selectedBookId) || GRIMOIRE_BOOKS[0];
   const selectedProgress = getBookProgress(studentId, selectedBookId);
@@ -123,9 +128,13 @@ export const GrimoireSanctuaryModal = ({
               <div className="flex items-center gap-2 text-left">
                 <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
                 <span className="text-[11px] font-black">
-                  八星大宗師試煉：
+                  {activeHistoryEntry
+                    ? `${activeHistoryEntry.academicYear} 學年度封存榮譽：`
+                    : '本學年八星試煉：'}
                   <strong className="text-amber-400 font-mono ml-1">
-                    {summary.totalMasteredModes}/80 項三星精通
+                    {activeHistoryEntry
+                      ? `${activeHistoryEntry.totalMasteredModes}/80 項三星精通`
+                      : `${summary.totalMasteredModes}/80 項三星精通`}
                   </strong>
                 </span>
               </div>
@@ -133,7 +142,8 @@ export const GrimoireSanctuaryModal = ({
               {/* 8 顆星盤 */}
               <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/40 border border-amber-400/30">
                 {Array.from({ length: 8 }).map((_, i) => {
-                  const isLit = i < summary.masteredStars;
+                  const litStars = activeHistoryEntry ? activeHistoryEntry.masteredStars : summary.masteredStars;
+                  const isLit = i < litStars;
                   return (
                     <span
                       key={i}
@@ -151,10 +161,60 @@ export const GrimoireSanctuaryModal = ({
               </div>
             </div>
 
+            {/* 歷屆星辰勳章牆（有跨學年封存紀錄時顯示，支援一鍵切換檢視歷屆榮譽快照） */}
+            {historyList.length > 0 && (
+              <div
+                data-grimoire-history-wall="true"
+                className={`px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0 ${
+                  isDark ? 'bg-slate-900/70 border-amber-500/25' : 'bg-amber-50/80 border-amber-500/30'
+                }`}
+              >
+                <span className="text-[10px] font-black text-amber-400 shrink-0">🏅 歷屆榮譽：</span>
+                <button
+                  type="button"
+                  onClick={() => { soundEngine.click(); setSelectedHistoryKey(null); }}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-black border shrink-0 cursor-pointer transition ${
+                    !activeHistoryEntry
+                      ? 'bg-amber-500 text-stone-950 border-amber-300'
+                      : 'bg-black/30 text-slate-300 border-white/15 hover:bg-black/50'
+                  }`}
+                >
+                  ✨ 本學年挑戰
+                </button>
+                {historyList.map((h) => {
+                  const hKey = `${h.academicYear}::${h.grade || ''}`;
+                  const isViewing = selectedHistoryKey === hKey;
+                  return (
+                    <button
+                      key={hKey}
+                      type="button"
+                      onClick={() => { soundEngine.click(); setSelectedHistoryKey(hKey); }}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-black border shrink-0 cursor-pointer transition ${
+                        isViewing
+                          ? 'bg-emerald-500 text-stone-950 border-emerald-300'
+                          : 'bg-black/30 text-amber-200 border-amber-400/30 hover:bg-black/50'
+                      }`}
+                    >
+                      🏅 {h.academicYear}學年 {h.masteredStars}★ ({h.totalMasteredModes}/80)
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {/* 下部：8 本古老秘典 (4 欄 x 2 列，緊湊單頁展示) */}
             <div className="flex-1 min-h-0 grid grid-cols-4 grid-rows-2 gap-2 overflow-hidden">
               {GRIMOIRE_BOOKS.map((book) => {
-                const prog = getBookProgress(studentId, book.id);
+                const liveProg = getBookProgress(studentId, book.id);
+                const histBook = activeHistoryEntry?.books?.[String(book.id)];
+                const prog = activeHistoryEntry
+                  ? {
+                      ...liveProg,
+                      percent: Number(histBook?.percent) || 0,
+                      threeStarCount: Number(histBook?.threeStarCount) || 0,
+                      isMastered: Boolean(histBook?.isMastered)
+                    }
+                  : liveProg;
                 const isSelected = book.id === selectedBookId;
                 const isMastered = prog.isMastered;
 

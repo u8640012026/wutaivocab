@@ -12,8 +12,10 @@ import {
   formatStudentBadge,
   doesLeaderboardEntryMatchStudent,
   getRandomFunNickname,
+  isGuestStudent,
   pad2
 } from '../utils/studentIdHelper';
+import { getTransferPinFromProfile, isValidTransferPin } from '../services/accountTransferHelper';
 import { AVATAR_LIST, AVATAR_FRAMES, getAvatarById, getAvatarFrameById } from '../data/avatars';
 import { getProfanityError } from '../services/profanityFilter';
 import { fetchLeaderboard, getWeekNumber } from '../services/supabase';
@@ -34,7 +36,9 @@ import {
   Medal,
   Crown,
   Layers,
-  BookOpen
+  BookOpen,
+  KeyRound,
+  ArrowRightLeft
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { GrimoireSanctuaryModal } from './GrimoireSanctuaryModal';
@@ -53,6 +57,8 @@ export const StudentProfileModal = () => {
     loginStudent,
     logoutStudent,
     updateAvatar,
+    setTransferPin,
+    importOldSeatData,
     avatarId,
     avatarFrame,
     isLoading
@@ -61,6 +67,16 @@ export const StudentProfileModal = () => {
 
   // 內部狀態：是否正在切換/編輯身分
   const [isSwitching, setIsSwitching] = useState(false);
+
+  // 軌道二：4 碼換機密碼與舊座號匯入面板
+  const [transferPanel, setTransferPanel] = useState(null); // null | 'pin' | 'import'
+  const [pinInput, setPinInput] = useState('');
+  const [oldGrade, setOldGrade] = useState('01');
+  const [oldClass, setOldClass] = useState('01');
+  const [oldSeat, setOldSeat] = useState('01');
+  const [importPinInput, setImportPinInput] = useState('');
+  const [transferStatusMsg, setTransferStatusMsg] = useState(null); // { type: 'success'|'error', text }
+  const [isTransferBusy, setIsTransferBusy] = useState(false);
 
   // 勇士頭像立繪與外框更換選單狀態
   const [isAvatarSelectorOpen, setIsAvatarSelectorOpen] = useState(false);
@@ -770,6 +786,176 @@ export const StudentProfileModal = () => {
               )}
 
             </div>
+
+            {/* 軌道二：正式學生 4 碼換機密碼與升年級／換座號自主繼承工具列 */}
+            {currentStudent?.student_id && !isGuestStudent(currentStudent.student_id) && (
+              <div className="w-full space-y-2">
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    data-student-pin-toggle="true"
+                    onClick={() => {
+                      soundEngine.click();
+                      setTransferStatusMsg(null);
+                      setPinInput(getTransferPinFromProfile(currentStudent) || '');
+                      setTransferPanel(prev => prev === 'pin' ? null : 'pin');
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-indigo-400/40 text-indigo-200 text-[11px] font-black flex items-center gap-1.5 cursor-pointer transition"
+                  >
+                    <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>
+                      4 碼換機密碼：{getTransferPinFromProfile(currentStudent) ? '已設定' : '未設定'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-student-import-toggle="true"
+                    onClick={() => {
+                      soundEngine.click();
+                      setTransferStatusMsg(null);
+                      const curG = parseInt(currentStudent.grade, 10) || 2;
+                      setOldGrade(pad2(Math.max(1, curG - 1)));
+                      setOldClass(pad2(currentStudent.class || '01'));
+                      setOldSeat(pad2(currentStudent.seat || '01'));
+                      setImportPinInput('');
+                      setTransferPanel(prev => prev === 'import' ? null : 'import');
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-amber-400/40 text-amber-200 text-[11px] font-black flex items-center gap-1.5 cursor-pointer transition"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5 text-amber-400" />
+                    <span>換座號／升年級匯入舊資料</span>
+                  </button>
+                </div>
+
+                {transferStatusMsg && (
+                  <div className={`px-3 py-2 rounded-xl text-xs font-black text-center border ${
+                    transferStatusMsg.type === 'success'
+                      ? 'bg-emerald-950/90 border-emerald-400/60 text-emerald-200'
+                      : 'bg-rose-950/90 border-rose-400/60 text-rose-200'
+                  }`}>
+                    {transferStatusMsg.text}
+                  </div>
+                )}
+
+                {transferPanel === 'pin' && (
+                  <div className="p-3 rounded-2xl bg-slate-950/95 border border-indigo-400/50 text-white space-y-2 shadow-xl">
+                    <p className="text-[11px] font-bold text-indigo-200">
+                      設定 4 位數字換機／換號密碼（未來升年級或換座號時可憑此密碼自行匯入舊資料，老師也可於後台協助重設）：
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={4}
+                        value={pinInput}
+                        onChange={(e) => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        placeholder="輸入 4 碼數字"
+                        className="flex-1 px-3 py-1.5 rounded-xl bg-slate-900 border border-white/20 text-sm font-mono font-black text-center tracking-widest text-white outline-none focus:border-indigo-400"
+                      />
+                      <button
+                        type="button"
+                        disabled={isTransferBusy || !isValidTransferPin(pinInput)}
+                        onClick={async () => {
+                          setIsTransferBusy(true);
+                          setTransferStatusMsg(null);
+                          try {
+                            const res = await setTransferPin(pinInput);
+                            if (res.success) {
+                              setTransferStatusMsg({ type: 'success', text: `✅ 已儲存 4 碼換機密碼：${res.pin}（請記住此密碼）` });
+                              setTransferPanel(null);
+                            } else {
+                              setTransferStatusMsg({ type: 'error', text: res.error || '設定失敗' });
+                            }
+                          } finally {
+                            setIsTransferBusy(false);
+                          }
+                        }}
+                        className="px-4 py-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-white text-xs font-black cursor-pointer"
+                      >
+                        {isTransferBusy ? '儲存中...' : '儲存密碼'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {transferPanel === 'import' && (
+                  <div className="p-3 rounded-2xl bg-slate-950/95 border border-amber-400/50 text-white space-y-2 shadow-xl">
+                    <p className="text-[11px] font-bold text-amber-200">
+                      請選擇原本的舊座號並輸入 4 碼換機密碼，將金幣、探索積分、背包與歷屆八星匯入目前座號 ({currentStudent.student_id})：
+                    </p>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <select
+                        value={oldGrade}
+                        onChange={(e) => setOldGrade(e.target.value)}
+                        className="px-2 py-1.5 rounded-xl bg-slate-900 border border-white/20 text-xs font-black text-white"
+                      >
+                        {GRADE_OPTIONS.filter(g => !g.isGuest).map(g => (
+                          <option key={g.id} value={g.id}>原 {g.zh}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={oldClass}
+                        onChange={(e) => setOldClass(e.target.value)}
+                        className="px-2 py-1.5 rounded-xl bg-slate-900 border border-white/20 text-xs font-black text-white"
+                      >
+                        {CLASS_OPTIONS.map(c => (
+                          <option key={c.id} value={c.id}>{c.zh}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={oldSeat}
+                        onChange={(e) => setOldSeat(e.target.value)}
+                        className="px-2 py-1.5 rounded-xl bg-slate-900 border border-white/20 text-xs font-black text-white"
+                      >
+                        {Array.from({ length: 35 }, (_, i) => pad2(i + 1)).map(s => (
+                          <option key={s} value={s}>{s} 號</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={4}
+                        value={importPinInput}
+                        onChange={(e) => setImportPinInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        placeholder="舊帳號 4 碼密碼"
+                        className="flex-1 px-3 py-1.5 rounded-xl bg-slate-900 border border-white/20 text-sm font-mono font-black text-center tracking-widest text-white outline-none focus:border-amber-400"
+                      />
+                      <button
+                        type="button"
+                        disabled={isTransferBusy || !isValidTransferPin(importPinInput)}
+                        onClick={async () => {
+                          const srcId = formatStudentId(oldGrade, oldClass, oldSeat);
+                          setIsTransferBusy(true);
+                          setTransferStatusMsg(null);
+                          try {
+                            const res = await importOldSeatData(srcId, importPinInput);
+                            if (res.success) {
+                              const s = res.summary;
+                              setTransferStatusMsg({
+                                type: 'success',
+                                text: `🎉 匯入成功！已從 ${s.sourceId} 繼承 🪙${s.inheritedCoins} 金幣、🧭${s.inheritedQuestPoints} 積分與 ${s.inheritedInventoryCount} 件背包收藏${s.isCrossGrade ? '（舊年度八星已封存至歷屆榮譽牆）' : ''}！`
+                              });
+                              setTransferPanel(null);
+                              try { confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } }); } catch (e) {}
+                            } else {
+                              setTransferStatusMsg({ type: 'error', text: res.error || '匯入失敗' });
+                            }
+                          } finally {
+                            setIsTransferBusy(false);
+                          }
+                        }}
+                        className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-stone-950 text-xs font-black cursor-pointer"
+                      >
+                        {isTransferBusy ? '匯入中...' : '確認匯入'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* 卡片下方操作按鈕群 (切換身分、進入宇宙、登出) */}
             <div className="w-full flex items-center justify-between gap-3 pt-1">

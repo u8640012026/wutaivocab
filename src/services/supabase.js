@@ -1,7 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
 import { containsProfanity } from './profanityFilter';
 import { getCurrentSemesterId, checkAndApplySemesterReset } from '../utils/semesterHelper';
-import { parseStudentId } from '../utils/studentIdHelper';
+import { parseStudentId, isGuestStudent } from '../utils/studentIdHelper';
+import {
+  registerGrimoireCloudSync,
+  replaceLocalGrimoire,
+  mergeGrimoireProgress,
+  mergeGrimoireHistory
+} from '../utils/grimoireHelper';
+import {
+  mergeDailyQuestPreservingMeta,
+  isValidTransferPin,
+  getTransferPinFromProfile,
+  isProfileArchived,
+  detectPromotionConflicts,
+  getPlannedTargetId,
+  buildTransferredTargetProfile,
+  buildArchivedSourceProfile,
+  getCurrentAcademicYear
+} from './accountTransferHelper';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://fqkdkmcqjswufzbvkram.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_M9phUn6LH1yeVA9NbIXesg_tVABCW5z';
@@ -838,6 +855,9 @@ export const fetchStudentProfile = async (studentId) => {
 
     if (spData || syncProfile) {
       const parsedId = parseStudentId(studentId);
+      const mergedDq1 = mergeDailyQuestPreservingMeta(syncProfile?.daily_quest || {}, localProfile?.daily_quest || {});
+      const mergedDailyQuest = mergeDailyQuestPreservingMeta(mergedDq1, spData?.daily_quest || {});
+      const isCloudArchived = isProfileArchived({ daily_quest: mergedDailyQuest });
       const rawNormalized = {
         ...(localProfile || {}),
         student_id: studentId,
@@ -845,21 +865,23 @@ export const fetchStudentProfile = async (studentId) => {
         class: spData?.class || localProfile?.class || syncProfile?.class || parsedId.classNum,
         seat: spData?.seat || localProfile?.seat || syncProfile?.seat || parsedId.seat,
         nickname: spData?.nickname || localProfile?.nickname || syncProfile?.nickname || '好學生',
-        coins: Math.max(Number(spData?.coins) || 0, Number(syncProfile?.coins) || 0, Number(localProfile?.coins) || 0),
-        quest_points: Math.max(Number(spData?.quest_points) || 0, Number(syncProfile?.quest_points) || 0, Number(localProfile?.quest_points) || 0),
+        coins: isCloudArchived ? 0 : Math.max(Number(spData?.coins) || 0, Number(syncProfile?.coins) || 0, Number(localProfile?.coins) || 0),
+        quest_points: isCloudArchived ? 0 : Math.max(Number(spData?.quest_points) || 0, Number(syncProfile?.quest_points) || 0, Number(localProfile?.quest_points) || 0),
         semester_id: spData?.semester_id || localProfile?.semester_id || syncProfile?.semester_id || null,
-        semester_history: (Array.isArray(spData?.semester_history) && spData.semester_history.length > 0)
-          ? spData.semester_history
-          : ((Array.isArray(localProfile?.semester_history) && localProfile.semester_history.length > 0) ? localProfile.semester_history : (syncProfile?.semester_history || [])),
-        inventory: (Array.isArray(spData?.inventory) && spData.inventory.length > 0)
-          ? spData.inventory
-          : ((Array.isArray(localProfile?.inventory) && localProfile.inventory.length > 0) ? localProfile.inventory : (syncProfile?.inventory || [])),
-        daily_quest: (spData?.daily_quest && Object.keys(spData.daily_quest).length > 0)
-          ? spData.daily_quest
-          : ((localProfile?.daily_quest && Object.keys(localProfile.daily_quest).length > 0) ? localProfile.daily_quest : (syncProfile?.daily_quest || {})),
+        semester_history: isCloudArchived
+          ? []
+          : ((Array.isArray(spData?.semester_history) && spData.semester_history.length > 0)
+            ? spData.semester_history
+            : ((Array.isArray(localProfile?.semester_history) && localProfile.semester_history.length > 0) ? localProfile.semester_history : (syncProfile?.semester_history || []))),
+        inventory: isCloudArchived
+          ? []
+          : ((Array.isArray(spData?.inventory) && spData.inventory.length > 0)
+            ? spData.inventory
+            : ((Array.isArray(localProfile?.inventory) && localProfile.inventory.length > 0) ? localProfile.inventory : (syncProfile?.inventory || []))),
+        daily_quest: mergedDailyQuest,
         updated_at: spData?.updated_at || new Date().toISOString()
       };
-      const normalized = checkAndApplySemesterReset(rawNormalized);
+      const normalized = isCloudArchived ? rawNormalized : checkAndApplySemesterReset(rawNormalized);
       setLocalStudentProfile(studentId, normalized);
       syncProfileToLeaderboard(normalized).catch(() => {});
 
@@ -1044,13 +1066,386 @@ export const updateStudentDailyQuest = async (studentId, dailyQuestData) => {
     daily_quest: {}
   };
 
+  const mergedDailyQuest = mergeDailyQuestPreservingMeta(current.daily_quest || {}, dailyQuestData);
+
   const updated = {
     ...current,
-    daily_quest: dailyQuestData,
+    daily_quest: mergedDailyQuest,
     updated_at: new Date().toISOString()
   };
 
   return await upsertStudentProfile(updated);
+};
+
+/**
+ * 將八冊秘典進度與歷屆星辰封存即時同步至雲端（跨手機／平板／筆電連續）
+ */
+export const syncStudentGrimoireToCloud = async (studentId, grimoireData = {}, grimoireHistory = []) => {
+  const sid = String(studentId || '');
+  if (!sid || sid.length !== 6 || isGuestStudent(sid)) return null;
+
+  try {
+    const current = (await fetchStudentProfile(sid)) || {
+      student_id: sid,
+      grade: sid.substring(0, 2),
+      class: sid.substring(2, 4),
+      seat: sid.substring(4, 6),
+      nickname: '好學生',
+      coins: 0,
+      quest_points: 0,
+      inventory: [],
+      daily_quest: {}
+    };
+
+    const existingDq = (current.daily_quest && typeof current.daily_quest === 'object') ? current.daily_quest : {};
+    const mergedGrimoire = mergeGrimoireProgress(existingDq._grimoire || {}, grimoireData || {});
+    const mergedHistory = mergeGrimoireHistory(existingDq._grimoire_history || [], grimoireHistory || []);
+
+    const nextDq = {
+      ...existingDq,
+      _grimoire: mergedGrimoire,
+      _grimoire_history: mergedHistory
+    };
+
+    return await upsertStudentProfile({
+      ...current,
+      daily_quest: nextDq,
+      updated_at: new Date().toISOString()
+    });
+  } catch (err) {
+    console.warn('八冊秘典雲端同步略過:', err);
+    return null;
+  }
+};
+
+// 註冊八冊秘典雲端同步回呼（recordGrimoireStar 寫入後自動背景上雲）
+registerGrimoireCloudSync(syncStudentGrimoireToCloud);
+
+/**
+ * 讀取全校雲端學生名單（供 TeacherHub 學年升級與座號移轉模組使用）
+ */
+export const fetchAllStudentProfilesForTeacher = async () => {
+  const mergedMap = new Map();
+
+  try {
+    const [{ data: spRows, error: spError }, { data: syncRows }] = await Promise.all([
+      supabase
+        .from('student_profiles')
+        .select('*')
+        .order('student_id', { ascending: true })
+        .limit(1000),
+      supabase
+        .from('leaderboard')
+        .select('book, name, score, time, device_id, created_at')
+        .eq('mode', 'profile-sync')
+        .order('created_at', { ascending: false })
+        .limit(1500)
+    ]);
+
+    if (!spError && Array.isArray(spRows)) {
+      spRows.forEach((row) => {
+        const sid = String(row?.student_id || '');
+        if (!sid || sid.length !== 6 || isGuestStudent(sid)) return;
+        mergedMap.set(sid, {
+          ...row,
+          student_id: sid,
+          coins: Math.max(0, Number(row.coins) || 0),
+          quest_points: Math.max(0, Number(row.quest_points) || 0),
+          inventory: Array.isArray(row.inventory) ? row.inventory : [],
+          semester_history: Array.isArray(row.semester_history) ? row.semester_history : [],
+          daily_quest: (row.daily_quest && typeof row.daily_quest === 'object') ? row.daily_quest : {}
+        });
+      });
+    }
+
+    if (Array.isArray(syncRows)) {
+      syncRows.forEach((r) => {
+        const sid = String(r?.book || '');
+        if (!sid || sid.length !== 6 || isGuestStudent(sid)) return;
+        const parsedId = parseStudentId(sid);
+        let extraMeta = {};
+        if (typeof r.device_id === 'string' && r.device_id.startsWith('{')) {
+          try { extraMeta = JSON.parse(r.device_id); } catch (e) {}
+        }
+        const syncDq = (extraMeta.dq && typeof extraMeta.dq === 'object') ? extraMeta.dq : {};
+        const prev = mergedMap.get(sid);
+        if (!prev) {
+          mergedMap.set(sid, {
+            student_id: sid,
+            grade: parsedId.grade,
+            class: parsedId.classNum,
+            seat: parsedId.seat,
+            nickname: r.name || '好學生',
+            coins: Math.max(0, Number(r.score) || 0),
+            quest_points: Math.max(0, Number(r.time) || 0),
+            semester_id: extraMeta.sem || getCurrentSemesterId(),
+            semester_history: Array.isArray(extraMeta.hist) ? extraMeta.hist : [],
+            inventory: Array.isArray(extraMeta.inv) ? extraMeta.inv : [],
+            daily_quest: syncDq,
+            updated_at: r.created_at || new Date().toISOString()
+          });
+        } else {
+          const mergedDq = mergeDailyQuestPreservingMeta(syncDq, prev.daily_quest || {});
+          const archived = isProfileArchived({ daily_quest: mergedDq });
+          mergedMap.set(sid, {
+            ...prev,
+            coins: archived ? 0 : Math.max(prev.coins, Number(r.score) || 0),
+            quest_points: archived ? 0 : Math.max(prev.quest_points, Number(r.time) || 0),
+            daily_quest: mergedDq
+          });
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('讀取全校學生清單異常:', err);
+  }
+
+  const allProfiles = Array.from(mergedMap.values()).sort((a, b) =>
+    String(a.student_id).localeCompare(String(b.student_id))
+  );
+  const activeProfiles = allProfiles.filter(p => !isProfileArchived(p));
+  const archivedProfiles = allProfiles.filter(p => isProfileArchived(p));
+
+  return { allProfiles, activeProfiles, archivedProfiles };
+};
+
+/**
+ * 設定或重設學生的 4 碼換機／換號密碼（學生端與教師端共用）
+ */
+export const updateStudentTransferPin = async (studentId, pin4) => {
+  const sid = String(studentId || '');
+  const cleanPin = String(pin4 ?? '').trim();
+  if (!sid || sid.length !== 6 || isGuestStudent(sid)) {
+    return { success: false, error: '訪客帳號不支援設定換機密碼。' };
+  }
+  if (!isValidTransferPin(cleanPin)) {
+    return { success: false, error: '換機密碼必須為 4 位數字（例如 1234）。' };
+  }
+
+  const current = (await fetchStudentProfile(sid)) || {
+    student_id: sid,
+    grade: sid.substring(0, 2),
+    class: sid.substring(2, 4),
+    seat: sid.substring(4, 6),
+    nickname: '好學生',
+    coins: 0,
+    quest_points: 0,
+    inventory: [],
+    daily_quest: {}
+  };
+
+  const nextDq = {
+    ...(current.daily_quest && typeof current.daily_quest === 'object' ? current.daily_quest : {}),
+    _transfer_pin: cleanPin
+  };
+
+  const saved = await upsertStudentProfile({
+    ...current,
+    daily_quest: nextDq,
+    updated_at: new Date().toISOString()
+  });
+
+  return { success: true, profile: saved, pin: cleanPin };
+};
+
+/**
+ * 軌道一：教師後台批次學年升級／座號移轉（強制衝突門禁 + 快照原子寫入，支援 1↔2 互換不覆蓋）
+ */
+export const executeTeacherBatchPromotion = async (
+  plannedRows = [],
+  allProfilesSnapshot = [],
+  { archiveGrimoire = true, academicYear = getCurrentAcademicYear() } = {}
+) => {
+  const conflictCheck = detectPromotionConflicts(plannedRows, allProfilesSnapshot);
+  if (conflictCheck.hasConflicts) {
+    return {
+      success: false,
+      error: `偵測到 ${conflictCheck.conflictCount} 處座號衝突，已攔截本次轉換。請先排除所有紅燈衝號後再執行。`,
+      conflictCheck
+    };
+  }
+
+  const profileById = new Map();
+  (allProfilesSnapshot || []).forEach((p) => {
+    if (p?.student_id) profileById.set(String(p.student_id), p);
+  });
+
+  // 1. 先完整拍下所有要移動／畢業的來源快照（避免兩兩互換時後讀蓋掉先寫）
+  const targetWrites = [];
+  const targetIdSet = new Set();
+  const vacateSources = [];
+
+  for (const row of plannedRows) {
+    const sid = String(row?.sourceId || '');
+    const srcProfile = profileById.get(sid);
+    if (!srcProfile) continue;
+
+    if (row.action === 'keep') {
+      targetIdSet.add(sid);
+      continue;
+    }
+
+    if (row.action === 'graduate') {
+      vacateSources.push({ srcProfile, status: 'graduated', transferredTo: null });
+      continue;
+    }
+
+    if (row.action === 'move') {
+      const targetId = getPlannedTargetId(row);
+      if (!targetId) continue;
+      targetIdSet.add(targetId);
+
+      // 若仍在原位但勾選跨學年封存，依然允許封存當年八星；否則搬至目標新座號
+      const nextTargetProfile = buildTransferredTargetProfile({
+        sourceProfile: srcProfile,
+        existingTargetProfile: null,
+        targetGrade: row.targetGrade,
+        targetClass: row.targetClass,
+        targetSeat: row.targetSeat,
+        archiveGrimoire: Boolean(archiveGrimoire),
+        academicYear,
+        mergeWithExistingTarget: false
+      });
+      targetWrites.push(nextTargetProfile);
+
+      if (targetId !== sid) {
+        vacateSources.push({ srcProfile, status: 'transferred', transferredTo: targetId });
+      }
+    }
+  }
+
+  // 2. 依序寫入所有目標新檔案
+  let movedCount = 0;
+  for (const targetProfile of targetWrites) {
+    await upsertStudentProfile(targetProfile);
+    replaceLocalGrimoire(
+      targetProfile.student_id,
+      targetProfile.daily_quest?._grimoire || {},
+      targetProfile.daily_quest?._grimoire_history || []
+    );
+    movedCount++;
+  }
+
+  // 3. 僅封存「沒有被同批次其他學生接手」的騰出舊座號或畢業生座號
+  let archivedCount = 0;
+  for (const item of vacateSources) {
+    const sid = String(item.srcProfile.student_id);
+    if (targetIdSet.has(sid)) continue;
+    const archivedProfile = buildArchivedSourceProfile({
+      sourceProfile: item.srcProfile,
+      status: item.status,
+      transferredTo: item.transferredTo,
+      academicYear
+    });
+    await upsertStudentProfile(archivedProfile);
+    archivedCount++;
+  }
+
+  return {
+    success: true,
+    movedCount,
+    archivedCount,
+    totalAffected: movedCount + archivedCount
+  };
+};
+
+/**
+ * 軌道二：學生端以「舊 6 碼座號 ＋ 4 碼換機密碼」自行繼承資產與歷屆八星
+ */
+export const executeStudentSelfTransfer = async ({
+  sourceStudentId,
+  pin4,
+  targetStudentId,
+  academicYear = getCurrentAcademicYear()
+}) => {
+  const srcId = String(sourceStudentId || '').trim();
+  const tgtId = String(targetStudentId || '').trim();
+  const cleanPin = String(pin4 ?? '').trim();
+
+  if (srcId.length !== 6 || tgtId.length !== 6 || isGuestStudent(srcId) || isGuestStudent(tgtId)) {
+    return { success: false, error: '請輸入正確的 6 碼正式學生座號。' };
+  }
+  if (srcId === tgtId) {
+    return { success: false, error: '舊座號與目前座號相同，無需重複搬移。' };
+  }
+  if (!isValidTransferPin(cleanPin)) {
+    return { success: false, error: '請輸入 4 位數字換機密碼。' };
+  }
+
+  const sourceProfile = await fetchStudentProfile(srcId);
+  if (!sourceProfile) {
+    return { success: false, error: `雲端查無舊座號 ${srcId} 的檔案。` };
+  }
+  if (isProfileArchived(sourceProfile)) {
+    const toId = sourceProfile.daily_quest?._transfer_meta?.transferredTo;
+    return {
+      success: false,
+      error: toId
+        ? `舊座號 ${srcId} 的資料已移轉至 ${toId}，無法重複領取。`
+        : `舊座號 ${srcId} 已封存，無法再次匯入。`
+    };
+  }
+
+  const savedPin = getTransferPinFromProfile(sourceProfile);
+  if (!savedPin) {
+    return {
+      success: false,
+      error: `舊座號 ${srcId} 尚未設定 4 碼換機密碼，請先用舊座號登入設定，或請老師於後台協助設定。`
+    };
+  }
+  if (savedPin !== cleanPin) {
+    return { success: false, error: '4 碼換機密碼不正確，請確認後再試。' };
+  }
+
+  const existingTarget = await fetchStudentProfile(tgtId);
+  const parsedTarget = parseStudentId(tgtId);
+  const isCrossGrade = String(sourceProfile.grade) !== String(parsedTarget.grade);
+
+  const nextTargetProfile = buildTransferredTargetProfile({
+    sourceProfile,
+    existingTargetProfile: existingTarget,
+    targetGrade: parsedTarget.grade,
+    targetClass: parsedTarget.classNum,
+    targetSeat: parsedTarget.seat,
+    archiveGrimoire: isCrossGrade,
+    academicYear,
+    mergeWithExistingTarget: true
+  });
+
+  const archivedSource = buildArchivedSourceProfile({
+    sourceProfile,
+    status: 'transferred',
+    transferredTo: tgtId,
+    academicYear
+  });
+
+  await upsertStudentProfile(nextTargetProfile);
+  await upsertStudentProfile(archivedSource);
+
+  replaceLocalGrimoire(
+    tgtId,
+    nextTargetProfile.daily_quest?._grimoire || {},
+    nextTargetProfile.daily_quest?._grimoire_history || []
+  );
+  try {
+    localStorage.setItem(
+      `wutai_grimoire_epoch_${tgtId}`,
+      String(nextTargetProfile.daily_quest?._grimoire_epoch || 0)
+    );
+  } catch (e) {}
+
+  return {
+    success: true,
+    targetProfile: nextTargetProfile,
+    summary: {
+      sourceId: srcId,
+      targetId: tgtId,
+      isCrossGrade,
+      inheritedCoins: Math.max(0, Number(sourceProfile.coins) || 0),
+      inheritedQuestPoints: Math.max(0, Number(sourceProfile.quest_points) || 0),
+      inheritedInventoryCount: Array.isArray(sourceProfile.inventory) ? sourceProfile.inventory.length : 0
+    }
+  };
 };
 
 const getLocalLeaderboardProfiles = (metric = 'coins', grade = null, limit = 50) => {
