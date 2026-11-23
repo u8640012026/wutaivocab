@@ -314,7 +314,7 @@ export const Portal = ({
                     </span>
                   </div>
                   <p className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 truncate">
-                    結合多人連線擂台、鷹眼神探、神話記憶翻牌、貪食蛇與拼字手寫挑戰。
+                    結合多人連線擂台、鷹眼神探、神話記憶翻牌、句型積木工坊與手寫挑戰。
                   </p>
                 </div>
               </div>

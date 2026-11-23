@@ -5,6 +5,7 @@ import { soundEngine, stopSpeech } from '../../services/audio';
 // ── 受閒置守護防護之單人遊戲與互動視圖 ──
 const GUARDED_PREFIXES = [
   'quiz-', // quiz-choice, quiz-en-zh, quiz-zh-en, quiz-listen
+  'sentence',
   'spelling',
   'meteor',
   'snake',

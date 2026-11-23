@@ -297,7 +297,8 @@ export const GrimoireSanctuaryModal = ({
             <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1">
               {GRIMOIRE_GAME_MODES.map((mode) => {
                 const starVal = selectedProgress.modesStatus[mode.id] || 0;
-                const isCleared = starVal >= 3;
+                const isLegacyPreserved = Boolean(selectedProgress.legacyPreservedModes?.[mode.id]);
+                const isCleared = starVal >= 3 || isLegacyPreserved;
 
                 return (
                   <div
@@ -316,14 +317,18 @@ export const GrimoireSanctuaryModal = ({
                       <span className="text-base shrink-0">{mode.icon}</span>
                       <div className="min-w-0">
                         <div className="text-xs font-black truncate">{mode.nameZh}</div>
-                        <div className="text-[9px] opacity-75 truncate">
-                          {isCleared ? '⭐ 已三星 (+10% 解鎖)' : '尚未獲得三星'}
+                        <div className="text-[9px] opacity-85 truncate">
+                          {starVal >= 3
+                            ? '⭐ 已三星 (+10% 解鎖)'
+                            : isLegacyPreserved
+                            ? '🛡️ 舊版三星已保留（已計入本冊完成度）'
+                            : '尚未獲得三星'}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {/* 三星顯示 */}
+                      {/* 三星顯示 (反映本遊戲實際完成星數) */}
                       <div className="flex items-center gap-0.5 text-xs">
                         {Array.from({ length: 3 }).map((_, sIdx) => (
                           <span
@@ -345,13 +350,13 @@ export const GrimoireSanctuaryModal = ({
                             onLaunchGame({ modeId: mode.id, bookId: selectedBook.id });
                           }}
                           className={`px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer ${
-                            isCleared
+                            starVal >= 3
                               ? 'bg-emerald-800/60 hover:bg-emerald-700 text-emerald-100'
                               : 'bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-sm'
                           }`}
                         >
                           <Play className="w-2.5 h-2.5" />
-                          <span>{isCleared ? '重練' : '挑戰'}</span>
+                          <span>{starVal >= 3 ? '重練' : '挑戰'}</span>
                         </button>
                       )}
                     </div>

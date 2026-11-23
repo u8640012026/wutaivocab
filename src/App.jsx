@@ -6,6 +6,7 @@ import { LeaderboardView } from './components/LeaderboardView';
 import { StandardQuiz } from './games/quiz/StandardQuiz';
 import { HandwritingGame } from './games/handwriting/HandwritingGame';
 import { SpellingGame } from './games/spelling/SpellingGame';
+import { SentenceBuilderGame } from './games/sentence/SentenceBuilderGame';
 import { MeteorGame } from './games/meteor/MeteorGame';
 import { SnakeGame } from './games/snake/SnakeGame';
 import { MemoryGameSingle } from './games/memory/MemoryGameSingle';
@@ -110,7 +111,7 @@ export function App() {
       const VALID_VIEWS = [
         'phonics', 'lobby', 'town', 'textbook', 'langlab', 'mcq-exam', 'priori',
         'escape', 'spotter', 'spotter-test', 'maze', 'memory',
-        'mole', 'swipe', 'meteor', 'snake', 'spelling', 'handwriting',
+        'mole', 'swipe', 'meteor', 'snake', 'sentence', 'spelling', 'handwriting',
         'battle', 'leaderboard', 'teacher-hub', 'preloader-showcase', 'loader-showcase', 'zoom-showcase'
       ];
       if (VALID_VIEWS.includes(target)) return target;
@@ -125,17 +126,49 @@ export function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
 
-  // 測驗出題設定 (預設純選定範圍誘答，支援 URL 直接帶入冊次初始化)
+  const resolveAlphaParams = (urlParams, isAbc) => {
+    if (!isAbc) return { alphaMode: null, alphaGrade: null };
+    const rawGrade = urlParams.get('alphaGrade') || urlParams.get('grade');
+    const alphaGrade = rawGrade === '2' ? 2 : 1;
+    const rawMode = urlParams.get('alphaMode');
+    const alphaMode = ['upper', 'lower', 'mixed'].includes(rawMode)
+      ? rawMode
+      : (alphaGrade === 2 ? 'lower' : 'upper');
+    return { alphaMode, alphaGrade };
+  };
+
+  // 測驗出題設定 (預設純選定範圍誘答，支援 URL ?units= / ?book= 直接帶入初始化)
   const [settings, setSettings] = useState(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
+      const unitsParam = urlParams.get('units');
+      if (unitsParam) {
+        const parsedUnits = unitsParam.split(',').map(s => s.trim()).filter(Boolean);
+        if (parsedUnits.length > 0) {
+          const isAbc = parsedUnits.includes('abc');
+          const { alphaMode, alphaGrade } = resolveAlphaParams(urlParams, isAbc);
+          return {
+            selectedUnits: parsedUnits,
+            count: '20',
+            distractorMode: 'strict',
+            selectedBook: isAbc ? 'abc' : parsedUnits[0].split('-')[0],
+            alphaMode,
+            alphaGrade
+          };
+        }
+      }
       const b = urlParams.get('book');
       if (b) {
+        const isAbc = b.toLowerCase() === 'abc';
+        const normBook = isAbc ? 'abc' : b;
+        const { alphaMode, alphaGrade } = resolveAlphaParams(urlParams, isAbc);
         return {
-          selectedUnits: b === 'abc' ? ['abc'] : [`${b}-1`, `${b}-2`],
+          selectedUnits: isAbc ? ['abc'] : [`${normBook}-1`, `${normBook}-2`],
           count: '20',
           distractorMode: 'strict',
-          selectedBook: b
+          selectedBook: normBook,
+          alphaMode,
+          alphaGrade
         };
       }
     } catch (e) {}
@@ -191,18 +224,34 @@ export function App() {
           setCurrentView(resolveViewFromUrl());
         }
         const urlParams = new URLSearchParams(window.location.search);
+        const unitsParam = urlParams.get('units');
+        if (unitsParam) {
+          const parsedUnits = unitsParam.split(',').map(s => s.trim()).filter(Boolean);
+          if (parsedUnits.length > 0) {
+            const isAbc = parsedUnits.includes('abc');
+            const { alphaMode, alphaGrade } = resolveAlphaParams(urlParams, isAbc);
+            setSettings(prev => ({
+              ...prev,
+              selectedUnits: parsedUnits,
+              selectedBook: isAbc ? 'abc' : parsedUnits[0].split('-')[0],
+              alphaMode,
+              alphaGrade
+            }));
+            return;
+          }
+        }
         const b = urlParams.get('book');
         if (b) {
-          setSettings(prev => {
-            if (!prev.selectedUnits || prev.selectedUnits.length === 0) {
-              return {
-                ...prev,
-                selectedUnits: b === 'abc' ? ['abc'] : [`${b}-1`, `${b}-2`],
-                selectedBook: b
-              };
-            }
-            return prev;
-          });
+          const isAbc = b.toLowerCase() === 'abc';
+          const normBook = isAbc ? 'abc' : b;
+          const { alphaMode, alphaGrade } = resolveAlphaParams(urlParams, isAbc);
+          setSettings(prev => ({
+            ...prev,
+            selectedUnits: isAbc ? ['abc'] : [`${normBook}-1`, `${normBook}-2`],
+            selectedBook: normBook,
+            alphaMode,
+            alphaGrade
+          }));
         }
       } catch (e) {}
     };
@@ -229,13 +278,17 @@ export function App() {
       settings.selectedUnits.includes(`${w.book}-${w.lesson}`)
     ).length;
 
-    // 條件 2 (二擇一滿足即可)：
+    // 條件 2 (三擇一滿足即可)：
     // A. 超過 20 字 (selectedWordsCount >= 20)
-    // B. 或者包含兩個以上的正常單元 (selectedUnitsCount >= 2)
+    // B. 包含兩個以上的正常單元 (selectedUnitsCount >= 2)
+    // C. 全冊 / 複習單元標記 (-all / -review / -review1 / -review2)
     const hasEnoughWords = selectedWordsCount >= 20;
     const hasEnoughUnits = selectedUnitsCount >= 2;
+    const isWholeBookOrReviewToken = settings.selectedUnits.some(
+      u => /-(all|review[12]?)$/i.test(String(u).trim())
+    );
 
-    if (!hasEnoughWords && !hasEnoughUnits) return null;
+    if (!hasEnoughWords && !hasEnoughUnits && !isWholeBookOrReviewToken) return null;
 
     return book;
   }, [settings.selectedUnits, words]);
@@ -250,7 +303,7 @@ export function App() {
     }
   };
 
-  const handleNavigate = (view) => {
+  const handleNavigate = (view, queryParams = null) => {
     soundEngine.init();
     setCurrentView(view);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -261,8 +314,20 @@ export function App() {
       else if (view === 'lobby') targetPath = '/vocab';
       else targetPath = `/${view}`;
 
-      if (window.location.pathname !== targetPath) {
-        window.history.pushState({ view }, '', targetPath);
+      let targetUrl = targetPath;
+      if (queryParams && typeof queryParams === 'object') {
+        const searchParams = new URLSearchParams();
+        Object.entries(queryParams).forEach(([k, v]) => {
+          if (v !== undefined && v !== null && String(v) !== '') {
+            searchParams.set(k, String(v));
+          }
+        });
+        const qs = searchParams.toString();
+        if (qs) targetUrl = `${targetPath}?${qs}`;
+      }
+
+      if (`${window.location.pathname}${window.location.search}` !== targetUrl) {
+        window.history.pushState({ view, queryParams }, '', targetUrl);
       }
     } catch (e) {}
   };
@@ -314,8 +379,8 @@ export function App() {
 
   return (
     <div className="min-h-screen flex flex-col transition-colors duration-300">
-      {/* 全域統一導覽列 (大廳、排行榜、打地鼠、課本題庫檢定館與學習扶助練習館擁有專屬零干擾頂欄，其餘頁面維持標準 Header) */}
-      {currentView !== 'lobby' && currentView !== 'leaderboard' && currentView !== 'mole' && currentView !== 'mcq-exam' && currentView !== 'priori' && (
+      {/* 全域統一導覽列 (大廳、排行榜、打地鼠、句型積木工坊、課本題庫檢定館與學習扶助練習館擁有專屬零干擾頂欄，其餘頁面維持標準 Header) */}
+      {currentView !== 'lobby' && currentView !== 'leaderboard' && currentView !== 'mole' && currentView !== 'sentence' && currentView !== 'mcq-exam' && currentView !== 'priori' && (
         <Header
           onOpenTeacherHub={handleOpenTeacherHub}
           onOpenLeaderboard={() => handleNavigate('leaderboard')}
@@ -401,6 +466,14 @@ export function App() {
               mode={currentView}
               settings={settings}
               words={words}
+              qualifyingBook={qualifyingBook}
+              onBack={() => handleNavigate('lobby')}
+            />
+          )}
+
+          {currentView === 'sentence' && (
+            <SentenceBuilderGame
+              settings={settings}
               qualifyingBook={qualifyingBook}
               onBack={() => handleNavigate('lobby')}
             />

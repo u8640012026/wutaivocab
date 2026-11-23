@@ -64,6 +64,11 @@ function extractAllData() {
   });
 }
 
+// 正規化顯示文字（杜絕不同對話重複相同回覆造成四選一出現重複選項）
+function normalizeOptionText(text) {
+  return String(text || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 // 隨機重組陣列
 function shuffleArray(arr) {
   const result = [...arr];
@@ -95,10 +100,18 @@ export function getSentenceListeningQuestions(count = 20) {
   const selected = shuffled.slice(0, Math.min(count, shuffled.length));
 
   return selected.map((item, index) => {
-    // 挑選 3 個長度相近或風格相近的干擾句
+    // 挑選 3 個顯示文字互異的干擾句
     const otherSentences = uniqueSentences.filter(s => s.en !== item.en);
     const shuffledOthers = shuffleArray(otherSentences);
-    const distractors = shuffledOthers.slice(0, 3);
+    const usedSentenceKeys = new Set([normalizeOptionText(item.en)]);
+    const distractors = [];
+    for (const candidate of shuffledOthers) {
+      if (distractors.length >= 3) break;
+      const candKey = normalizeOptionText(candidate.en);
+      if (!candKey || usedSentenceKeys.has(candKey)) continue;
+      usedSentenceKeys.add(candKey);
+      distractors.push(candidate);
+    }
 
     const rawOptions = [
       { textEn: item.en, textZh: item.zh, isCorrect: true },
@@ -145,10 +158,18 @@ export function getDialogueQAQuestions(count = 20) {
   const selected = shuffled.slice(0, Math.min(count, shuffled.length));
 
   return selected.map((item, index) => {
-    // 挑選 3 個來自其他對話的應答句作為干擾項
-    const otherReplies = uniqueQAList.filter(q => q.replyEn !== item.replyEn && q.questionEn !== item.questionEn);
+    // 挑選 3 個來自其他對話且實際顯示回覆文字互異的干擾項（杜絕重複選項）
+    const otherReplies = uniqueQAList.filter(q => q.questionEn !== item.questionEn);
     const shuffledOthers = shuffleArray(otherReplies);
-    const distractors = shuffledOthers.slice(0, 3);
+    const usedReplyKeys = new Set([normalizeOptionText(item.replyEn)]);
+    const distractors = [];
+    for (const candidate of shuffledOthers) {
+      if (distractors.length >= 3) break;
+      const candKey = normalizeOptionText(candidate.replyEn);
+      if (!candKey || usedReplyKeys.has(candKey)) continue;
+      usedReplyKeys.add(candKey);
+      distractors.push(candidate);
+    }
 
     const rawOptions = [
       { textEn: item.replyEn, textZh: item.replyZh, isCorrect: true },

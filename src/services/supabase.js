@@ -586,7 +586,9 @@ export const adminFetchLeaderboard = async ({ week, mode, limit = 100 } = {}) =>
     if (week !== undefined && week !== 'all') {
       query = query.eq('week', parseInt(week, 10));
     }
-    if (mode && mode !== 'all') {
+    if (Array.isArray(mode) && mode.length > 0) {
+      query = query.in('mode', mode);
+    } else if (mode && mode !== 'all') {
       query = query.eq('mode', mode);
     }
     query = query.order('created_at', { ascending: false }).limit(limit);

@@ -124,9 +124,9 @@ export const GRIMOIRE_GAME_MODES = [
   { id: 'meteor', nameZh: '3D 隕石防衛戰', icon: '☄️', category: 'speed' },
   { id: 'snake', nameZh: '叢林神山貪食蛇', icon: '🐍', category: 'speed' },
 
-  // ── 經典測驗 (4 款) ──
-  { id: 'quiz-choice', nameZh: '中英字義速辨', icon: '⌨️', category: 'quiz', note: '看中選英/看英選中/雙向速測' },
-  { id: 'quiz-listening', nameZh: '英語聽力挑戰', icon: '🎧', category: 'quiz', note: '單字辨音/句子/問答任一三星' },
+  // ── 詞句試煉 (4 款) ──
+  { id: 'sentence', nameZh: '句型積木工坊', icon: '🧩', category: 'quiz', note: '課本句型重組與情境造句' },
+  { id: 'quiz-listening', nameZh: '英語聽力試煉', icon: '🎧', category: 'quiz', note: '單字辨音/句子/問答任一三星' },
   { id: 'spelling', nameZh: '單字積木拼裝', icon: '🧱', category: 'quiz' },
   { id: 'handwriting', nameZh: '神筆筆順書寫', icon: '✍️', category: 'quiz', note: '四線三格標準手寫評測' }
 ];
@@ -163,11 +163,15 @@ export const getBookProgress = (studentId, bookId) => {
   // 計算在該冊獲得 3 星 (或通關) 的遊戲數
   let threeStarCount = 0;
   const consolidatedRecord = { ...bookRecord };
-  consolidatedRecord['quiz-choice'] = Math.max(
+  const sentenceActualStar = bookRecord['sentence'] || 0;
+  const legacyQuizStar = Math.max(
     bookRecord['quiz-choice'] || 0,
     bookRecord['quiz-zh-en'] || 0,
     bookRecord['quiz-en-zh'] || 0
   );
+  // 卡片顯示句型工坊真實星等（絕不將舊字義星等偽裝為已完成句型工坊）
+  consolidatedRecord['sentence'] = sentenceActualStar;
+  consolidatedRecord['quiz-choice'] = legacyQuizStar;
   consolidatedRecord['quiz-listening'] = Math.max(
     bookRecord['quiz-listening'] || 0,
     bookRecord['quiz-listening-word'] || 0,
@@ -175,8 +179,16 @@ export const getBookProgress = (studentId, bookId) => {
     bookRecord['quiz-listening-qa'] || 0
   );
 
+  // 舊版三星承接：計算整冊點亮完成度時，取「新句型星 vs 舊字義星」最大值保留學生既得解鎖
+  const legacyPreservedModes = {
+    sentence: legacyQuizStar >= 3 && sentenceActualStar < 3
+  };
+
   GRIMOIRE_GAME_MODES.forEach(m => {
     let star = consolidatedRecord[m.id] || 0;
+    if (m.id === 'sentence') {
+      star = Math.max(sentenceActualStar, legacyQuizStar);
+    }
     if (star >= 3) {
       threeStarCount++;
     }
@@ -192,7 +204,8 @@ export const getBookProgress = (studentId, bookId) => {
     requiredModes: REQUIRED_MODES_FOR_MASTER,
     totalModes: GRIMOIRE_GAME_MODES.length,
     isMastered,
-    modesStatus: consolidatedRecord
+    modesStatus: consolidatedRecord,
+    legacyPreservedModes
   };
 };
 
@@ -227,6 +240,7 @@ export const mapModeToGrimoireId = (mode) => {
   if (m.startsWith('swipe')) return 'swipe';
   if (m.startsWith('meteor')) return 'meteor';
   if (m.startsWith('snake')) return 'snake';
+  if (m.startsWith('sentence')) return 'sentence';
   if (m.startsWith('spelling')) return 'spelling';
   if (m.startsWith('handwriting')) return 'handwriting';
   if (m === 'quiz-choice' || m === 'quiz-zh-en' || m === 'choice-zh-en' || m === 'quiz-en-zh' || m === 'choice-en-zh') return 'quiz-choice';

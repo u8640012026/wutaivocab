@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { GlassCard } from '../../components/ui/GlassCard';
 import { Button3D } from '../../components/ui/Button3D';
 import { useI18n } from '../../context/I18nContext';
-import { soundEngine, speakEnglish } from '../../services/audio';
+import { soundEngine, speakEnglish, stopSpeech } from '../../services/audio';
 import { HonorSubmissionCard } from '../../components/HonorSubmissionCard';
-import { generateSpellingAlphabetQuestion } from '../../services/alphabetEngine';
+import { generateSpellingAlphabetRound } from '../../services/alphabetEngine';
 import { enterFullscreen, exitFullscreen } from '../../services/fullscreen';
 import confetti from 'canvas-confetti';
-import { ArrowLeft, Volume2, Heart, Trophy, CheckCircle2, HeartCrack, Sparkles } from 'lucide-react';
+import { ArrowLeft, Volume2, Heart, Trophy, CheckCircle2, HeartCrack, Flame } from 'lucide-react';
 
 export const SpellingGame = ({
   settings,
@@ -21,6 +21,8 @@ export const SpellingGame = ({
     (settings?.selectedUnits && settings.selectedUnits.includes('abc')) ||
     settings?.alphaMode
   );
+  const isAlphabetModeRef = useRef(isAlphabetMode);
+  isAlphabetModeRef.current = isAlphabetMode;
   const [queue, setQueue] = useState([]);
   const [currentWord, setCurrentWord] = useState(null);
   const [wordGroups, setWordGroups] = useState([]);
@@ -35,9 +37,15 @@ export const SpellingGame = ({
   const [startTime, setStartTime] = useState(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [stats, setStats] = useState({ correct: 0, wrong: 0 });
+  const [streak, setStreak] = useState(0);
+  const [visualScore, setVisualScore] = useState(0);
+  const [floatingPts, setFloatingPts] = useState(null);
   const initialCountRef = useRef(0);
   const historyWordsRef = useRef(new Map());
   const mistakeIdsRef = useRef(new Set());
+  const livesRef = useRef(5);
+  const streakRef = useRef(0);
+  const floatTimerRef = useRef(null);
 
   // 同步 Refs 供鍵盤、拖曳與異步回呼使用，杜絕 stale closure
   const cleanTargetRef = useRef('');
@@ -93,13 +101,30 @@ export const SpellingGame = ({
   };
 
   useEffect(() => {
-    let filtered = words.filter(w => (settings?.selectedUnits || []).includes(`${w.book}-${w.lesson}`));
-    if (filtered.length === 0 && words.length > 0) {
-      filtered = words;
-    }
-    let shuffled = [...filtered].sort(() => 0.5 - Math.random());
-    if (settings?.count && settings.count !== 'all') {
-      shuffled = shuffled.slice(0, parseInt(settings.count, 10));
+    let shuffled = [];
+    if (isAlphabetMode) {
+      const effectiveAlphaGrade = settings?.alphaGrade || (settings?.alphaMode === 'lower' ? 2 : 1);
+      const effectiveAlphaMode = settings?.alphaMode || (Number(effectiveAlphaGrade) === 2 ? 'lower' : 'upper');
+      const qCount = settings?.count === 'all' ? 15 : (parseInt(settings?.count, 10) || 10);
+      shuffled = generateSpellingAlphabetRound({
+        count: qCount,
+        alphaMode: effectiveAlphaMode,
+        alphaGrade: effectiveAlphaGrade
+      }).map((q) => ({
+        ...q,
+        en: q.sequenceChars.join(' '),
+        zh: q.meaningZh,
+        audioText: q.sequenceChars.join(', ')
+      }));
+    } else {
+      let filtered = words.filter(w => (settings?.selectedUnits || []).includes(`${w.book}-${w.lesson}`));
+      if (filtered.length === 0 && words.length > 0) {
+        filtered = words;
+      }
+      shuffled = [...filtered].sort(() => 0.5 - Math.random());
+      if (settings?.count && settings.count !== 'all') {
+        shuffled = shuffled.slice(0, parseInt(settings.count, 10));
+      }
     }
     setQueue(shuffled);
     queueRef.current = shuffled;
@@ -107,12 +132,45 @@ export const SpellingGame = ({
     historyWordsRef.current.clear();
     mistakeIdsRef.current.clear();
     shuffled.forEach(w => historyWordsRef.current.set(w.id, { id: w.id, en: w.en, zh: w.zh }));
-  }, [settings, words]);
+  }, [settings, words, isAlphabetMode]);
 
   const loadWord = (wordObj) => {
     if (!wordObj || !wordObj.en) return;
     setCurrentWord(wordObj);
     currentWordRef.current = wordObj;
+
+    if (wordObj.isAlphabetQuestion) {
+      const target = wordObj.sequenceChars.join('');
+      const groups = [{
+        word: target,
+        slots: wordObj.slots.map(s => ({
+          char: s.expectedChar,
+          slotIndex: s.slotIndex
+        }))
+      }];
+      setWordGroups(groups);
+      setCleanTarget(target);
+      cleanTargetRef.current = target;
+
+      const initialSlots = wordObj.slots.map((s) => (
+        s.isGiven
+          ? { id: `given-${wordObj.id}-${s.slotIndex}`, char: s.expectedChar, isGiven: true, isPlaced: true }
+          : null
+      ));
+      setSlots(initialSlots);
+      slotsRef.current = initialSlots;
+
+      const candidateList = wordObj.candidateTiles.map(tile => ({ ...tile, isPlaced: false }));
+      setLetters(candidateList);
+      lettersRef.current = candidateList;
+
+      setLives(5);
+      livesRef.current = 5;
+      setFeedback(null);
+      feedbackRef.current = null;
+      setTimeout(() => speakEnglish(wordObj.audioText || wordObj.en, { persona: 'standard_us' }), 250);
+      return;
+    }
 
     const { wordGroups: groups, cleanTarget: target, totalSlots } = parsePhrase(wordObj.en);
     if (totalSlots === 0) {
@@ -139,19 +197,23 @@ export const SpellingGame = ({
     lettersRef.current = shuffledLetters;
 
     setLives(5);
+    livesRef.current = 5;
     setFeedback(null);
     feedbackRef.current = null;
-    setTimeout(() => speakEnglish(wordObj.en), 250);
+    setTimeout(() => speakEnglish(wordObj.audioText || wordObj.en, { persona: 'standard_us' }), 250);
   };
 
-  // 卸載時還原全螢幕
+  // 卸載時還原全螢幕與停止語音
   useEffect(() => {
     return () => {
+      if (floatTimerRef.current) clearTimeout(floatTimerRef.current);
+      stopSpeech();
       exitFullscreen();
     };
   }, []);
 
   const handleBackToLobby = () => {
+    stopSpeech();
     exitFullscreen();
     onBack();
   };
@@ -230,7 +292,8 @@ export const SpellingGame = ({
 
   // 處理放置正確
   const processCorrect = (letterObj, slotIndex) => {
-    soundEngine.correct();
+    soundEngine.blockSnap(slotIndex);
+    soundEngine.hapticPulse('normal');
 
     const newSlots = [...slotsRef.current];
     newSlots[slotIndex] = letterObj;
@@ -243,33 +306,52 @@ export const SpellingGame = ({
 
     // 全部填滿
     if (newSlots.every(slot => slot !== null)) {
+      const nextStreak = streakRef.current + 1;
+      streakRef.current = nextStreak;
+      setStreak(nextStreak);
+
+      const gain = 100 + Math.min((nextStreak - 1) * 20, 100);
+      setVisualScore(v => v + gain);
+      if (floatTimerRef.current) clearTimeout(floatTimerRef.current);
+      setFloatingPts({ id: Date.now(), text: nextStreak >= 2 ? `+${gain} 🔥 x${nextStreak}` : `+${gain}` });
+      floatTimerRef.current = setTimeout(() => setFloatingPts(null), 1200);
+
       setFeedback('correct');
       feedbackRef.current = 'correct';
       setStats(s => ({ ...s, correct: s.correct + 1 }));
-      confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
-      setTimeout(() => moveToNext(true), 1300);
+      soundEngine.correct();
+      if (nextStreak >= 2) soundEngine.combo(nextStreak);
+      if (currentWordRef.current?.audioText || currentWordRef.current?.en) {
+        const spokenText = currentWordRef.current.audioText || currentWordRef.current.en;
+        setTimeout(() => speakEnglish(spokenText, { persona: 'standard_us' }), 140);
+      }
+      confetti({ particleCount: nextStreak >= 3 ? 70 : 50, spread: 65, origin: { y: 0.6 } });
+      setTimeout(() => moveToNext(true), 1550);
     }
   };
 
-  // 處理放置錯誤
+  // 處理放置錯誤（嚴禁在 setState updater 內執行任何副作用）
   const processWrong = (slotIndex) => {
     soundEngine.wrong();
+    soundEngine.hapticPulse('strong');
     if (currentWordRef.current?.id) {
       mistakeIdsRef.current.add(currentWordRef.current.id);
     }
     setShakingSlot(slotIndex);
     setTimeout(() => setShakingSlot(null), 500);
 
-    setLives(prev => {
-      const next = prev - 1;
-      if (next <= 0) {
-        setFeedback('wrong');
-        feedbackRef.current = 'wrong';
-        setStats(s => ({ ...s, wrong: s.wrong + 1 }));
-        setTimeout(() => moveToNext(false), 2200);
-      }
-      return next;
-    });
+    const nextLives = Math.max(0, livesRef.current - 1);
+    livesRef.current = nextLives;
+    setLives(nextLives);
+
+    if (nextLives <= 0) {
+      streakRef.current = 0;
+      setStreak(0);
+      setFeedback('wrong');
+      feedbackRef.current = 'wrong';
+      setStats(s => ({ ...s, wrong: s.wrong + 1 }));
+      setTimeout(() => moveToNext(false), 2200);
+    }
   };
 
   // 支援鍵盤直接打字輸入 (Chromebook / 電腦無縫體驗)
@@ -280,7 +362,9 @@ export const SpellingGame = ({
       if (e.ctrlKey || e.altKey || e.metaKey) return;
       if (e.key.length !== 1) return;
 
-      const pressedKey = isAlphabetMode ? (currentWordRef.current?.isUpper ? e.key.toUpperCase() : e.key.toLowerCase()) : e.key.toLowerCase();
+      const pressedKey = isAlphabetModeRef.current
+        ? (currentWordRef.current?.isUpper ? e.key.toUpperCase() : e.key.toLowerCase())
+        : e.key.toLowerCase();
       if (!/[a-zA-Z]/.test(e.key)) return;
 
       const currentSlots = slotsRef.current;
@@ -288,7 +372,7 @@ export const SpellingGame = ({
       if (nextEmptyIndex === -1) return;
 
       const targetChar = cleanTargetRef.current[nextEmptyIndex];
-      const isMatch = isAlphabetMode ? pressedKey === targetChar : pressedKey === targetChar.toLowerCase();
+      const isMatch = isAlphabetModeRef.current ? pressedKey === targetChar : pressedKey === targetChar.toLowerCase();
 
       if (isMatch) {
         const availableLetter = lettersRef.current.find(l => !l.isPlaced && l.char === pressedKey);
@@ -361,11 +445,12 @@ export const SpellingGame = ({
             </div>
           </div>
 
-          {/* 榮譽榜破紀錄留名判定卡與獎狀領取 */}
+          {/* 榮譽榜破紀錄留名判定卡與獎狀領取 (僅傳入首答完美數，絕不灌水) */}
           <HonorSubmissionCard
             mode={isAlphabetMode ? 'spelling-abc' : 'spelling'}
             book={isAlphabetMode ? 'abc' : qualifyingBook}
             score={firstAttemptPerfect}
+            correctCount={firstAttemptPerfect}
             time={elapsedTime}
             totalCount={totalWords}
             rangeText={isAlphabetMode ? 'Aa 字母連續序列拼裝' : (qualifyingBook ? `第 ${qualifyingBook} 冊` : (settings?.selectedUnits || []).slice(0, 3).join(', '))}
@@ -383,57 +468,121 @@ export const SpellingGame = ({
     );
   }
 
-  // ─── 遊戲進行中 (iPad 零捲動滿版全螢幕適配) ───
+  const nextEmptyIndex = slots.findIndex(s => s === null);
+  const completedWords = Math.max(0, (initialCountRef.current || queue.length) - queue.length);
+  const totalWordsCount = Math.max(1, initialCountRef.current || queue.length);
+  const SPELL_TILE_PALETTES = [
+    'bg-sky-500 hover:bg-sky-400 border-sky-700',
+    'bg-rose-500 hover:bg-rose-400 border-rose-700',
+    'bg-emerald-500 hover:bg-emerald-400 border-emerald-700',
+    'bg-amber-500 hover:bg-amber-400 border-amber-700',
+    'bg-violet-500 hover:bg-violet-400 border-violet-700'
+  ];
+
+  // ─── 遊戲進行中 (星空書閣結晶工坊 • iPad 零捲動滿版全螢幕適配) ───
   return (
-    <div className="fixed inset-0 z-40 bg-slate-950/95 backdrop-blur-xl flex flex-col items-center justify-between p-3 sm:p-5 max-h-[100dvh] h-[100dvh] overflow-hidden select-none animate-fadeIn">
-      <div className="w-full max-w-3xl mx-auto flex flex-col items-center h-full justify-between">
+    <div className="fixed inset-0 z-40 bg-slate-950 flex flex-col items-center justify-between p-3 sm:p-5 max-h-[100dvh] h-[100dvh] overflow-hidden select-none animate-fadeIn">
+      {/* 星空書閣背景層 */}
+      <img
+        src="/assets/lobby/theme_quiz.jpg"
+        alt="Starlight Library"
+        className="absolute inset-0 w-full h-full object-cover opacity-35 brightness-75 pointer-events-none select-none"
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-slate-950/75 via-indigo-950/60 to-slate-950/90 pointer-events-none" />
+
+      <div className="relative z-10 w-full max-w-3xl mx-auto flex flex-col items-center h-full justify-between">
         {/* 頂部資訊列 */}
-        <div className="w-full flex items-center justify-between mb-2 sm:mb-3 flex-shrink-0">
+        <div className="w-full flex items-center justify-between gap-2 mb-1.5 flex-shrink-0">
           <Button3D variant="slate" size="sm" onClick={handleBackToLobby} icon={ArrowLeft}>
             {t.backLobby}
           </Button3D>
 
           {/* 愛心生命值 */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-900/80 border border-white/10">
             {[...Array(5)].map((_, i) => (
               <Heart
                 key={i}
-                className={`w-5 h-5 sm:w-6 sm:h-6 transition-all ${
+                className={`w-4 h-4 sm:w-5 sm:h-5 transition-all ${
                   i < lives
                     ? 'text-rose-500 fill-rose-500 animate-pulse'
-                    : 'text-slate-300 dark:text-slate-700'
+                    : 'text-slate-700'
                 }`}
               />
             ))}
           </div>
 
-          <span className="text-xs font-black text-slate-400">
-            剩餘：{queue.length} 字
-          </span>
+          {/* 連擊火焰 + 局內分數 + 剩餘字數 */}
+          <div className="flex items-center gap-1.5">
+            {streak >= 2 && (
+              <span
+                key={`sp-combo-${streak}`}
+                className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-white text-xs font-black flex items-center gap-1 shadow-md animate-balloon-pump"
+              >
+                <Flame className="w-3.5 h-3.5 fill-current" />
+                <span>x{streak}</span>
+              </span>
+            )}
+            <span className="px-2.5 py-0.5 rounded-xl bg-slate-900/85 border border-amber-400/35 text-amber-300 text-xs font-mono font-black">
+              {visualScore} pt
+            </span>
+            <span className="text-xs font-black text-slate-300 hidden xs:inline">
+              剩 {queue.length} 字
+            </span>
+          </div>
+        </div>
+
+        {/* 進度條 */}
+        <div className="w-full h-1.5 rounded-full bg-slate-800/90 overflow-hidden mb-2 flex-shrink-0">
+          <div
+            className="h-full bg-gradient-to-r from-sky-400 via-indigo-400 to-emerald-400 transition-all duration-500"
+            style={{ width: `${Math.round((completedWords / totalWordsCount) * 100)}%` }}
+          />
         </div>
 
         {currentWord && (
-          <GlassCard className="w-full flex-1 min-h-0 flex flex-col justify-between text-center relative overflow-hidden p-4 sm:p-6 mb-1">
+          <GlassCard className="w-full flex-1 min-h-0 flex flex-col justify-between text-center relative overflow-hidden p-4 sm:p-6 mb-1 border-2 border-sky-400/35 bg-slate-900/80 text-white">
+            {/* 浮動加分動畫 */}
+            {floatingPts && (
+              <div
+                key={floatingPts.id}
+                className="pointer-events-none absolute top-4 right-5 z-30 text-lg sm:text-2xl font-black text-amber-300 drop-shadow-[0_2px_10px_rgba(251,191,36,0.9)] animate-float-up-fade"
+              >
+                {floatingPts.text}
+              </div>
+            )}
+
             {/* 中文提示與朗讀按鈕 */}
             <div className="mb-2 sm:mb-3 flex flex-col items-center flex-shrink-0">
-              <h2 className="text-2xl sm:text-4xl font-black text-slate-800 dark:text-slate-100 font-heading mb-1">
+              <h2 className="text-2xl sm:text-4xl font-black text-white font-heading mb-1.5 drop-shadow">
                 {currentWord.zh}
               </h2>
-              <button
-                onClick={() => speakEnglish(currentWord.en)}
-                className="p-2 sm:p-3 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 hover:scale-105 active:scale-95 transition-transform"
-              >
-                <Volume2 className="w-5 h-5 sm:w-6 sm:h-6" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => speakEnglish(currentWord.audioText || currentWord.en, { persona: 'standard_us' })}
+                  className="px-3 py-1.5 rounded-full bg-sky-500/25 hover:bg-sky-500/40 border border-sky-400/50 text-sky-200 hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 text-xs font-black cursor-pointer"
+                >
+                  <Volume2 className="w-4 h-4" />
+                  <span>聽發音</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => speakEnglish(currentWord.audioText || currentWord.en, { persona: 'standard_us', rate: 0.78 })}
+                  className="px-2.5 py-1.5 rounded-full bg-slate-800/90 hover:bg-slate-700 border border-white/15 text-slate-300 text-xs font-black transition-all active:scale-95 cursor-pointer"
+                >
+                  🐢 慢速
+                </button>
+              </div>
             </div>
 
-            {/* 單字目標槽位 (支援片語單詞分組 _ _   _ _ _ _) */}
+            {/* 單字目標槽位 (下一個空位呼吸高亮引導) */}
             <div className="flex flex-wrap justify-center items-center gap-x-5 sm:gap-x-8 gap-y-3 mb-3 sm:mb-5 min-h-[56px] sm:min-h-[64px]">
               {wordGroups.map((group, gIdx) => (
                 <div key={gIdx} className="flex items-center gap-1.5 sm:gap-2.5">
                   {group.slots.map(({ slotIndex }) => {
                     const slot = slots[slotIndex];
                     const isShaking = shakingSlot === slotIndex;
+                    const isNextTarget = !slot && slotIndex === nextEmptyIndex;
                     return (
                       <div
                         key={slotIndex}
@@ -443,14 +592,18 @@ export const SpellingGame = ({
                         }}
                         onDrop={(e) => handleDropOnSlot(e, slotIndex)}
                         className={`
-                          w-10 h-12 sm:w-14 sm:h-18 rounded-xl sm:rounded-2xl border-2 sm:border-4 flex items-center justify-center text-xl sm:text-3xl font-black uppercase transition-all select-none
-                          ${isShaking ? 'animate-shake border-rose-500 bg-rose-50 dark:bg-rose-950/50' : ''}
-                          ${slot 
-                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-500/30' 
-                            : 'bg-slate-100 dark:bg-slate-800/80 border-dashed border-slate-300 dark:border-slate-600 text-transparent'}
+                          w-10 h-12 sm:w-14 sm:h-18 rounded-xl sm:rounded-2xl border-2 sm:border-4 flex items-center justify-center text-xl sm:text-3xl font-black ${isAlphabetMode ? '' : 'uppercase'} transition-all select-none
+                          ${isShaking ? 'animate-shake border-rose-500 bg-rose-950/60 text-rose-200' : ''}
+                          ${slot?.isGiven
+                            ? 'bg-sky-600/80 border-sky-300/70 text-white shadow'
+                            : slot
+                            ? 'bg-emerald-500 border-emerald-300 text-white shadow-lg shadow-emerald-500/35 animate-pop'
+                            : isNextTarget
+                            ? 'bg-amber-500/15 border-amber-400 text-amber-300/60 ring-2 ring-amber-400/40 animate-pulse'
+                            : 'bg-slate-800/80 border-dashed border-slate-600 text-transparent'}
                         `}
                       >
-                        {slot ? slot.char : '?'}
+                        {slot ? slot.char : isNextTarget ? '•' : '?'}
                       </div>
                     );
                   })}
@@ -458,29 +611,33 @@ export const SpellingGame = ({
               ))}
             </div>
 
-            {/* 打散的字母卡片區 (支援點擊、拖曳與鍵盤打字) */}
-            <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex-shrink-0">
+            {/* 打散的字母寶石積木區 (支援點擊、拖曳與鍵盤打字) */}
+            <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-slate-950/70 border border-white/15 flex-shrink-0">
               <p className="text-[11px] sm:text-xs font-bold text-slate-400 mb-2">
                 {t.tapLettersHint}
               </p>
               <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-                {letters.map((letter) => (
-                  <button
-                    key={letter.id}
-                    draggable={!letter.isPlaced && feedback === null}
-                    onDragStart={(e) => handleDragStart(e, letter)}
-                    disabled={letter.isPlaced || feedback !== null}
-                    onClick={() => handleLetterClick(letter)}
-                    className={`
-                      w-10 h-12 sm:w-14 sm:h-18 rounded-xl sm:rounded-2xl flex items-center justify-center text-xl sm:text-3xl font-black uppercase transition-all select-none
-                      ${letter.isPlaced 
-                        ? 'opacity-0 scale-50 pointer-events-none' 
-                        : 'btn-3d bg-rose-500 hover:bg-rose-400 text-white border-b-4 border-rose-700 active:border-b-0 cursor-grab active:cursor-grabbing shadow-md'}
-                    `}
-                  >
-                    {letter.char}
-                  </button>
-                ))}
+                {letters.map((letter, idx) => {
+                  const palette = SPELL_TILE_PALETTES[idx % SPELL_TILE_PALETTES.length];
+                  return (
+                    <button
+                      key={letter.id}
+                      type="button"
+                      draggable={!letter.isPlaced && feedback === null}
+                      onDragStart={(e) => handleDragStart(e, letter)}
+                      disabled={letter.isPlaced || feedback !== null}
+                      onClick={() => handleLetterClick(letter)}
+                      className={`
+                        w-10 h-12 sm:w-14 sm:h-18 rounded-xl sm:rounded-2xl flex items-center justify-center text-xl sm:text-3xl font-black ${isAlphabetMode ? '' : 'uppercase'} transition-all select-none
+                        ${letter.isPlaced
+                          ? 'opacity-0 scale-50 pointer-events-none'
+                          : `btn-3d ${palette} text-white border-b-4 active:border-b-0 cursor-grab active:cursor-grabbing shadow-lg`}
+                      `}
+                    >
+                      {letter.char}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

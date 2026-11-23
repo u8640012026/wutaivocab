@@ -509,6 +509,112 @@ const getModelPointGroups = (model) => model.strokes.map((stroke) =>
   (stroke.sample || []).map(toModelPoint)
 );
 
+const pointDistancesToTarget = (source, target) => {
+  if (!source.length || !target.length) return [];
+  return source.map((point) => {
+    let nearest = Infinity;
+    for (let i = 0; i < target.length; i++) {
+      const candidate = target[i];
+      const d = Math.hypot(point.x - candidate.x, point.y - candidate.y);
+      if (d < nearest) nearest = d;
+    }
+    return nearest;
+  });
+};
+
+const getComponentKind = (groupPoints) => {
+  const bounds = getBounds(groupPoints);
+  if (groupPoints.length <= 4 || (bounds.width <= 6 && bounds.height <= 6)) {
+    return 'dot';
+  }
+  if (bounds.height <= 6 && bounds.width >= 16) {
+    return 'crossbar';
+  }
+  return 'stroke';
+};
+
+/**
+ * 獨立點部件檢核（如 i / j 上方的點）：
+ * 必須是一筆尺寸緊湊、位於點位區域的獨立筆畫，絕不可由延伸至 y<=38 的直幹單筆誤吸收。
+ */
+const isDedicatedDotStroke = (strokePoints = [], dotGroupPoints = [], { isTracing = true } = {}) => {
+  if (!strokePoints.length || !dotGroupPoints.length) return false;
+  const strokeBounds = getBounds(strokePoints);
+  const dotBounds = getBounds(dotGroupPoints);
+  if (strokeBounds.width > 18 || strokeBounds.height > 18) return false;
+  if (strokeBounds.maxY > dotBounds.centerY + 13.5) return false;
+
+  const dotTol = isTracing ? 10.5 : 11.0;
+  const meanDist = meanNearestDistance(dotGroupPoints, strokePoints);
+  const centerDist = Math.hypot(strokeBounds.centerX - dotBounds.centerX, strokeBounds.centerY - dotBounds.centerY);
+  return meanDist <= dotTol && centerDist <= (isTracing ? 12.5 : 13.5);
+};
+
+/**
+ * 單一部件幾何覆蓋檢查：
+ * - 點型部件（如 i / j 的點）：不可被垂直主幹頂端誤吸收，須為獨立點筆畫
+ * - 水平橫畫（如 t / f / A / H / G 的橫畫）：檢查端點與整體覆蓋，防漏橫誤過
+ * - 一般主幹與圓弧（如 a / b / d / m / n / u）：保持自然一筆連寫的高容錯
+ */
+export const evaluateComponentCoverage = (
+  groupPoints = [],
+  userPoints = [],
+  { isTracing = true, componentTolerance = 11.5, userStrokes = null } = {}
+) => {
+  const kind = getComponentKind(groupPoints);
+  if (!groupPoints.length || !userPoints.length) {
+    return { covered: false, kind, meanDist: 99, maxDist: 99, p90Dist: 99 };
+  }
+
+  const dists = pointDistancesToTarget(groupPoints, userPoints);
+  const meanDist = dists.reduce((acc, v) => acc + v, 0) / dists.length;
+  const maxDist = Math.max(...dists);
+  const sorted = [...dists].sort((a, b) => a - b);
+  const p90Dist = sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * 0.9))];
+
+  if (kind === 'dot') {
+    const candidateStrokes = Array.isArray(userStrokes) ? userStrokes : [userPoints];
+    const dotMatches = candidateStrokes.filter(stroke =>
+      isDedicatedDotStroke(stroke, groupPoints, { isTracing })
+    );
+    if (dotMatches.length === 0) {
+      return { covered: false, kind, meanDist, maxDist, p90Dist };
+    }
+    let bestStats = null;
+    for (const dotStroke of dotMatches) {
+      const sDists = pointDistancesToTarget(groupPoints, dotStroke);
+      const sMean = sDists.reduce((acc, v) => acc + v, 0) / sDists.length;
+      const sMax = Math.max(...sDists);
+      const sSorted = [...sDists].sort((a, b) => a - b);
+      const sP90 = sSorted[Math.min(sSorted.length - 1, Math.floor((sSorted.length - 1) * 0.9))];
+      if (!bestStats || sMean < bestStats.meanDist) {
+        bestStats = { covered: true, kind, meanDist: sMean, maxDist: sMax, p90Dist: sP90 };
+      }
+    }
+    return bestStats;
+  }
+
+  if (kind === 'crossbar') {
+    const barMeanTol = isTracing ? 9.5 : 10.0;
+    const barMaxTol = isTracing ? 11.8 : 12.2;
+    const covered = meanDist <= barMeanTol && maxDist <= barMaxTol;
+    return { covered, kind, meanDist, maxDist, p90Dist };
+  }
+
+  const covered = meanDist <= componentTolerance && p90Dist <= componentTolerance + 6.5;
+  return { covered, kind, meanDist, maxDist, p90Dist };
+};
+
+const buildMissingComponentFeedback = (targetChar, missingKinds = []) => {
+  if (missingKinds.includes('dot')) {
+    return `別忘了補上字母「${targetChar}」上方的小點點喔！`;
+  }
+  if (missingKinds.includes('crossbar')) {
+    return `別忘了幫字母「${targetChar}」補畫橫線喔！`;
+  }
+  return `字母「${targetChar}」還有重要筆畫沒有寫完整，請再補寫一次！`;
+};
+
 /**
  * 描紅模式的單筆比對。
  *
@@ -519,15 +625,15 @@ export const matchTracingStroke = ({
   targetChar,
   userStroke = [],
   completedStrokeIndices = [],
-  componentTolerance = 11,
-  inkTolerance = 14
+  componentTolerance = 11.5,
+  inkTolerance = 15.5
 }) => {
   const model = getLetterStrokes(targetChar);
-  if (!model || userStroke.length < 2) {
+  if (!model || userStroke.length < 1) {
     return { accepted: false, matchedIndices: [], accuracy: 0, inkDistance: 99 };
   }
 
-  const userPoints = resamplePoints(userStroke, Math.max(24, userStroke.length));
+  const userPoints = resamplePoints(userStroke, Math.max(40, userStroke.length));
   const modelGroups = getModelPointGroups(model);
   const allModelPoints = modelGroups.flat();
   const alreadyCompleted = new Set(completedStrokeIndices);
@@ -543,34 +649,114 @@ export const matchTracingStroke = ({
     };
   }
 
-  const componentDistances = modelGroups.map(group => meanNearestDistance(group, userPoints));
-  let matchedIndices = componentDistances
-    .map((distance, index) => ({ distance, index }))
-    .filter(({ distance, index }) => !alreadyCompleted.has(index) && distance <= componentTolerance)
+  const coverages = modelGroups.map(group =>
+    evaluateComponentCoverage(group, userPoints, { isTracing: true, componentTolerance, userStrokes: [userPoints] })
+  );
+  let matchedIndices = coverages
+    .map((cov, index) => ({ cov, index }))
+    .filter(({ cov, index }) => !alreadyCompleted.has(index) && cov.covered)
     .map(({ index }) => index);
 
-  // 短筆畫或稀疏觸控點可能略高於門檻；允許最接近的未完成部件小幅容錯。
+  // 僅針對「一般線段/弧線」放寬稀疏觸控容錯；點與短橫畫必須精確寫出不可 fallback 吸收
   if (matchedIndices.length === 0) {
-    const best = componentDistances
-      .map((distance, index) => ({ distance, index }))
-      .filter(({ index }) => !alreadyCompleted.has(index))
-      .sort((a, b) => a.distance - b.distance)[0];
-    if (best && best.distance <= componentTolerance + 3) matchedIndices = [best.index];
+    const best = coverages
+      .map((cov, index) => ({ cov, index }))
+      .filter(({ cov, index }) => !alreadyCompleted.has(index) && cov.kind === 'stroke')
+      .sort((a, b) => a.cov.meanDist - b.cov.meanDist)[0];
+    if (best && best.cov.meanDist <= componentTolerance + 2.5 && best.cov.p90Dist <= componentTolerance + 8.5) {
+      matchedIndices = [best.index];
+    }
   }
 
   return {
     accepted: matchedIndices.length > 0,
     matchedIndices,
-    accuracy: Math.max(0, Math.round(100 - Math.max(inkDistance, ...matchedIndices.map(index => componentDistances[index])) * 5)),
+    accuracy: Math.max(
+      0,
+      Math.round(100 - Math.max(inkDistance, ...matchedIndices.map(index => coverages[index].meanDist)) * 5)
+    ),
     inkDistance,
-    componentDistances
+    componentDistances: coverages.map(c => c.meanDist)
+  };
+};
+
+/**
+ * 描紅模式「累積整字墨跡」完成檢查：
+ * 即使學生一筆連寫完成雙筆字母（如 a, b, d, g, h, m, n, p, q, u），只要整體覆蓋完整字形且未漏點/漏橫，即可直接通關。
+ */
+export const evaluateTracingCompletion = ({
+  targetChar,
+  userStrokes = [],
+  componentTolerance = 11.5
+}) => {
+  const model = getLetterStrokes(targetChar);
+  if (!model || !Array.isArray(userStrokes) || userStrokes.length === 0) {
+    return {
+      completed: false,
+      missingIndices: model ? model.strokes.map((_, idx) => idx) : [],
+      missingKinds: [],
+      coveredCount: 0,
+      totalComponents: model?.strokes.length || 0,
+      modelToUser: 99,
+      userToModel: 99
+    };
+  }
+
+  const resampledStrokes = userStrokes
+    .filter(stroke => stroke && stroke.length > 0)
+    .map(stroke => resamplePoints(stroke, Math.max(32, Math.min(64, stroke.length))));
+  const allUserPoints = resampledStrokes.flat();
+
+  if (allUserPoints.length === 0) {
+    return {
+      completed: false,
+      missingIndices: model.strokes.map((_, idx) => idx),
+      missingKinds: [],
+      coveredCount: 0,
+      totalComponents: model.strokes.length,
+      modelToUser: 99,
+      userToModel: 99
+    };
+  }
+
+  const modelGroups = getModelPointGroups(model);
+  const allModelPoints = modelGroups.flat();
+  const userToModel = meanNearestDistance(allUserPoints, allModelPoints);
+  const modelToUser = meanNearestDistance(allModelPoints, allUserPoints);
+
+  const coverages = modelGroups.map(group =>
+    evaluateComponentCoverage(group, allUserPoints, { isTracing: true, componentTolerance, userStrokes: resampledStrokes })
+  );
+  const missingIndices = [];
+  const missingKinds = [];
+  coverages.forEach((cov, idx) => {
+    if (!cov.covered) {
+      missingIndices.push(idx);
+      missingKinds.push(cov.kind);
+    }
+  });
+
+  const completed =
+    missingIndices.length === 0 &&
+    userToModel <= 15.0 &&
+    modelToUser <= 11.0;
+
+  return {
+    completed,
+    missingIndices,
+    missingKinds,
+    coveredCount: model.strokes.length - missingIndices.length,
+    totalComponents: model.strokes.length,
+    modelToUser,
+    userToModel,
+    hintFeedback: missingIndices.length > 0 ? buildMissingComponentFeedback(targetChar, missingKinds) : null
   };
 };
 
 /**
  * 點雲幾何比對演算法 ($P Point-Cloud Recognizer 輕量化純前端實作)
  * 評定學生在 Freehand Challenge 下的最終字形 (0 ~ 100)。
- * 筆順、運筆方向及合理的合筆／分筆只作診斷，不作為不及格條件。
+ * 筆順、運筆方向及合理的合筆／分筆只作診斷，不作為不及格條件；但必要部件（如點、橫畫）漏寫必定退回補寫。
  */
 export const evaluateHandwriting = ({
   targetChar,
@@ -589,7 +775,7 @@ export const evaluateHandwriting = ({
       stars: 3,
       passed: true,
       feedback: '🎉 筆順引導描紅完成！標準握筆與順序全對！',
-      details: { strokeCountOk: true, directionOk: true, accuracy: 100 }
+      details: { strokeCountOk: true, directionOk: true, accuracy: 100, missingIndices: [] }
     };
   }
 
@@ -603,7 +789,7 @@ export const evaluateHandwriting = ({
       stars: 1,
       passed: false,
       feedback: '畫布上未檢測到筆劃，請在四線三格內書寫！',
-      details: { strokeCountOk: false, directionOk: false, accuracy: 0 }
+      details: { strokeCountOk: false, directionOk: false, accuracy: 0, missingIndices: expectedStrokes.map((_, i) => i) }
     };
   }
 
@@ -613,19 +799,35 @@ export const evaluateHandwriting = ({
 
   const modelGroups = getModelPointGroups(model);
   const modelPoints = modelGroups.flat();
-  const userPoints = userStrokes
-    .filter(stroke => stroke && stroke.length > 0)
-    .flatMap(stroke => resamplePoints(stroke, Math.max(16, Math.min(32, stroke.length))));
+  const validStrokes = userStrokes.filter(stroke => stroke && stroke.length > 0);
+  const resampledStrokes = validStrokes.map(stroke =>
+    resamplePoints(stroke, Math.max(24, Math.min(48, stroke.length)))
+  );
+  const userPoints = resampledStrokes.flat();
 
-  // 2. 雙向點雲距離：順序與方向無關，同時防止額外亂畫。
+  // 2. 雙向點雲距離：順序與方向無關，同時防止額外亂畫（包含多出獨立塗鴉筆畫）。
   const modelToUser = meanNearestDistance(modelPoints, userPoints);
   const userToModel = meanNearestDistance(userPoints, modelPoints);
+  const maxStrokeDistance = resampledStrokes.reduce(
+    (worst, strokePts) => Math.max(worst, meanNearestDistance(strokePts, modelPoints)),
+    0
+  );
   const avgDist = (modelToUser + userToModel) / 2;
   const shapeScore = Math.max(0, Math.min(60, Math.round(60 - Math.max(0, avgDist - 2.5) * 3.2)));
 
-  // 3. 必要部件完整度：每個模板部件只需在最終墨跡中出現，不限制第幾筆完成。
-  const componentDistances = modelGroups.map(group => meanNearestDistance(group, userPoints));
-  const coveredComponents = componentDistances.filter(distance => distance <= 12).length;
+  // 3. 必要部件完整度：每個模板部件都必須真正出現（不可讓 i/j 豎幹誤過點點、或 t/f 豎幹誤過橫線）
+  const coverages = modelGroups.map(group =>
+    evaluateComponentCoverage(group, userPoints, { isTracing: false, componentTolerance: 12.5, userStrokes: resampledStrokes })
+  );
+  const missingIndices = [];
+  const missingKinds = [];
+  coverages.forEach((cov, idx) => {
+    if (!cov.covered) {
+      missingIndices.push(idx);
+      missingKinds.push(cov.kind);
+    }
+  });
+  const coveredComponents = expCount - missingIndices.length;
   const completenessScore = Math.round((coveredComponents / Math.max(1, expCount)) * 20);
 
   // 4. 四線位置、大小與比例。字形正確但略有自然偏移仍保留容錯。
@@ -639,12 +841,26 @@ export const evaluateHandwriting = ({
     + Math.abs(userBounds.height - modelBounds.height) * 0.25;
   const placementScore = Math.max(0, Math.min(10, Math.round(10 - Math.max(0, centerDistance + sizeDistance - 4) * 0.45)));
 
-  const totalScore = Math.min(100, Math.max(0, countScore + shapeScore + completenessScore + placementScore));
-  const stars = totalScore >= 80 ? 3 : (totalScore >= 60 ? 2 : 1);
-  const passed = totalScore >= 60;
+  let totalScore = Math.min(100, Math.max(0, countScore + shapeScore + completenessScore + placementScore));
+  const hasExcessScribble = userToModel > 15.0 || maxStrokeDistance > 15.5;
+  const hasMissingComponent = missingIndices.length > 0;
+
+  if (hasMissingComponent) {
+    totalScore = Math.min(54, totalScore);
+  }
+  if (hasExcessScribble) {
+    totalScore = Math.min(52, totalScore);
+  }
+
+  const passed = !hasMissingComponent && !hasExcessScribble && totalScore >= 60;
+  const stars = !passed ? 1 : (totalScore >= 80 ? 3 : 2);
 
   let feedback = '字形、位置與比例都很清楚！大武山神筆勇士！';
-  if (totalScore < 60) {
+  if (hasMissingComponent) {
+    feedback = buildMissingComponentFeedback(targetChar, missingKinds);
+  } else if (hasExcessScribble) {
+    feedback = '筆跡有較多偏離字母形狀的線條，請沿著四線三格乾淨書寫喔！';
+  } else if (totalScore < 60) {
     feedback = '請注意字母的完整形狀與四線三格位置，再試一次一定能成功！';
   } else if (totalScore < 80) {
     feedback = '書寫良好！再調整字母大小、比例與基線位置，就能衝上三星！';
@@ -664,7 +880,9 @@ export const evaluateHandwriting = ({
       userCount,
       expCount,
       orderRequired: false,
-      averagePointDistance: Number(avgDist.toFixed(2))
+      missingIndices,
+      averagePointDistance: Number(avgDist.toFixed(2)),
+      userToModel: Number(userToModel.toFixed(2))
     }
   };
 };

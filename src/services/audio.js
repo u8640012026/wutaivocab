@@ -5,6 +5,39 @@
 // ============================================================================
 
 export const PERSONAS = {
+  // 0. 標準清晰美式英語（全站單字／句型／聽力／拼寫／手寫預設發音引擎，絕不降音調或混入機械口音）
+  standard_us: {
+    id: 'standard_us',
+    nameZh: '標準美式英語',
+    preferredVoices: [
+      'Microsoft Ava Online (Natural)',
+      'Microsoft Jenny Online (Natural)',
+      'Microsoft Aria Online (Natural)',
+      'Microsoft Andrew Online (Natural)',
+      'Microsoft Guy Online (Natural)',
+      'Microsoft Michelle Online (Natural)',
+      'Natural',
+      'Samantha (Enhanced)',
+      'Ava (Enhanced)',
+      'Nicky (Enhanced)',
+      'Allison (Enhanced)',
+      'Ava',
+      'Nicky',
+      'Samantha',
+      'Aaron',
+      'Google US English',
+      'Microsoft Aria',
+      'Microsoft Jenny',
+      'Microsoft Zira',
+      'Microsoft David'
+    ],
+    lang: 'en-US',
+    gender: 'neutral',
+    pitch: 1.0,
+    rate: 0.92,
+    strictLang: true
+  },
+
   // 1. 客座外師 Mario (熱情陽光美式男外師，高頻動感、節奏明快)
   mario: {
     id: 'mario',
@@ -128,6 +161,30 @@ export const PERSONAS = {
   }
 };
 
+// 排除 macOS / iOS 機械或趣味搞笑語音，避免學生練習聽力抽到異常音效
+const NOVELTY_VOICE_REGEX = /\b(albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|ralph|fred|junior|kathy|eloquence|reed|rocko|sandy|shelley|eddy|flo|grandma|grandpa)\b/i;
+
+const isNoveltyVoice = (v) => NOVELTY_VOICE_REGEX.test(String(v?.name || ''));
+
+const isHighQualityNaturalVoice = (v) => {
+  const name = String(v?.name || '').toLowerCase();
+  return (
+    name.includes('natural') ||
+    name.includes('neural') ||
+    name.includes('enhanced') ||
+    name.includes('premium') ||
+    name.includes('google us english')
+  );
+};
+
+// 舊版 Windows SAPI5 本機語音（在 0.92x 變速拉伸下短字母音易失真，預設採 1.0x 原速且可供提示升級 Edge/Chrome）
+const isLegacySapiVoice = (v) => {
+  const name = String(v?.name || '').toLowerCase();
+  if (!name) return false;
+  if (name.includes('natural') || name.includes('online') || name.includes('neural')) return false;
+  return /microsoft\s+(zira|david|mark)\b/i.test(name);
+};
+
 // 判斷是否為通用英語語系 (強制杜絕葡語、法語、德語等非英語混入)
 export const isEnglishVoice = (v) => {
   const lang = (v?.lang || '').toLowerCase().replace('_', '-');
@@ -175,6 +232,10 @@ const isExplicitFemale = (v) => {
 let speechPrimed = false;
 export const primeSpeechSynthesis = () => {
   if (speechPrimed || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  if (window.speechSynthesis.speaking || window.speechSynthesis.pending || voiceManager?.speakingToken > 0) {
+    speechPrimed = true;
+    return;
+  }
   speechPrimed = true;
   try {
     const silent = new SpeechSynthesisUtterance(' ');
@@ -189,11 +250,29 @@ class VoiceManager {
     this.voices = [];
     this.isReady = false;
     this.speakingToken = 0;
+    this.pendingSpeakTimer = null;
+    this.pendingTimeoutId = null;
+    this.voiceListeners = new Set();
 
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       this.initVoices();
-      window.speechSynthesis.onvoiceschanged = () => this.initVoices();
+      const handleVoicesChanged = () => {
+        this.initVoices();
+        this.voiceListeners.forEach((cb) => {
+          try { cb(this.voices); } catch (e) {}
+        });
+      };
+      try {
+        window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
+        window.speechSynthesis.addEventListener?.('voiceschanged', handleVoicesChanged);
+      } catch (e) {}
     }
+  }
+
+  onVoicesReady(cb) {
+    if (typeof cb !== 'function') return () => {};
+    this.voiceListeners.add(cb);
+    return () => this.voiceListeners.delete(cb);
   }
 
   initVoices() {
@@ -214,120 +293,261 @@ class VoiceManager {
     if (!this.voices || this.voices.length === 0) return null;
 
     const isTargetEnglish = !persona.lang || persona.lang.toLowerCase().startsWith('en');
-    const englishVoices = this.voices.filter(v => isEnglishVoice(v));
+    const englishVoicesRaw = this.voices.filter(v => isEnglishVoice(v));
+    const cleanEnglishVoices = englishVoicesRaw.filter(v => !isNoveltyVoice(v));
+    const englishVoices = cleanEnglishVoices.length > 0 ? cleanEnglishVoices : englishVoicesRaw;
 
-    // 依目標口音分流 (如 en-US 美語優先、en-GB 次之)，嚴防退回本地非英語系（如中文、葡語）
+    // 嚴格依目標口音分層：只要裝置具備目標語系（如 en-US），絕不讓 en-GB / en-AU 搶走標準美語
     const targetLang = (persona.lang || 'en-US').toLowerCase().replace('_', '-');
     const targetLangVoices = englishVoices.filter(v => (v?.lang || '').toLowerCase().replace('_', '-').startsWith(targetLang));
     const fallbackEnVoices = englishVoices.filter(v => !(v?.lang || '').toLowerCase().replace('_', '-').startsWith(targetLang));
-    const sortedEnglishPool = [...targetLangVoices, ...fallbackEnVoices];
 
-    const pool = isTargetEnglish ? sortedEnglishPool : this.voices;
-    if (pool.length === 0) {
-      return null;
-    }
+    const pickFromTier = (tierPool) => {
+      if (!tierPool || tierPool.length === 0) return null;
 
-    // 1. 優先在音色候選名單中逐一精確匹配
-    if (persona.preferredVoices && persona.preferredVoices.length > 0) {
-      for (const pref of persona.preferredVoices) {
-        const found = pool.find(v => (v.name || '').toLowerCase().includes(pref.toLowerCase()));
-        if (found) return found;
+      // 1. 優先在音色候選名單中逐一精確匹配（若要求中性清晰語音且清單過泛如 'Natural'，仍優先選取）
+      if (persona.preferredVoices && persona.preferredVoices.length > 0) {
+        for (const pref of persona.preferredVoices) {
+          const found = tierPool.find(v => (v.name || '').toLowerCase().includes(pref.toLowerCase()));
+          if (found) return found;
+        }
       }
-    }
 
-    // 2. 次順位：依性別尋找最接近的原生音色
-    if (persona.gender === 'male') {
-      const anyMale = pool.find(v => isExplicitMale(v));
-      if (anyMale) return anyMale;
-    } else if (persona.gender === 'female') {
-      const anyFemale = pool.find(v => isExplicitFemale(v));
-      if (anyFemale) return anyFemale;
-    }
+      // 2. 高解析／神經網路自然語音優先
+      if (persona.gender === 'male') {
+        const qualityMale = tierPool.find(v => isHighQualityNaturalVoice(v) && isExplicitMale(v));
+        if (qualityMale) return qualityMale;
+      } else if (persona.gender === 'female') {
+        const qualityFemale = tierPool.find(v => isHighQualityNaturalVoice(v) && isExplicitFemale(v));
+        if (qualityFemale) return qualityFemale;
+      } else {
+        const qualityAny = tierPool.find(v => isHighQualityNaturalVoice(v));
+        if (qualityAny) return qualityAny;
+      }
 
-    // 3. 最末順位：語言匹配
-    const langMatch = pool.find(v => v.lang && v.lang.toLowerCase().startsWith(persona.lang ? persona.lang.toLowerCase() : 'en'));
-    return langMatch || pool[0] || null;
+      // 3. 次順位：依性別尋找原生音色
+      if (persona.gender === 'male') {
+        const anyMale = tierPool.find(v => isExplicitMale(v));
+        if (anyMale) return anyMale;
+      } else if (persona.gender === 'female') {
+        const anyFemale = tierPool.find(v => isExplicitFemale(v));
+        if (anyFemale) return anyFemale;
+      }
+
+      // 4. 最末順位：同語系首個清晰語音
+      return tierPool[0] || null;
+    };
+
+    if (!isTargetEnglish) {
+      return pickFromTier(this.voices);
+    }
+    return pickFromTier(targetLangVoices) || pickFromTier(fallbackEnVoices) || null;
+  }
+
+  getVoiceDiagnostics(personaKey = 'standard_us') {
+    this.initVoices();
+    if (!this.voices || this.voices.length === 0) {
+      return { voiceName: '', lang: '', quality: 'loading' };
+    }
+    const englishVoicesRaw = this.voices.filter(v => isEnglishVoice(v));
+    if (englishVoicesRaw.length === 0) {
+      return { voiceName: '', lang: '', quality: 'missing_en' };
+    }
+    const persona = PERSONAS[personaKey] || PERSONAS.standard_us || PERSONAS.student;
+    const selected = this.resolveVoice(persona);
+    if (!selected) {
+      return { voiceName: '', lang: '', quality: 'missing_en' };
+    }
+    const sName = String(selected.name || '');
+    const sLang = String(selected.lang || '').replace('_', '-');
+    const lowerLang = sLang.toLowerCase();
+    let quality = 'standard_us';
+    if (!lowerLang.startsWith('en-us')) {
+      quality = 'non_us_en';
+    } else if (sName.toLowerCase().includes('google us english')) {
+      quality = 'google_us';
+    } else if (isHighQualityNaturalVoice(selected)) {
+      quality = 'neural';
+    } else if (isLegacySapiVoice(selected)) {
+      quality = 'legacy_sapi';
+    }
+    return { voiceName: sName, lang: sLang, quality };
   }
 
   speak(text, optionsOrKey = {}) {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    if (soundEngine.isMuted) return;
-
-    this.stop();
-    if (!text) return;
-
-    try {
-      const utterance = new SpeechSynthesisUtterance(text);
-
-      // 解析角色指紋
-      let personaKey = 'mario';
-      let customOptions = {};
-      if (typeof optionsOrKey === 'string') {
-        personaKey = optionsOrKey;
-      } else if (typeof optionsOrKey === 'object' && optionsOrKey !== null) {
-        personaKey = optionsOrKey.persona || optionsOrKey.locationId || optionsOrKey.id || optionsOrKey.gender || 'mario';
-        customOptions = optionsOrKey;
-      }
-
-      const persona = PERSONAS[personaKey] || PERSONAS.student || PERSONAS.mario;
-      const lang = customOptions.lang || persona.lang || 'en-US';
-      utterance.lang = lang;
-
-      const selectedVoice = this.resolveVoice(persona);
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-      }
-
-      let pitch = typeof customOptions.pitch === 'number' ? customOptions.pitch : persona.pitch;
-      let rate = typeof customOptions.rate === 'number' ? customOptions.rate : persona.rate;
-
-      // 男聲保護：如果瀏覽器缺乏原生男聲導致 fallback 至女聲，強制壓低 pitch 至 0.65 模擬厚實男低音
-      if (persona.gender === 'male') {
-        if (!selectedVoice || isExplicitFemale(selectedVoice)) {
-          pitch = Math.min(pitch, 0.65);
-        }
-      }
-
-      utterance.pitch = pitch;
-      utterance.rate = rate;
-
-      const currentToken = ++this.speakingToken;
-      let started = false;
-      const timeoutId = setTimeout(() => {
-        if (!started && this.speakingToken === currentToken) {
-          // iOS Safari 靜默丟棄發音或語音被阻擋時，強制恢復背景音樂
-          bgmManager.resumeBgm();
-        }
-      }, 1200);
-
-      utterance.onstart = () => {
-        started = true;
-        clearTimeout(timeoutId);
-        bgmManager.pauseBgm();
-      };
-      utterance.onend = () => {
-        clearTimeout(timeoutId);
-        if (this.speakingToken === currentToken) {
-          bgmManager.resumeBgm();
-        }
-      };
-      utterance.onerror = () => {
-        clearTimeout(timeoutId);
-        if (this.speakingToken === currentToken) {
-          bgmManager.resumeBgm();
-        }
-      };
-
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      bgmManager.resumeBgm();
+    speechPrimed = true;
+    let customOptions = {};
+    let personaKey = 'standard_us';
+    if (typeof optionsOrKey === 'string') {
+      personaKey = optionsOrKey;
+    } else if (typeof optionsOrKey === 'object' && optionsOrKey !== null) {
+      personaKey = optionsOrKey.persona || optionsOrKey.locationId || optionsOrKey.id || optionsOrKey.gender || 'standard_us';
+      customOptions = optionsOrKey;
     }
+
+    let terminalEndedCalled = false;
+    let timedOutPending = false;
+    const fireOnEnd = (info = { completed: false, reason: 'unknown' }) => {
+      if (terminalEndedCalled) return;
+      if (info.reason === 'timeout') {
+        if (timedOutPending) return;
+        timedOutPending = true;
+      } else {
+        terminalEndedCalled = true;
+      }
+      if (typeof customOptions.onEnd === 'function') {
+        try { customOptions.onEnd(info); } catch (e) {}
+      }
+    };
+
+    if (typeof window === 'undefined' || !('speechSynthesis' in window) || soundEngine.isMuted || !text) {
+      const reason = !text
+        ? 'empty'
+        : soundEngine.isMuted
+        ? 'muted'
+        : 'unsupported';
+      setTimeout(() => fireOnEnd({ completed: false, reason }), 80);
+      return;
+    }
+
+    const synth = window.speechSynthesis;
+    const wasBusy = Boolean(synth.speaking || synth.pending);
+    this.stop({ onlyIfBusy: true });
+
+    const currentToken = ++this.speakingToken;
+    const startTimeoutMs =
+      typeof customOptions.timeoutMs === 'number' && customOptions.timeoutMs > 0
+        ? customOptions.timeoutMs
+        : 1200;
+
+    const dispatchSpeak = () => {
+      if (this.speakingToken !== currentToken) return;
+      try {
+        if (!this.voices || this.voices.length === 0) {
+          this.initVoices();
+        }
+        const utterance = new SpeechSynthesisUtterance(text);
+
+        const persona = PERSONAS[personaKey] || PERSONAS.standard_us || PERSONAS.student;
+        const lang = customOptions.lang || persona.lang || 'en-US';
+        utterance.lang = lang;
+
+        const selectedVoice = this.resolveVoice(persona);
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+        }
+
+        let pitch = typeof customOptions.pitch === 'number' ? customOptions.pitch : persona.pitch;
+        let rate = typeof customOptions.rate === 'number'
+          ? customOptions.rate
+          : (personaKey === 'standard_us' && selectedVoice && isLegacySapiVoice(selectedVoice) ? 1.0 : persona.rate);
+
+        // 男聲保護：如果瀏覽器缺乏原生男聲導致 fallback 至女聲，強制壓低 pitch 至 0.65 模擬厚實男低音
+        if (persona.gender === 'male') {
+          if (!selectedVoice || isExplicitFemale(selectedVoice)) {
+            pitch = Math.min(pitch, 0.65);
+          }
+        }
+
+        utterance.pitch = pitch;
+        utterance.rate = rate;
+
+        let started = false;
+        const timeoutId = setTimeout(() => {
+          if (!started && this.speakingToken === currentToken) {
+            // iOS Safari 暫時延遲或靜默阻擋時先解除 UI 卡住，但不封死同 token 遲到播放成功後的 onEnd 恢復通道
+            bgmManager.resumeBgm();
+            fireOnEnd({ completed: false, reason: 'timeout' });
+          }
+        }, startTimeoutMs);
+        this.pendingTimeoutId = timeoutId;
+
+        utterance.onstart = () => {
+          if (this.speakingToken !== currentToken) return;
+          started = true;
+          clearTimeout(timeoutId);
+          bgmManager.pauseBgm();
+          if (typeof customOptions.onStart === 'function') {
+            try { customOptions.onStart(); } catch (e) {}
+          }
+        };
+        utterance.onend = () => {
+          clearTimeout(timeoutId);
+          const isCurrent = this.speakingToken === currentToken;
+          if (isCurrent) {
+            bgmManager.resumeBgm();
+          }
+          fireOnEnd({ completed: isCurrent, reason: isCurrent ? 'ended' : 'cancelled' });
+        };
+        utterance.onerror = () => {
+          clearTimeout(timeoutId);
+          const isCurrent = this.speakingToken === currentToken;
+          if (isCurrent) {
+            bgmManager.resumeBgm();
+          }
+          fireOnEnd({ completed: false, reason: isCurrent ? 'error' : 'cancelled' });
+        };
+
+        synth.speak(utterance);
+      } catch (e) {
+        bgmManager.resumeBgm();
+        fireOnEnd({ completed: false, reason: 'error' });
+      }
+    };
+
+    // 初次在實機瀏覽器啟動且語音列表尚未載入時，短等 voiceschanged（最多 250ms），避免 Windows 偷退回中文預設音唸英文單字
+    const supportsVoicesChanged = Boolean(synth && 'onvoiceschanged' in synth);
+    if (supportsVoicesChanged && (!this.voices || this.voices.length === 0)) {
+      let dispatched = false;
+      const unsub = this.onVoicesReady((loadedVoices) => {
+        if (this.speakingToken !== currentToken) {
+          unsub();
+          return;
+        }
+        if (dispatched || !loadedVoices || loadedVoices.length === 0) return;
+        dispatched = true;
+        clearTimeout(this.pendingSpeakTimer);
+        this.pendingSpeakTimer = null;
+        unsub();
+        dispatchSpeak();
+      });
+      this.pendingSpeakTimer = setTimeout(() => {
+        if (dispatched) return;
+        dispatched = true;
+        this.pendingSpeakTimer = null;
+        unsub();
+        dispatchSpeak();
+      }, wasBusy ? 250 : 220);
+      return;
+    }
+
+    // 剛 cancel() 掉前句正在播放的語音時，延遲 60ms 再送新句，避免 Windows/Chromium 吃掉 dog 等短字字首氣音
+    if (wasBusy) {
+      this.pendingSpeakTimer = setTimeout(() => {
+        this.pendingSpeakTimer = null;
+        dispatchSpeak();
+      }, 60);
+      return;
+    }
+
+    dispatchSpeak();
   }
 
-  stop() {
+  stop({ onlyIfBusy = false } = {}) {
+    if (this.pendingSpeakTimer) {
+      clearTimeout(this.pendingSpeakTimer);
+      this.pendingSpeakTimer = null;
+    }
+    if (this.pendingTimeoutId) {
+      clearTimeout(this.pendingTimeoutId);
+      this.pendingTimeoutId = null;
+    }
+    this.speakingToken += 1;
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
-        window.speechSynthesis.cancel();
+        if (!onlyIfBusy || window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+          window.speechSynthesis.cancel();
+        }
       } catch (e) {}
     }
     bgmManager.resumeBgm();
@@ -337,6 +557,7 @@ class VoiceManager {
 export const voiceManager = new VoiceManager();
 export const speakEnglish = (text, optionsOrKey) => voiceManager.speak(text, optionsOrKey);
 export const stopSpeech = () => voiceManager.stop();
+export const getVoiceDiagnostics = (personaKey = 'standard_us') => voiceManager.getVoiceDiagnostics(personaKey);
 
 
 // ============================================================================
@@ -639,6 +860,50 @@ class SoundEngine {
   // 按鈕點擊反饋
   click() {
     this.playTone(400, 'triangle', 0.04, 0.08);
+  }
+
+  // 3D 積木磁吸定位聲（依序隨五聲音階上揚：C5 D5 E5 G5 A5 C6 D6 E6）
+  blockSnap(pitchIndex = 0) {
+    const scale = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66, 1318.51];
+    const safeIdx = Math.max(0, Number(pitchIndex) || 0) % scale.length;
+    const freq = scale[safeIdx];
+    this.playTone(freq, 'triangle', 0.08, 0.14);
+    setTimeout(() => this.playTone(freq * 1.5, 'sine', 0.11, 0.09), 28);
+  }
+
+  // 積木退回待選區之輕柔氣泡彈回音
+  blockPop() {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(520, now);
+      osc.frequency.exponentialRampToValueAtTime(300, now + 0.09);
+      gain.gain.setValueAtTime(0.11, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.1);
+    } catch (e) {}
+  }
+
+  // 神筆書寫筆畫完成之星空風鈴共鳴音
+  brushChime(step = 0) {
+    const scale = [587.33, 739.99, 880.0, 1174.66];
+    const freq = scale[Math.max(0, Number(step) || 0) % scale.length];
+    this.playTone(freq, 'sine', 0.15, 0.15);
+    setTimeout(() => this.playTone(freq * 1.25, 'sine', 0.18, 0.09), 40);
+  }
+
+  // 開啟隱藏中文提示之柔和微光提示音
+  hintPing() {
+    this.playTone(698.46, 'sine', 0.10, 0.12);
+    setTimeout(() => this.playTone(1046.5, 'sine', 0.14, 0.10), 55);
   }
 
   // 跨平台觸覺微脈衝 (支援 Android 實體震動 + Web Audio 超低頻 55Hz 衝擊，在 iPad/PC 上營造擊打受力感)

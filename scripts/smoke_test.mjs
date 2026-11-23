@@ -2,6 +2,8 @@ import { spawn, spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { BOOK1_SENTENCES, BOOK1_CROSS_UNIT_SENTENCES } from '../src/data/sentencePatterns.js';
+import { ALL_STROKES } from '../src/services/alphabetStrokes.js';
 
 console.log('══════════════════════════════════════════════════════════════');
 console.log('  AUTOMATED CI FUNCTIONAL & SMOKE TEST SUITE (HEADLESS CHROME) ');
@@ -72,6 +74,7 @@ class CDPClient {
     this.pending = new Map();
     this.consoleErrors = [];
     this.exceptions = [];
+    this.networkRequests = [];
   }
 
   async connect() {
@@ -86,6 +89,11 @@ class CDPClient {
           this.pending.delete(data.id);
           if (data.error) reject(new Error(data.error.message));
           else resolve(data.result);
+        } else if (data.method === 'Network.requestWillBeSent') {
+          this.networkRequests.push({
+            url: data.params?.request?.url || '',
+            method: data.params?.request?.method || 'GET'
+          });
         } else if (data.method === 'Runtime.consoleAPICalled') {
           if (data.params.type === 'error') {
             const args = data.params.args.map(a => a.value || a.description || JSON.stringify(a)).join(' ');
@@ -127,6 +135,7 @@ const ALL_GAME_IDS = [
   'swipe',
   'meteor',
   'snake',
+  'sentence',
   'quiz-choice',
   'quiz-listening',
   'spelling',
@@ -143,6 +152,7 @@ async function run() {
 
   await client.send('Page.enable');
   await client.send('Runtime.enable');
+  await client.send('Network.enable');
   await client.send('Page.addScriptToEvaluateOnNewDocument', {
     source: 'window.alert = () => {}; window.confirm = () => true; window.prompt = () => null; window.__CI__ = true; try { localStorage.setItem("wutai_player_name", "測試勇士"); } catch(e){}'
   }).catch(() => {});
@@ -462,16 +472,30 @@ async function run() {
   }
 
   await client.evaluate(`
-    (() => {
+    (async () => {
       const btns = Array.from(document.querySelectorAll('button'));
       const g1 = btns.find(b => b.innerText.includes('一年級'));
       if (g1) g1.click();
+      await new Promise(r => setTimeout(r, 150));
+      const gameKingHeading = Array.from(document.querySelectorAll('h3')).find(h => (h.innerText || '').includes('遊戲之王'));
+      if (gameKingHeading) gameKingHeading.click();
+      await new Promise(r => setTimeout(r, 250));
+      const drillCat = Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('詞句試煉'));
+      if (drillCat) drillCat.click();
     })()
   `);
-  await new Promise(r => setTimeout(r, 300));
-  hasError = await client.evaluate(`document.body.innerText.includes('畫面載入遇到小插曲')`);
-  if (hasError) failures.push({ target: 'Leaderboard grade switch', error: 'Crashed on grade click' });
-  else console.log('  ✓ Leaderboard grade filter interaction passed');
+  await new Promise(r => setTimeout(r, 350));
+  const lbSentenceCheck = await client.evaluate(`
+    (() => ({
+      hasError: document.body.innerText.includes('畫面載入遇到小插曲'),
+      hasSentenceTrack: document.body.innerText.includes('句型積木工坊')
+    }))()
+  `);
+  if (lbSentenceCheck.hasError || !lbSentenceCheck.hasSentenceTrack) {
+    failures.push({ target: 'Leaderboard grade switch & sentence mode track', details: lbSentenceCheck });
+  } else {
+    console.log('  ✓ Leaderboard grade filter & sentence track interaction passed');
+  }
 
   // ── 檢查點 2: 首頁大廳與教師台 ──
   console.log('\n[2/5] Testing Lobby & Teacher Hub...');
@@ -761,29 +785,650 @@ async function run() {
   // ── 檢查點 5: 深度互動遊戲模擬 (模擬學生真實點擊、移動、開房、答題) ──
   console.log('\n[5/6] Deep Interactive Gameplay Simulation Across Core Engines...');
 
-  // 5A. 大廳選冊 -> 點擊「開始遊戲」過渡測試 (防止按開始遊戲卻閃退回大廳)
+  // 5A. 大廳選定單一單元 (Unit 1) 與一年級 (abc) -> 句型積木工坊 -> 重整保留原題池 + 完整通關至結算 (0 筆榜單寫入)
+  await client.evaluate(`try { localStorage.setItem('wutai_guest_student', JSON.stringify({ nickname: '測試勇士', grade: '3', isGuest: true })); } catch (e) {}`);
   await client.send('Page.navigate', { url: `${BASE_URL}/?view=lobby&grade=3&book=1` });
-  await new Promise(r => setTimeout(r, 900));
-  const lobbyLaunchResult = await client.evaluate(`
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 700));
+
+  const lobbyUnit1Result = await client.evaluate(`
     (async () => {
-      const cards = Array.from(document.querySelectorAll('button, div[role="button"], div[class*="cursor-pointer"]'));
-      const quizCard = cards.find(c => (c.innerText || '').includes('經典選擇題') || (c.innerText || '').includes('選擇題'));
-      if (quizCard) quizCard.click();
+      const clickByText = (sel, txt) => {
+        const els = Array.from(document.querySelectorAll(sel));
+        const target = els.find(el => (el.innerText || '').includes(txt));
+        if (target) { target.click(); return true; }
+        return false;
+      };
+      clickByText('div[class*="cursor-pointer"], button', '詞句試煉');
+      await new Promise(r => setTimeout(r, 350));
+      clickByText('button', '句型積木工坊');
       await new Promise(r => setTimeout(r, 400));
-      const btns = Array.from(document.querySelectorAll('button'));
-      const startBtn = btns.find(b => (b.innerText || '').includes('開始遊戲') || (b.innerText || '').includes('START'));
-      if (startBtn) startBtn.click();
+      clickByText('button', '三上');
+      await new Promise(r => setTimeout(r, 250));
+
+      // 清空預設多單元，僅挑選 Unit 1（應有 6 題）
+      for (let i = 0; i < 12; i++) {
+        const removeBtn = document.querySelector('button[title="點擊移除此單元"]');
+        if (!removeBtn) break;
+        removeBtn.click();
+        await new Promise(r => setTimeout(r, 70));
+      }
+      clickByText('button', 'Unit 1');
+      await new Promise(r => setTimeout(r, 250));
+      const scopeHintOk = (document.body.innerText || '').includes('實際可玩 6 題句型');
+
+      const startClicked = clickByText('button', '開始遊戲');
       await new Promise(r => setTimeout(r, 600));
-      const body = document.body.innerText || '';
+      const urlSearchBeforeReload = window.location.search;
+      const scopeAttrBefore = document.querySelector('[data-sentence-scope]')?.getAttribute('data-sentence-scope') || '';
+      const bodyAfterStart = document.body.innerText || '';
+      const enteredSentence = bodyAfterStart.includes('造句槽') && bodyAfterStart.includes('1/6');
+
+      // 點選第一個句型積木進入造句槽，確認計數遞增
+      const beforeCount = (bodyAfterStart.match(/已放\\s*(\\d+)/) || [])[1] || '0';
+      const firstTileBtn = document.querySelector('button[data-sentence-bank-tile]:not([disabled])');
+      if (firstTileBtn) firstTileBtn.click();
+      await new Promise(r => setTimeout(r, 200));
+      const afterCount = ((document.body.innerText || '').match(/已放\\s*(\\d+)/) || [])[1] || '0';
+
       return {
-        stayedInGame: !body.includes('選擇你想挑戰的學習模式') || body.includes('Score') || body.includes('題') || document.querySelectorAll('button').length >= 4
+        scopeHintOk,
+        startClicked,
+        urlSearchBeforeReload,
+        scopeAttrBefore,
+        enteredSentence,
+        placedIncremented: parseInt(afterCount, 10) > parseInt(beforeCount, 10)
       };
     })()
   `);
-  if (!lobbyLaunchResult?.stayedInGame) {
-    failures.push({ target: 'Lobby -> Classic Quiz Start Transition', error: 'Bounced back to lobby' });
+
+  // 重新整理頁面：斷言仍然鎖在 Unit 1 (1/6)，絕不退回預設 1-all (1/10)
+  await client.send('Page.reload');
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 600));
+  const unit1AfterReload = await client.evaluate(`
+    (() => ({
+      urlSearchAfterReload: window.location.search,
+      scopeAttrAfter: document.querySelector('[data-sentence-scope]')?.getAttribute('data-sentence-scope') || '',
+      hasSixTotal: (document.body.innerText || '').includes('1/6'),
+      hasSlot: (document.body.innerText || '').includes('造句槽')
+    }))()
+  `);
+
+  if (
+    !lobbyUnit1Result?.scopeHintOk ||
+    !lobbyUnit1Result?.enteredSentence ||
+    !lobbyUnit1Result?.placedIncremented ||
+    !unit1AfterReload?.hasSixTotal ||
+    !unit1AfterReload?.hasSlot ||
+    !String(unit1AfterReload?.urlSearchAfterReload || '').includes('units=')
+  ) {
+    failures.push({ target: 'Lobby Unit 1 -> Sentence Reload Preservation E2E', details: { lobbyUnit1Result, unit1AfterReload } });
   } else {
-    console.log('  ✓ Lobby -> Classic Quiz launch transition & question render verified');
+    console.log('  ✓ Lobby -> Unit 1 Sentence launch, tile placement & reload scope preservation (1/6) verified');
+  }
+
+  // 5A-1B. 單單元 (Unit 1 共 6 題) 通關：自動落回自主練習保護（not_qualifying_book），leaderboard 寫入請求為 0
+  client.networkRequests = [];
+  const book1U1Answers = BOOK1_SENTENCES.filter(s => String(s.unit) === '1').map(s => ({ zh: s.zh, tokens: s.tokens }));
+  const sentenceCompleteResult = await client.evaluate(`
+    (async () => {
+      const bank = ${JSON.stringify(book1U1Answers)};
+      for (let step = 0; step < 6; step++) {
+        // 先清空之前測試點入的積木
+        const clearBtn = Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('清空重排'));
+        if (clearBtn) {
+          clearBtn.click();
+          await new Promise(r => setTimeout(r, 80));
+        }
+        const heading = Array.from(document.querySelectorAll('h2')).map(h => (h.innerText || '').trim()).find(Boolean) || '';
+        const matched = bank.find(item => heading.includes(item.zh));
+        if (!matched) {
+          return { ok: false, step, reason: 'No matching sentence for heading: ' + heading };
+        }
+        for (const tok of matched.tokens) {
+          const btn = Array.from(document.querySelectorAll('button[data-sentence-bank-tile]:not([disabled])'))
+            .find(b => (b.innerText || '').trim() === tok);
+          if (!btn) {
+            return { ok: false, step, reason: 'Missing token tile: ' + tok, heading };
+          }
+          btn.click();
+          await new Promise(r => setTimeout(r, 30));
+        }
+        const verifyBtn = document.querySelector('button[data-sentence-verify="true"]');
+        if (!verifyBtn) return { ok: false, step, reason: 'Missing verify button' };
+        verifyBtn.click();
+
+        // 等待完整朗讀句型後自動跳下一題或進入結算
+        let advanced = false;
+        const targetPrefix = step < 5 ? (step + 2) + '/6' : '句型積木試煉完成';
+        for (let w = 0; w < 50; w++) {
+          await new Promise(r => setTimeout(r, 150));
+          if ((document.body.innerText || '').includes(targetPrefix)) {
+            advanced = true;
+            break;
+          }
+        }
+        if (!advanced) {
+          return { ok: false, step, reason: 'Did not advance to ' + targetPrefix };
+        }
+      }
+      const finalText = document.body.innerText || '';
+      return {
+        ok: finalText.includes('句型積木試煉完成') && finalText.includes('自選多單元練習模式'),
+        snippet: finalText.slice(0, 260)
+      };
+    })()
+  `);
+  const leaderboardWritesDuringSingleUnit = client.networkRequests.filter(
+    r => String(r.url || '').includes('/rest/v1/leaderboard') && ['POST', 'PATCH', 'PUT'].includes((r.method || '').toUpperCase())
+  );
+  if (!sentenceCompleteResult?.ok || leaderboardWritesDuringSingleUnit.length > 0) {
+    failures.push({
+      target: 'Sentence Single-Unit (1-1) -> Not-Qualifying Guard & Zero Leaderboard Writes',
+      details: { sentenceCompleteResult, leaderboardWritesDuringSingleUnit }
+    });
+  } else {
+    console.log('  ✓ Sentence single-unit 6-question completion verified: practice guard shown, 0 leaderboard writes');
+  }
+
+  // 5A-1B2. 全冊 (1-all 共 10 題) 未登入純訪客模擬通關：驗證觸發上榜門檻判定（僅 GET 讀取，0 寫入）且同步點亮八冊秘典 B1 ⭐⭐⭐
+  client.networkRequests = [];
+  await client.evaluate(`
+    try {
+      localStorage.removeItem('wutai_guest_student');
+      localStorage.removeItem('wutai_last_student_id');
+      localStorage.removeItem('wutai_grimoire_progress_guest');
+    } catch (e) {}
+  `);
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=sentence&units=1-all&level=lv1` });
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 450));
+  const book1AllAnswers = [...BOOK1_SENTENCES, ...BOOK1_CROSS_UNIT_SENTENCES].map(s => ({ zh: s.zh, tokens: s.tokens }));
+  const fullBookSettlementResult = await client.evaluate(`
+    (async () => {
+      const bank = ${JSON.stringify(book1AllAnswers)};
+      for (let step = 0; step < 10; step++) {
+        // 若是跨單元預設隱藏中文，先點開中文提示以便題庫精確配對
+        const revealBtn = Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('看中文'));
+        if (revealBtn) {
+          revealBtn.click();
+          await new Promise(r => setTimeout(r, 60));
+        }
+        const heading = Array.from(document.querySelectorAll('h2')).map(h => (h.innerText || '').trim()).find(Boolean) || '';
+        const matched = bank.find(item => heading.includes(item.zh));
+        if (!matched) {
+          return { ok: false, step, reason: 'No matching sentence for heading: ' + heading };
+        }
+        for (const tok of matched.tokens) {
+          const btn = Array.from(document.querySelectorAll('button[data-sentence-bank-tile]:not([disabled])'))
+            .find(b => (b.innerText || '').trim() === tok);
+          if (!btn) {
+            return { ok: false, step, reason: 'Missing token tile: ' + tok, heading };
+          }
+          btn.click();
+          await new Promise(r => setTimeout(r, 20));
+        }
+        const verifyBtn = document.querySelector('button[data-sentence-verify="true"]');
+        if (!verifyBtn) return { ok: false, step, reason: 'Missing verify button' };
+        verifyBtn.click();
+
+        let advanced = false;
+        const targetPrefix = step < 9 ? (step + 2) + '/10' : '句型積木試煉完成';
+        for (let w = 0; w < 50; w++) {
+          await new Promise(r => setTimeout(r, 150));
+          if ((document.body.innerText || '').includes(targetPrefix)) {
+            advanced = true;
+            break;
+          }
+        }
+        if (!advanced) {
+          return { ok: false, step, reason: 'Did not advance to ' + targetPrefix };
+        }
+      }
+      await new Promise(r => setTimeout(r, 400));
+      const finalText = document.body.innerText || '';
+      const rawGrimoire = localStorage.getItem('wutai_grimoire_progress_guest');
+      const grimoire = rawGrimoire ? JSON.parse(rawGrimoire) : {};
+      return {
+        ok: finalText.includes('句型積木試煉完成') && finalText.includes('B1 ⭐⭐⭐') && grimoire?.['1']?.sentence === 3 && (finalText.includes('Top 50') || finalText.includes('英雄榜') || finalText.includes('金幣')),
+        hasB1Star: finalText.includes('B1 ⭐⭐⭐'),
+        grimoireSentenceStars: grimoire?.['1']?.sentence || 0,
+        snippet: finalText.slice(0, 320)
+      };
+    })()
+  `);
+  await client.evaluate(`
+    try {
+      localStorage.removeItem('wutai_grimoire_progress_guest');
+      localStorage.setItem('wutai_guest_student', JSON.stringify({ nickname: '測試勇士', grade: '3', isGuest: true }));
+    } catch (e) {}
+  `);
+  const leaderboardWritesDuringGuestFullBook = client.networkRequests.filter(
+    r => String(r.url || '').includes('/rest/v1/leaderboard') && ['POST', 'PATCH', 'PUT'].includes((r.method || '').toUpperCase())
+  );
+  if (!fullBookSettlementResult?.ok || leaderboardWritesDuringGuestFullBook.length > 0) {
+    failures.push({
+      target: 'Sentence Full-Book (1-all) -> Ranked Gate & Grimoire 3-Star Linkage (Zero Dirty Writes)',
+      details: { fullBookSettlementResult, leaderboardWritesDuringGuestFullBook }
+    });
+  } else {
+    console.log('  ✓ Sentence full-book 10-question completion verified: Top 50 gate + B1 Grimoire 3-star linkage (0 dirty writes)');
+  }
+
+  // 5A-1C. 大廳選一年級 (連續 3 字母大寫) 與二年級 (連續 5 字母小寫) 出發積木工坊 -> 重整仍維持正確範圍與字數
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=lobby&grade=3&book=1` });
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 500));
+  await client.evaluate(`
+    (async () => {
+      const clickByText = (sel, txt) => {
+        const els = Array.from(document.querySelectorAll(sel));
+        const target = els.find(el => (el.innerText || '').includes(txt));
+        if (target) { target.click(); return true; }
+        return false;
+      };
+      clickByText('div[class*="cursor-pointer"], button', '詞句試煉');
+      await new Promise(r => setTimeout(r, 300));
+      clickByText('button', '句型積木工坊');
+      await new Promise(r => setTimeout(r, 350));
+      clickByText('button', '一年級');
+      await new Promise(r => setTimeout(r, 250));
+      clickByText('button', '開始遊戲');
+    })()
+  `);
+  await new Promise(r => setTimeout(r, 600));
+  await client.send('Page.reload');
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 600));
+  const g1AlphaCheck = await client.evaluate(`
+    (() => {
+      const root = document.querySelector('[data-sentence-scope]');
+      const tiles = Array.from(document.querySelectorAll('button[data-sentence-bank-tile]')).map(b => (b.innerText || '').trim());
+      return {
+        scope: root?.getAttribute('data-sentence-scope') || '',
+        alphaGrade: root?.getAttribute('data-alpha-grade') || '',
+        alphaMode: root?.getAttribute('data-alpha-mode') || '',
+        promptType: root?.getAttribute('data-prompt-type') || '',
+        hasLvSwitcher: !!document.querySelector('[data-sentence-level-switcher]'),
+        tileCount: tiles.length,
+        allUpper: tiles.length === 3 && tiles.every(t => /^[A-Z]$/.test(t)),
+        alive: (document.body.innerText || '').includes('字母排列槽') && (document.body.innerText || '').includes('1/10')
+      };
+    })()
+  `);
+
+  // 二年級預設小寫 5 字母檢驗
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=lobby&grade=3&book=1` });
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 450));
+  await client.evaluate(`
+    (async () => {
+      const clickByText = (sel, txt) => {
+        const els = Array.from(document.querySelectorAll(sel));
+        const target = els.find(el => (el.innerText || '').includes(txt));
+        if (target) { target.click(); return true; }
+        return false;
+      };
+      clickByText('div[class*="cursor-pointer"], button', '詞句試煉');
+      await new Promise(r => setTimeout(r, 300));
+      clickByText('button', '句型積木工坊');
+      await new Promise(r => setTimeout(r, 350));
+      clickByText('button', '二年級');
+      await new Promise(r => setTimeout(r, 250));
+      clickByText('button', '開始遊戲');
+    })()
+  `);
+  await new Promise(r => setTimeout(r, 600));
+  await client.send('Page.reload');
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 600));
+  const g2AlphaCheck = await client.evaluate(`
+    (() => {
+      const root = document.querySelector('[data-sentence-scope]');
+      const tiles = Array.from(document.querySelectorAll('button[data-sentence-bank-tile]')).map(b => (b.innerText || '').trim());
+      return {
+        scope: root?.getAttribute('data-sentence-scope') || '',
+        alphaGrade: root?.getAttribute('data-alpha-grade') || '',
+        alphaMode: root?.getAttribute('data-alpha-mode') || '',
+        hasLvSwitcher: !!document.querySelector('[data-sentence-level-switcher]'),
+        tileCount: tiles.length,
+        allLower: tiles.length === 5 && tiles.every(t => /^[a-z]$/.test(t)),
+        alive: (document.body.innerText || '').includes('字母排列槽') && (document.body.innerText || '').includes('1/10')
+      };
+    })()
+  `);
+
+  if (
+    g1AlphaCheck?.scope !== 'abc' ||
+    g1AlphaCheck?.alphaGrade !== '1' ||
+    g1AlphaCheck?.alphaMode !== 'upper' ||
+    g1AlphaCheck?.hasLvSwitcher ||
+    !g1AlphaCheck?.allUpper ||
+    !g1AlphaCheck?.alive ||
+    g2AlphaCheck?.scope !== 'abc' ||
+    g2AlphaCheck?.alphaGrade !== '2' ||
+    g2AlphaCheck?.alphaMode !== 'lower' ||
+    g2AlphaCheck?.hasLvSwitcher ||
+    !g2AlphaCheck?.allLower ||
+    !g2AlphaCheck?.alive
+  ) {
+    failures.push({ target: 'Lobby G1(3-upper) / G2(5-lower) Consecutive Alphabet Reload', details: { g1AlphaCheck, g2AlphaCheck } });
+  } else {
+    console.log('  ✓ Lobby G1 (3-upper) & G2 (5-lower) consecutive alphabet sequence + reload verified');
+  }
+
+  // 5A-1D. 第 1、5、8 冊 Lv.3 情境挑戰直達與重整驗證＋混選略過未收錄提示（無錯誤與圖片載入完整性）
+  for (const lv3Url of [
+    `${BASE_URL}/?view=sentence&units=1-all&level=lv3`,
+    `${BASE_URL}/?view=sentence&units=5-all&level=lv3`,
+    `${BASE_URL}/?view=sentence&units=8-all&level=lv3`
+  ]) {
+    client.exceptions = [];
+    await client.send('Page.navigate', { url: lv3Url });
+    await waitForAppReady();
+    await new Promise(r => setTimeout(r, 550));
+    await client.send('Page.reload');
+    await waitForAppReady();
+    await new Promise(r => setTimeout(r, 550));
+    const lv3DirectCheck = await client.evaluate(`
+      (() => {
+        const root = document.querySelector('[data-sentence-scope]');
+        const lvAttr = root?.getAttribute('data-sentence-level') || '';
+        const pType = root?.getAttribute('data-prompt-type') || '';
+        const hasSwitcher = !!document.querySelector('[data-sentence-level-switcher]');
+        const imgs = Array.from(document.querySelectorAll('img')).filter(img => String(img.src || '').includes('/preA1/'));
+        const imgsOk = imgs.every(img => img.complete && img.naturalWidth > 0);
+        return {
+          ok: lvAttr === 'lv3' && ['dialogue', 'listen_build', 'listen_qa', 'picture'].includes(pType) && hasSwitcher && imgsOk && (document.body.innerText || '').includes('造句槽'),
+          lvAttr,
+          pType,
+          hasSwitcher,
+          imgsCount: imgs.length,
+          imgsOk
+        };
+      })()
+    `);
+    if (!lv3DirectCheck?.ok || client.exceptions.length > 0) {
+      failures.push({ target: `Sentence Lv.3 Situational Mode Direct & Reload (${lv3Url})`, details: lv3DirectCheck, exceptions: client.exceptions });
+    }
+  }
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=sentence&units=2-1,9-1&level=lv1` });
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 500));
+  const mixedSupportedCheck = await client.evaluate(`
+    (() => ({
+      hasTray: (document.body.innerText || '').includes('造句槽'),
+      hasNotice: !!document.querySelector('[data-partial-unsupported-notice="true"]'),
+      noticeText: document.querySelector('[data-partial-unsupported-notice="true"]')?.innerText || ''
+    }))()
+  `);
+
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=sentence&units=abc,2-1&level=lv1` });
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 450));
+  const abcMixedCheck = await client.evaluate(`
+    (() => ({
+      hasTray: (document.body.innerText || '').includes('造句槽'),
+      hasAbcSkippedNotice: !!document.querySelector('[data-partial-skipped-abc-notice="true"]')
+    }))()
+  `);
+
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=sentence&units=2-review&level=lv1` });
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 450));
+  const reviewUnitCheck = await client.evaluate(`
+    (() => ({
+      hasTray: (document.body.innerText || '').includes('造句槽'),
+      hasEmptyGuard: (document.body.innerText || '').includes('尚未選擇可練習的單元範圍')
+    }))()
+  `);
+
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=sentence&units=abc,2-unknown` });
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 450));
+  const abcUnknownUnitCheck = await client.evaluate(`
+    (() => ({
+      hasAlphaTray: (document.body.innerText || '').includes('字母排列槽'),
+      noticeText: document.querySelector('[data-partial-unsupported-units-notice="true"]')?.innerText || ''
+    }))()
+  `);
+
+  if (
+    !mixedSupportedCheck.hasTray ||
+    !mixedSupportedCheck.hasNotice ||
+    !mixedSupportedCheck.noticeText.includes('第 9 冊') ||
+    !abcMixedCheck.hasTray ||
+    !abcMixedCheck.hasAbcSkippedNotice ||
+    !reviewUnitCheck.hasTray ||
+    reviewUnitCheck.hasEmptyGuard ||
+    !abcUnknownUnitCheck.hasAlphaTray ||
+    !abcUnknownUnitCheck.noticeText.includes('2-unknown')
+  ) {
+    failures.push({
+      target: 'Sentence Mixed Book 2+9, abc+Book2, 2-review & abc+2-unknown Disclosure',
+      details: { mixedSupportedCheck, abcMixedCheck, reviewUnitCheck, abcUnknownUnitCheck }
+    });
+  } else {
+    console.log('  ✓ Books 1, 5 & 8 Lv.3 situational mode, mixed disclosures (2+9 / abc+2-1 / abc+2-unknown) & 2-review verified');
+  }
+
+  // 5A-1E. 同頁歷史導覽 (popstate / history.back)、無 ?level= 網址一致性、以及第 9 冊一鍵體驗返回保護驗證
+  client.exceptions = [];
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=sentence&units=abc&alphaMode=upper&alphaGrade=1` });
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 450));
+  const samePageNavResult = await client.evaluate(`
+    (async () => {
+      const readState = () => {
+        const root = document.querySelector('[data-sentence-scope]');
+        const tiles = Array.from(document.querySelectorAll('button[data-sentence-bank-tile]')).map(b => (b.innerText || '').trim());
+        return {
+          scope: root?.getAttribute('data-sentence-scope') || '',
+          level: root?.getAttribute('data-sentence-level') || '',
+          alphaGrade: root?.getAttribute('data-alpha-grade') || '',
+          alphaMode: root?.getAttribute('data-alpha-mode') || '',
+          tileCount: tiles.length,
+          allUpper: tiles.every(t => /^[A-Z]$/.test(t)),
+          allLower: tiles.every(t => /^[a-z]$/.test(t)),
+          search: window.location.search
+        };
+      };
+
+      const step1 = readState();
+      window.history.pushState({ view: 'sentence' }, '', '/?view=sentence&units=abc&alphaMode=lower&alphaGrade=2');
+      window.dispatchEvent(new PopStateEvent('popstate', { state: { view: 'sentence' } }));
+      await new Promise(r => setTimeout(r, 450));
+      const step2 = readState();
+
+      window.history.pushState({ view: 'sentence' }, '', '/?view=sentence&units=1-all&level=lv3');
+      window.dispatchEvent(new PopStateEvent('popstate', { state: { view: 'sentence' } }));
+      await new Promise(r => setTimeout(r, 450));
+      const step3 = readState();
+
+      const lv1Btn = Array.from(document.querySelectorAll('[data-sentence-level-switcher] button')).find(b => (b.innerText || '').includes('Lv.1'));
+      if (lv1Btn) lv1Btn.click();
+      await new Promise(r => setTimeout(r, 350));
+      const step4Lv1 = readState();
+
+      window.history.back();
+      await new Promise(r => setTimeout(r, 450));
+      const step5BackLv3 = readState();
+
+      return { step1, step2, step3, step4Lv1, step5BackLv3 };
+    })()
+  `);
+
+  // 驗證無 ?level= 網址初載套用 localStorage (lv3) 且立即補寫進網址，切到 Lv.1 後按上一頁仍維持 lv3
+  await client.evaluate(`try { localStorage.setItem('wutai_sentence_level', 'lv3'); } catch (e) {}`);
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=sentence&units=1-all` });
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 500));
+  const noLevelConsistencyCheck = await client.evaluate(`
+    (async () => {
+      const read = () => ({
+        level: document.querySelector('[data-sentence-scope]')?.getAttribute('data-sentence-level') || '',
+        search: window.location.search
+      });
+      const initial = read();
+      const lv1Btn = Array.from(document.querySelectorAll('[data-sentence-level-switcher] button')).find(b => (b.innerText || '').includes('Lv.1'));
+      if (lv1Btn) lv1Btn.click();
+      await new Promise(r => setTimeout(r, 350));
+      const afterSwitchLv1 = read();
+      window.history.back();
+      await new Promise(r => setTimeout(r, 450));
+      const afterBack = read();
+      return { initial, afterSwitchLv1, afterBack };
+    })()
+  `);
+  await client.evaluate(`try { localStorage.removeItem('wutai_sentence_level'); } catch (e) {}`);
+
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=sentence&book=9` });
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 450));
+  const book9HistoryBackCheck = await client.evaluate(`
+    (async () => {
+      const initialGuard = (document.body.innerText || '').includes('此冊別尚未收錄至句型庫');
+      const jumpBtn = Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').includes('一鍵體驗第 1 冊全單元句型'));
+      if (jumpBtn) jumpBtn.click();
+      await new Promise(r => setTimeout(r, 450));
+      const afterJumpTray = (document.body.innerText || '').includes('造句槽') && !(document.body.innerText || '').includes('此冊別尚未收錄至句型庫');
+      window.history.back();
+      await new Promise(r => setTimeout(r, 450));
+      const backToBook9Guard = (document.body.innerText || '').includes('此冊別尚未收錄至句型庫');
+      return { initialGuard, afterJumpTray, backToBook9Guard };
+    })()
+  `);
+
+  const histOk =
+    samePageNavResult?.step1?.alphaGrade === '1' &&
+    samePageNavResult?.step1?.tileCount === 3 &&
+    samePageNavResult?.step1?.allUpper &&
+    samePageNavResult?.step2?.alphaGrade === '2' &&
+    samePageNavResult?.step2?.alphaMode === 'lower' &&
+    samePageNavResult?.step2?.tileCount === 5 &&
+    samePageNavResult?.step2?.allLower &&
+    samePageNavResult?.step3?.level === 'lv3' &&
+    samePageNavResult?.step4Lv1?.level === 'lv1' &&
+    samePageNavResult?.step5BackLv3?.level === 'lv3' &&
+    noLevelConsistencyCheck?.initial?.level === 'lv3' &&
+    noLevelConsistencyCheck?.initial?.search?.includes('level=lv3') &&
+    noLevelConsistencyCheck?.afterSwitchLv1?.level === 'lv1' &&
+    noLevelConsistencyCheck?.afterBack?.level === 'lv3' &&
+    book9HistoryBackCheck?.initialGuard &&
+    book9HistoryBackCheck?.afterJumpTray &&
+    book9HistoryBackCheck?.backToBook9Guard;
+
+  if (!histOk || client.exceptions.length > 0) {
+    failures.push({ target: 'Sentence Same-Page Popstate, No-Level Consistency & History Back Sync', details: { samePageNavResult, noLevelConsistencyCheck, book9HistoryBackCheck }, exceptions: client.exceptions });
+  } else {
+    console.log('  ✓ Sentence same-page history nav (g1 -> g2 -> Lv.3 <-> Lv.1, no-level URL consistency & Book 9 back) verified');
+  }
+
+  // 5A-2. 第 5 冊直達可玩、第 9 冊未收錄友善卡片、以及舊版 ?view=quiz-choice / quiz-hard 退役練習橫幅驗證
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=sentence&grade=5&book=5` });
+  await new Promise(r => setTimeout(r, 500));
+  await client.send('Page.reload');
+  await new Promise(r => setTimeout(r, 700));
+  const sentenceReloadAlive = await client.evaluate(`document.body.innerText.includes('造句槽') && !document.body.innerText.includes('畫面載入遇到小插曲')`);
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=sentence&book=9` });
+  await new Promise(r => setTimeout(r, 550));
+  const book9GuardOk = await client.evaluate(`document.body.innerText.includes('此冊別尚未收錄至句型庫') && document.body.innerText.includes('一鍵體驗第 1 冊')`);
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=quiz-choice&grade=3&book=1` });
+  await new Promise(r => setTimeout(r, 550));
+  const legacyChoiceOk = await client.evaluate(`document.body.innerText.includes('退役為純練習模式') && !document.body.innerText.includes('畫面載入遇到小插曲')`);
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=quiz-hard&grade=3&book=1` });
+  await new Promise(r => setTimeout(r, 550));
+  const legacyHardOk = await client.evaluate(`document.body.innerText.includes('退役為純練習模式') && !document.body.innerText.includes('畫面載入遇到小插曲')`);
+  if (!sentenceReloadAlive || !book9GuardOk || !legacyChoiceOk || !legacyHardOk) {
+    failures.push({ target: 'Sentence Direct/Reload/Guard & Legacy Quiz Practice Modes', details: { sentenceReloadAlive, book9GuardOk, legacyChoiceOk, legacyHardOk } });
+  } else {
+    console.log('  ✓ Sentence Book 5 live reload, Book 9 guard & legacy quiz-choice/quiz-hard practice modes verified');
+  }
+
+  // 5A-3. 神筆書寫：描紅完成第 1 題推進至第 2 題後，切換實戰默寫版必須重開整輪歸零
+  await client.send('Page.navigate', { url: `${BASE_URL}/?view=handwriting&grade=1&book=abc` });
+  await waitForAppReady();
+  await new Promise(r => setTimeout(r, 600));
+  const strokeLookup = Object.fromEntries(
+    Object.entries(ALL_STROKES).map(([ch, mod]) => [ch, mod.strokes.map(s => s.sample)])
+  );
+  const handwritingSwitchResetResult = await client.evaluate(`
+    (async () => {
+      const lookup = ${JSON.stringify(strokeLookup)};
+      const root = () => document.querySelector('[data-handwriting-mode]');
+      const canvas = () => document.querySelector('canvas[data-handwriting-canvas]');
+      const r0 = root();
+      const ch = r0?.getAttribute('data-handwriting-char') || '';
+      const samples = lookup[ch] || [];
+      const cv = canvas();
+      if (!r0 || !cv || samples.length === 0) {
+        return { ok: false, reason: 'Missing handwriting DOM or stroke samples', ch };
+      }
+
+      const rect = cv.getBoundingClientRect();
+      for (const pts of samples) {
+        if (!pts || pts.length === 0) continue;
+        const toClient = ([nx, ny]) => ({
+          x: rect.left + (nx / 100) * rect.width,
+          y: rect.top + (ny / 120) * rect.height
+        });
+        const pStart = toClient(pts[0]);
+        cv.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: pStart.x, clientY: pStart.y, pointerId: 1 }));
+        await new Promise(r => setTimeout(r, 35));
+        for (let i = 1; i < pts.length; i++) {
+          const pm = toClient(pts[i]);
+          cv.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, clientX: pm.x, clientY: pm.y, pointerId: 1 }));
+          await new Promise(r => setTimeout(r, 12));
+        }
+        const pEnd = toClient(pts[pts.length - 1]);
+        cv.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, clientX: pEnd.x, clientY: pEnd.y, pointerId: 1 }));
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      await new Promise(r => setTimeout(r, 250));
+      const nextBtn = Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').trim() === '下一題');
+      if (!nextBtn) {
+        return { ok: false, reason: 'Tracing did not complete Q1 modal', ch, body: (document.body.innerText || '').slice(0, 220) };
+      }
+      nextBtn.click();
+      await new Promise(r => setTimeout(r, 250));
+
+      const beforeSwitch = {
+        mode: root()?.getAttribute('data-handwriting-mode'),
+        qIndex: root()?.getAttribute('data-handwriting-qindex'),
+        scored: root()?.getAttribute('data-handwriting-scored')
+      };
+
+      const challengeBtn = document.querySelector('button[data-handwriting-mode-btn="challenge"]');
+      if (!challengeBtn) return { ok: false, reason: 'Missing challenge mode button' };
+      challengeBtn.click();
+      await new Promise(r => setTimeout(r, 250));
+
+      const afterSwitch = {
+        mode: root()?.getAttribute('data-handwriting-mode'),
+        qIndex: root()?.getAttribute('data-handwriting-qindex'),
+        scored: root()?.getAttribute('data-handwriting-scored')
+      };
+
+      return {
+        ok:
+          beforeSwitch.mode === 'tracing' &&
+          beforeSwitch.qIndex === '1' &&
+          beforeSwitch.scored === '1' &&
+          afterSwitch.mode === 'challenge' &&
+          afterSwitch.qIndex === '0' &&
+          afterSwitch.scored === '0',
+        beforeSwitch,
+        afterSwitch
+      };
+    })()
+  `);
+  await client.evaluate(`try { localStorage.removeItem('wutai_guest_student'); } catch (e) {}`);
+  if (!handwritingSwitchResetResult?.ok) {
+    failures.push({ target: 'Handwriting Tracing->Challenge Mode Switch Resets Round', details: handwritingSwitchResetResult });
+  } else {
+    console.log('  ✓ Handwriting tracing Q1 -> challenge switch resets qIndex & scoredCount cleanly verified');
   }
 
   // 5B. 貪食蛇方向鍵與虛擬十字鍵實際轉向驗證 (支援 GamePreloader 資源加載等待)
@@ -855,8 +1500,8 @@ async function run() {
     console.log('  ✓ BattleGame: Arena hosting (zero channel collision) & clean header verified');
   }
 
-  // 5D. 經典選擇題 / 拼字 / 記憶翻牌 / 隕石防衛 互動點擊驗證
-  for (const interactiveGame of ['quiz-choice', 'spelling', 'memory', 'meteor', 'swipe', 'mole']) {
+  // 5D. 句型積木 / 聽力試煉 / 經典選擇題 / 拼字 / 記憶翻牌 / 隕石防衛 / 滑牌 / 打地鼠 互動點擊驗證
+  for (const interactiveGame of ['sentence', 'quiz-listening', 'quiz-choice', 'spelling', 'memory', 'meteor', 'swipe', 'mole']) {
     client.exceptions = [];
     await client.send('Page.navigate', { url: `${BASE_URL}/?view=${interactiveGame}&grade=3&book=1` });
     await new Promise(r => setTimeout(r, 750));
@@ -875,7 +1520,7 @@ async function run() {
       failures.push({ target: `Interactive click in ${interactiveGame}`, exceptions: client.exceptions });
     }
   }
-  console.log('  ✓ Interactive gameplay clicks verified for quiz-choice, spelling, memory, meteor, swipe, mole');
+  console.log('  ✓ Interactive gameplay clicks verified for sentence, quiz-listening, quiz-choice, spelling, memory, meteor, swipe, mole');
 
   // 5D-2. 課本題庫手機漸進手風琴：依序選冊別 → 範圍 → 題型 → 題數，操作不得被覆蓋。
   client.exceptions = [];

@@ -211,3 +211,111 @@ export const getGradeFromBook = (book) => {
   if (b === '7' || b === '8' || b === '9') return '06'; // 六年級第 7, 8 冊與國一先修
   return '00';
 };
+
+const CLASS_LABEL_TO_ID = {
+  '甲': '01',
+  'a': '01',
+  '乙': '02',
+  'b': '02',
+  '丙': '03',
+  'c': '03',
+  '他': '00',
+  '其他': '00',
+  'other': '00'
+};
+
+/**
+ * 解析排行榜顯示名稱中的年班座號／訪客前綴與暱稱結構，供通行證查榜精確比對使用
+ */
+export const parseLeaderboardIdentity = (rawName = '') => {
+  const str = String(rawName || '').trim();
+  if (!str) return null;
+
+  const guestMatch = str.match(/^\[(?:訪客|Guest)\]\s*(.*)$/i);
+  if (guestMatch) {
+    return { kind: 'guest', nickname: guestMatch[1].trim() };
+  }
+
+  const zhFormal = str.match(
+    /^(\d{1,2})\s*(?:年\s*)?(甲|乙|丙|其他|他)\s*班?\s*(\d{1,2})\s*號\s*[(（](.+)[)）]$/
+  );
+  if (zhFormal) {
+    return {
+      kind: 'formal',
+      grade: pad2(zhFormal[1]),
+      classNum: CLASS_LABEL_TO_ID[zhFormal[2]] || '00',
+      seat: pad2(zhFormal[3]),
+      nickname: zhFormal[4].trim()
+    };
+  }
+
+  const enFormal = str.match(
+    /^Grade\s+(\d{1,2})\s+(?:Class\s+)?(A|B|C|Other)\s+#(\d{1,2})\s*[(（](.+)[)）]$/i
+  );
+  if (enFormal) {
+    return {
+      kind: 'formal',
+      grade: pad2(enFormal[1]),
+      classNum: CLASS_LABEL_TO_ID[enFormal[2].toLowerCase()] || '00',
+      seat: pad2(enFormal[3]),
+      nickname: enFormal[4].trim()
+    };
+  }
+
+  return { kind: 'plain', nickname: str };
+};
+
+/**
+ * 精確比對排行榜紀錄是否屬於指定學生，避免子字串暱稱（如「小明」誤認「小明同學」）或訪客誤匹配
+ */
+export const doesLeaderboardEntryMatchStudent = (entry, student) => {
+  if (!entry || !student) return false;
+
+  const studentIsGuest = isGuestStudent(student);
+  const entryIsGuest = isGuestStudent(entry);
+  if (studentIsGuest !== entryIsGuest) return false;
+
+  const studentId = String(student.student_id || '').trim();
+  const studentNick = String(student.nickname || '').trim();
+  const entryRawName = String(entry.name || entry.nickname || '').trim();
+  const parsed = parseLeaderboardIdentity(entryRawName);
+
+  if (studentIsGuest) {
+    if (!studentNick || !parsed) return false;
+    return parsed.nickname.toLowerCase() === studentNick.toLowerCase();
+  }
+
+  const rawEntrySid = String(
+    entry.student_id ||
+    (typeof entry.book === 'string' && /^\d{6}$/.test(entry.book.trim()) ? entry.book.trim() : '') ||
+    ''
+  ).trim();
+  const nameSidMatch = !rawEntrySid && entryRawName
+    ? entryRawName.match(/(?:^|\D)(\d{6})(?:\D|$)/)
+    : null;
+  const entrySid = /^\d{6}$/.test(rawEntrySid)
+    ? rawEntrySid
+    : (nameSidMatch ? nameSidMatch[1] : '');
+
+  if (entrySid && /^\d{6}$/.test(studentId)) {
+    return entrySid === studentId;
+  }
+
+  if (parsed?.kind === 'formal') {
+    const sidParsed = parseStudentId(studentId);
+    const sGrade = sidParsed.isValid ? sidParsed.grade : pad2(student.grade);
+    const sClass = sidParsed.isValid ? sidParsed.classNum : pad2(student.classNum || student.class);
+    const sSeat = sidParsed.isValid ? sidParsed.seat : pad2(student.seat);
+    return parsed.grade === sGrade && parsed.classNum === sClass && parsed.seat === sSeat;
+  }
+
+  if (
+    entryRawName &&
+    (entryRawName === formatStudentDisplayName(student, 'zh-TW') ||
+      entryRawName === formatStudentDisplayName(student, 'en'))
+  ) {
+    return true;
+  }
+
+  return Boolean(studentNick && parsed?.kind === 'plain' && parsed.nickname === studentNick);
+};

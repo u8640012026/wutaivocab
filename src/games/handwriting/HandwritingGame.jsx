@@ -10,7 +10,8 @@ import {
   FOUR_LINES,
   getLetterStrokes,
   evaluateHandwriting,
-  matchTracingStroke
+  matchTracingStroke,
+  evaluateTracingCompletion
 } from '../../services/alphabetStrokes';
 import confetti from 'canvas-confetti';
 import {
@@ -62,22 +63,29 @@ export const HandwritingGame = ({
   // 描寫版採「部件完成集合」而非強迫第 N 筆配對第 N 筆；編號只作建議筆順。
   const [traceMatchesByLetter, setTraceMatchesByLetter] = useState({});
   const [traceMatchHistory, setTraceMatchHistory] = useState([]);
-  const [traceHint, setTraceHint] = useState('筆順編號是建議順序；正常的替代順序也可以。');
+  const [showOrderNumbers, setShowOrderNumbers] = useState(true);
+  const [traceHint, setTraceHint] = useState('筆順編號僅供參考，一筆連寫（如 a、d、m）也能直接過關！');
 
   // 畫布筆跡歷史 (每一劃為一組 points: [{x, y}, ...])
   const [strokes, setStrokes] = useState([]);
   const [currentStroke, setCurrentStroke] = useState(null);
 
-  // 實戰版評分反饋
+  // 追蹤每個字母已描寫的正規化筆畫（供累積整字墨跡完成檢查 & Undo 還原）
+  const letterStrokesRef = useRef({});
+
+  // 實戰版評分反饋與通過題數統計（首通答對數供 HonorSubmissionCard 計算答對率與獎狀，與分數分離）
   const [evalResult, setEvalResult] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 結算狀態
   const [isFinished, setIsFinished] = useState(false);
-  const [sessionStartTime] = useState(Date.now());
+  const [sessionStartTime, setSessionStartTime] = useState(() => Date.now());
   const [elapsedTime, setElapsedTime] = useState(0);
   const [totalScoreSum, setTotalScoreSum] = useState(0);
   const [scoredCount, setScoredCount] = useState(0);
+  const [passedCount, setPassedCount] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [hasUsedTracingInRound, setHasUsedTracingInRound] = useState(false);
 
   const canvasRef = useRef(null);
   const boardScrollRef = useRef(null);
@@ -147,8 +155,15 @@ export const HandwritingGame = ({
     setActiveStrokeStep(0);
     setTraceMatchesByLetter({});
     setTraceMatchHistory([]);
-    setTraceHint('筆順編號是建議順序；正常的替代順序也可以。');
+    letterStrokesRef.current = {};
+    setTraceHint('筆順編號僅供參考，一筆連寫（如 a、d、m）也能直接過關！');
     setEvalResult(null);
+    setTotalScoreSum(0);
+    setScoredCount(0);
+    setPassedCount(0);
+    setStreak(0);
+    setHasUsedTracingInRound(false);
+    setSessionStartTime(Date.now());
   }, [studentGradeNum, words, settings, qualifyingBook]);
 
   // 當前目標題目
@@ -215,7 +230,7 @@ export const HandwritingGame = ({
   // 自動發音
   useEffect(() => {
     if (currentQ?.wordStr) {
-      speakEnglish(currentQ.wordStr);
+      speakEnglish(currentQ.wordStr, { persona: 'standard_us' });
     }
   }, [currentQ]);
 
@@ -260,13 +275,24 @@ export const HandwritingGame = ({
 
     allStrokes.forEach((stroke) => {
       if (stroke.length < 1) return;
-      ctx.beginPath();
-      // 在邏輯座標系中，標準 4 線三格總高為 120，筆劃寬度 4.8 ~ 5.8 像素最為飽滿滑順
       const baseWidth = isWordMode ? 4.8 : 5.8;
+
+      if (stroke.length === 1) {
+        ctx.beginPath();
+        ctx.fillStyle = isDark ? '#7dd3fc' : '#0284c7';
+        ctx.shadowColor = isDark ? 'rgba(56, 189, 248, 0.7)' : 'rgba(2, 132, 199, 0.35)';
+        ctx.shadowBlur = isDark ? 4 : 1.5;
+        ctx.arc(stroke[0].x, stroke[0].y, baseWidth * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      }
+
+      ctx.beginPath();
+      // 星光神筆墨水（夜光冷藍/日間寶石藍）
       ctx.lineWidth = baseWidth;
       ctx.strokeStyle = isDark ? '#38bdf8' : '#0284c7';
-      ctx.shadowColor = isDark ? 'rgba(56, 189, 248, 0.45)' : 'rgba(2, 132, 199, 0.3)';
-      ctx.shadowBlur = 1.2;
+      ctx.shadowColor = isDark ? 'rgba(125, 211, 252, 0.75)' : 'rgba(2, 132, 199, 0.38)';
+      ctx.shadowBlur = isDark ? 3.5 : 1.8;
 
       const p0 = stroke[0];
       ctx.moveTo(p0.x, p0.y);
@@ -375,12 +401,16 @@ export const HandwritingGame = ({
     if (!isDrawingRef.current) return;
     isDrawingRef.current = false;
 
-    if (currentStroke && currentStroke.length > 1) {
+    if (currentStroke && currentStroke.length >= 1) {
+      // 支援 i/j 點點輕點（單點點擊自動補齊微小偏移以通過畫布與點雲重取樣）
+      const finalizedStroke = currentStroke.length === 1
+        ? [currentStroke[0], { x: currentStroke[0].x + 0.6, y: currentStroke[0].y + 0.6 }]
+        : currentStroke;
       setCurrentStroke(null);
 
-      // ── 描寫模式：比對所有尚未完成部件，不再強迫固定筆順與方向 ──
+      // ── 描寫模式：支援一筆自然連寫 + 必要點/橫部件防漏檢核 ──
       if (playMode === 'tracing' && activeStrokeModel && activeSlot) {
-        const normalizedStroke = currentStroke.map(point => ({
+        const normalizedStroke = finalizedStroke.map(point => ({
           x: 50 + (point.x - activeSlot.center) / activeSlot.scale,
           y: point.y
         }));
@@ -391,17 +421,34 @@ export const HandwritingGame = ({
           completedStrokeIndices: previousMatches
         });
 
-        if (!traceResult.accepted) {
+        const prevLetterStrokes = letterStrokesRef.current[activeLetterIdx] || [];
+        const candidateLetterStrokes = [...prevLetterStrokes, normalizedStroke];
+        const wholeCharCheck = evaluateTracingCompletion({
+          targetChar: activeChar,
+          userStrokes: candidateLetterStrokes
+        });
+
+        if (!traceResult.accepted && !wholeCharCheck.completed) {
           soundEngine.wrong();
-          setTraceHint('這一筆離字母太遠，請沿著任一尚未完成的螢光部件再試一次。');
+          soundEngine.hapticPulse('strong');
+          setTraceHint(
+            wholeCharCheck.hintFeedback ||
+            '這一筆離字母太遠，請沿著任一尚未完成的螢光部件再試一次。'
+          );
           return;
         }
 
-        const nextStrokes = [...strokes, currentStroke];
+        letterStrokesRef.current[activeLetterIdx] = candidateLetterStrokes;
+        const nextStrokes = [...strokes, finalizedStroke];
         setStrokes(nextStrokes);
-        soundEngine.click();
 
-        const mergedMatches = [...new Set([...previousMatches, ...traceResult.matchedIndices])].sort((a, b) => a - b);
+        let mergedMatches = [...new Set([...previousMatches, ...traceResult.matchedIndices])].sort((a, b) => a - b);
+        const letterFullyDone =
+          wholeCharCheck.completed || mergedMatches.length >= activeStrokeModel.strokes.length;
+        if (letterFullyDone) {
+          mergedMatches = activeStrokeModel.strokes.map((_, idx) => idx);
+        }
+
         const nextMatchesByLetter = {
           ...traceMatchesByLetter,
           [activeLetterIdx]: mergedMatches
@@ -409,38 +456,46 @@ export const HandwritingGame = ({
         setTraceMatchesByLetter(nextMatchesByLetter);
         setTraceMatchHistory(prev => [...prev, {
           letterIdx: activeLetterIdx,
-          matchedIndices: traceResult.matchedIndices
+          matchedIndices: mergedMatches
         }]);
-        setTraceHint('寫得很好！可以依建議編號繼續，也可以先完成其他部件。');
 
-        if (mergedMatches.length >= activeStrokeModel.strokes.length) {
+        if (letterFullyDone) {
           const updatedSet = new Set(completedLetterIndices);
           updatedSet.add(activeLetterIdx);
           setCompletedLetterIndices(updatedSet);
-          soundEngine.correct();
+          soundEngine.powerUp();
+          soundEngine.hapticPulse('normal');
 
           const nextIncompleteSlot = slotList.find(slot => !updatedSet.has(slot.index));
           if (nextIncompleteSlot) {
             setActiveLetterIdx(nextIncompleteSlot.index);
             setActiveStrokeStep(getFirstUnmatchedStroke(nextIncompleteSlot.index, nextMatchesByLetter));
+            setTraceHint(`✨「${activeChar}」完成！接著寫「${nextIncompleteSlot.char}」`);
           } else {
-            confetti({ particleCount: 50, spread: 65, origin: { y: 0.6 } });
+            confetti({ particleCount: 55, spread: 70, origin: { y: 0.6 } });
+            setStreak(s => s + 1);
             setEvalResult({
               score: 100,
               stars: 3,
               passed: true,
               feedback: isWordMode
                 ? `🎉 完成單字「${currentQ.wordStr}」四線三格描寫！`
-                : '🎉 字形描寫完成！建議筆順與正常替代順序都可以。'
+                : '🎉 字形描寫完成！標準與一筆連寫都完美通過！'
             });
           }
         } else {
+          soundEngine.brushChime(mergedMatches.length);
+          soundEngine.hapticPulse('normal');
           setActiveStrokeStep(getFirstUnmatchedStroke(activeLetterIdx, nextMatchesByLetter));
+          setTraceHint(
+            wholeCharCheck.hintFeedback ||
+            '寫得很棒！請繼續補上剩餘的螢光部件。'
+          );
         }
         return;
       }
 
-      setStrokes(prev => [...prev, currentStroke]);
+      setStrokes(prev => [...prev, finalizedStroke]);
     } else {
       setCurrentStroke(null);
     }
@@ -456,7 +511,8 @@ export const HandwritingGame = ({
     setCompletedLetterIndices(new Set());
     setTraceMatchesByLetter({});
     setTraceMatchHistory([]);
-    setTraceHint('筆順編號是建議順序；正常的替代順序也可以。');
+    letterStrokesRef.current = {};
+    setTraceHint('筆順編號僅供參考，一筆連寫（如 a、d、m）也能直接過關！');
     setEvalResult(null);
   };
 
@@ -467,12 +523,14 @@ export const HandwritingGame = ({
       setStrokes(prev => prev.slice(0, -1));
       if (playMode === 'tracing' && traceMatchHistory.length > 0) {
         const removedEntry = traceMatchHistory[traceMatchHistory.length - 1];
+        const prevArr = letterStrokesRef.current[removedEntry.letterIdx] || [];
+        if (prevArr.length > 0) {
+          letterStrokesRef.current[removedEntry.letterIdx] = prevArr.slice(0, -1);
+        }
         const nextHistory = traceMatchHistory.slice(0, -1);
         const rebuiltMatches = {};
         nextHistory.forEach(entry => {
-          rebuiltMatches[entry.letterIdx] = [
-            ...new Set([...(rebuiltMatches[entry.letterIdx] || []), ...entry.matchedIndices])
-          ].sort((a, b) => a - b);
+          rebuiltMatches[entry.letterIdx] = [...entry.matchedIndices].sort((a, b) => a - b);
         });
         const rebuiltCompleted = new Set();
         slotList.forEach(slot => {
@@ -509,9 +567,13 @@ export const HandwritingGame = ({
       setIsSubmitting(false);
       if (result.passed) {
         soundEngine.correct();
+        soundEngine.hapticPulse('normal');
+        setStreak(s => s + 1);
         confetti({ particleCount: 45, spread: 60, origin: { y: 0.6 } });
       } else {
         soundEngine.wrong();
+        soundEngine.hapticPulse('strong');
+        setStreak(0);
       }
       return;
     }
@@ -554,23 +616,26 @@ export const HandwritingGame = ({
         userStrokes: userLetterStrokes,
         isGuidedTracing: false
       });
-      letterScores.push({ char: s.char, score: res.score, passed: res.passed });
+      letterScores.push({ char: s.char, score: res.score, passed: res.passed, feedback: res.feedback });
       totalScore += res.score;
     });
 
-    const avgScore = Math.round(totalScore / slotList.length);
-    const passed = avgScore >= 60;
-    const stars = avgScore >= 80 ? 3 : (avgScore >= 60 ? 2 : 1);
+    const rawAvgScore = Math.round(totalScore / slotList.length);
+    const failedLetters = letterScores.filter(ls => !ls.passed);
+    const allLettersPassed = failedLetters.length === 0;
+    const avgScore = allLettersPassed ? rawAvgScore : Math.min(58, rawAvgScore);
+    const passed = allLettersPassed && avgScore >= 60;
+    const stars = !passed ? 1 : (avgScore >= 80 ? 3 : 2);
 
     const result = {
       score: avgScore,
       stars,
       passed,
-      feedback: avgScore >= 80
-        ? `太棒了！單字「${currentQ.wordStr}」四線三格默寫極為精準！`
-        : avgScore >= 60
-        ? `默寫良好！注意字母間距與四線三格位置，繼續加油！`
-        : `請參考標準四線三格基線，再試一次一定能成功！`,
+      feedback: passed
+        ? (avgScore >= 80
+          ? `太棒了！單字「${currentQ.wordStr}」四線三格默寫極為精準！`
+          : `默寫良好！注意字母間距與四線三格位置，繼續加油！`)
+        : (failedLetters[0]?.feedback || `請參考標準四線三格基線，補齊缺少筆畫再試一次！`),
       letterScores
     };
 
@@ -579,18 +644,57 @@ export const HandwritingGame = ({
 
     if (passed) {
       soundEngine.correct();
+      soundEngine.hapticPulse('normal');
+      setStreak(s => s + 1);
       confetti({ particleCount: 50, spread: 70, origin: { y: 0.6 } });
     } else {
       soundEngine.wrong();
+      soundEngine.hapticPulse('strong');
+      setStreak(0);
     }
+  };
+
+  // 切換玩法（描寫自學版 <-> 實戰默寫版）時強制重開整輪，徹底杜絕描紅分數混入正式排行榜
+  const resetRoundForMode = (nextMode) => {
+    soundEngine.click();
+    if (nextMode === playMode) return;
+    setPlayMode(nextMode);
+    setQIndex(0);
+    setActiveLetterIdx(0);
+    setCompletedLetterIndices(new Set());
+    setStrokes([]);
+    setCurrentStroke(null);
+    setActiveStrokeStep(0);
+    setTraceMatchesByLetter({});
+    setTraceMatchHistory([]);
+    letterStrokesRef.current = {};
+    setEvalResult(null);
+    setIsSubmitting(false);
+    setTotalScoreSum(0);
+    setScoredCount(0);
+    setPassedCount(0);
+    setStreak(0);
+    setHasUsedTracingInRound(false);
+    setSessionStartTime(Date.now());
+    setTraceHint(
+      nextMode === 'challenge'
+        ? '⚔️ 已切換至實戰默寫版並從第 1 題重新計分！'
+        : '筆順編號僅供參考，一筆連寫（如 a、d、m）也能直接過關！'
+    );
   };
 
   // 推進至下一題
   const handleNextStep = () => {
     soundEngine.click();
-    const scoreVal = evalResult?.score || 100;
+    const scoreVal = typeof evalResult?.score === 'number' ? evalResult.score : (playMode === 'tracing' ? 100 : 0);
+    if (playMode === 'tracing') {
+      setHasUsedTracingInRound(true);
+    }
     setTotalScoreSum(s => s + scoreVal);
     setScoredCount(c => c + 1);
+    if (evalResult?.passed !== false) {
+      setPassedCount(p => p + 1);
+    }
 
     const nextQIdx = qIndex + 1;
     if (nextQIdx < questions.length) {
@@ -600,6 +704,10 @@ export const HandwritingGame = ({
       setStrokes([]);
       setCurrentStroke(null);
       setActiveStrokeStep(0);
+      setTraceMatchesByLetter({});
+      setTraceMatchHistory([]);
+      letterStrokesRef.current = {};
+      setTraceHint('筆順編號僅供參考，一筆連寫（如 a、d、m）也能直接過關！');
       setEvalResult(null);
     } else {
       // 全數挑戰完成
@@ -615,7 +723,7 @@ export const HandwritingGame = ({
   if (isFinished) {
     const avgScore = scoredCount > 0 ? Math.round(totalScoreSum / scoredCount) : 100;
     const finalStars = avgScore >= 80 ? 3 : (avgScore >= 60 ? 2 : 1);
-    const isTracingMode = playMode === 'tracing';
+    const isTracingMode = playMode === 'tracing' || hasUsedTracingInRound;
 
     return (
       <div className="min-h-[75vh] flex items-center justify-center p-4 animate-fadeIn">
@@ -661,6 +769,7 @@ export const HandwritingGame = ({
                 gameMode="handwriting"
                 book={qualifyingBook || (studentGradeNum === 1 || studentGradeNum === 2 ? 'abc' : '1')}
                 score={avgScore}
+                correctCount={passedCount}
                 time={elapsedTime}
                 totalCount={questions.length}
                 rangeText={qualifyingBook ? `第 ${qualifyingBook} 冊` : (studentGradeNum === 1 ? '一年級大寫' : '二年級小寫')}
@@ -679,9 +788,16 @@ export const HandwritingGame = ({
                 setActiveLetterIdx(0);
                 setCompletedLetterIndices(new Set());
                 setStrokes([]);
+                setTraceMatchesByLetter({});
+                setTraceMatchHistory([]);
+                letterStrokesRef.current = {};
                 setEvalResult(null);
                 setTotalScoreSum(0);
                 setScoredCount(0);
+                setPassedCount(0);
+                setStreak(0);
+                setHasUsedTracingInRound(false);
+                setSessionStartTime(Date.now());
               }}
               className="w-full"
             >
@@ -698,6 +814,10 @@ export const HandwritingGame = ({
 
   return (
     <div
+      data-handwriting-mode={playMode}
+      data-handwriting-qindex={qIndex}
+      data-handwriting-scored={scoredCount}
+      data-handwriting-char={activeChar}
       className="min-h-[85vh] flex flex-col items-center justify-start p-2 sm:p-4 select-none touch-none"
       style={{
         touchAction: 'none',
@@ -721,11 +841,8 @@ export const HandwritingGame = ({
         <div className="flex bg-slate-200/80 dark:bg-slate-800/90 p-1 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-inner">
           <button
             type="button"
-            onClick={() => {
-              soundEngine.click();
-              setPlayMode('tracing');
-              handleClear();
-            }}
+            data-handwriting-mode-btn="tracing"
+            onClick={() => resetRoundForMode('tracing')}
             className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-1.5 cursor-pointer ${
               playMode === 'tracing'
                 ? 'bg-emerald-600 text-white shadow-md scale-[1.02]'
@@ -737,11 +854,8 @@ export const HandwritingGame = ({
           </button>
           <button
             type="button"
-            onClick={() => {
-              soundEngine.click();
-              setPlayMode('challenge');
-              handleClear();
-            }}
+            data-handwriting-mode-btn="challenge"
+            onClick={() => resetRoundForMode('challenge')}
             className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-1.5 cursor-pointer ${
               playMode === 'challenge'
                 ? 'bg-blue-600 text-white shadow-md scale-[1.02]'
@@ -756,7 +870,7 @@ export const HandwritingGame = ({
         {/* 朗讀發音按鈕 */}
         <button
           type="button"
-          onClick={() => speakEnglish(currentQ?.wordStr || activeChar)}
+          onClick={() => speakEnglish(currentQ?.wordStr || activeChar, { persona: 'standard_us' })}
           className="p-2 sm:p-2.5 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-300/40 hover:scale-105 active:scale-95 transition-transform shadow-sm cursor-pointer"
           title="播放標準英語發音"
         >
@@ -764,8 +878,23 @@ export const HandwritingGame = ({
         </button>
       </div>
 
+      {/* ── 進度條與題目提示資訊卡 ── */}
+      <div className="w-full max-w-4xl mb-2 flex items-center gap-2 px-1">
+        <div className="flex-1 h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden shadow-inner">
+          <div
+            className="h-full bg-gradient-to-r from-sky-400 via-blue-500 to-emerald-400 transition-all duration-500"
+            style={{ width: `${Math.round(((qIndex + (evalResult?.passed ? 1 : 0)) / Math.max(1, questions.length)) * 100)}%` }}
+          />
+        </div>
+        {streak >= 2 && (
+          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow animate-pulse shrink-0">
+            ✨ {streak} 連星
+          </span>
+        )}
+      </div>
+
       {/* ── 題目提示資訊卡 ── */}
-      <div className="w-full max-w-4xl mb-3 flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 rounded-2xl bg-white/70 dark:bg-slate-800/70 backdrop-blur-md border border-slate-200 dark:border-slate-700/80 shadow-sm">
+      <div className="w-full max-w-4xl mb-3 flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 rounded-2xl bg-white/75 dark:bg-slate-800/75 backdrop-blur-md border border-slate-200 dark:border-slate-700/80 shadow-sm">
         <div className="flex items-center gap-2">
           <span className="px-2.5 py-0.5 rounded-lg text-xs font-black bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-400/30">
             第 {qIndex + 1} / {questions.length} 題
@@ -777,6 +906,24 @@ export const HandwritingGame = ({
             ({currentQ?.zh})
           </span>
         </div>
+
+        {/* 描寫版建議筆順編號顯示切換 */}
+        {playMode === 'tracing' && (
+          <button
+            type="button"
+            onClick={() => {
+              soundEngine.click();
+              setShowOrderNumbers(v => !v);
+            }}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-black border transition-all cursor-pointer ${
+              showOrderNumbers
+                ? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-400/50'
+                : 'bg-slate-100 dark:bg-slate-700/70 text-slate-500 dark:text-slate-300 border-slate-300 dark:border-slate-600'
+            }`}
+          >
+            {showOrderNumbers ? '👁️ 顯示建議筆順' : '🙈 隱藏筆順編號'}
+          </button>
+        )}
 
         {/* 單字模式下的各字母分頁卡 (s - u - p - e - r - m - a - r - k - e - t) */}
         {isWordMode && (
@@ -926,8 +1073,8 @@ export const HandwritingGame = ({
                           opacity={isStrokeDone ? 0.75 : isCurrentStroke ? 0.45 : 0.22}
                         />
 
-                        {/* 筆順圓圈號碼標記 ①②③ (僅在目前活躍的字母上顯示，保持畫面純淨) */}
-                        {isLetterActive && (
+                        {/* 筆順圓圈號碼標記 ①②③ (可切換開關，僅在目前活躍的字母上顯示) */}
+                        {isLetterActive && showOrderNumbers && (
                           <>
                             <circle
                               cx={st.labelPos.x}
@@ -972,6 +1119,7 @@ export const HandwritingGame = ({
           {/* 2. HTML5 繪圖 Canvas (全自適應寬度，支援觸控與滑鼠防滑動手寫) */}
           <canvas
             ref={canvasRef}
+            data-handwriting-canvas="true"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}

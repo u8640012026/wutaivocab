@@ -79,13 +79,30 @@ export const generateMemoryAlphabetDeck = (pairCount = 8) => {
 };
 
 // ── 3. 看中選英 / 看英選中 / 聽力測驗：字母選擇題生成器 ──
-export const generateQuizAlphabetQuestions = (quizType = 'upper_to_lower', count = 20) => {
+export const generateQuizAlphabetQuestions = (quizType = 'upper_to_lower', count = 20, alphaMode = 'mixed') => {
   // quizType: 'upper_to_lower' (看大選小) | 'lower_to_upper' (看小選大) | 'listening' (聽音選字母)
+  const normalizedAlphaMode = ['upper', 'lower', 'mixed'].includes(alphaMode) ? alphaMode : 'mixed';
+  const safeCount = Math.max(1, Number(count) || 20);
+
+  let listeningLowerFlags = null;
+  if (quizType === 'listening') {
+    if (normalizedAlphaMode === 'upper') {
+      listeningLowerFlags = Array(safeCount).fill(false);
+    } else if (normalizedAlphaMode === 'lower') {
+      listeningLowerFlags = Array(safeCount).fill(true);
+    } else {
+      const startLower = Math.random() < 0.5;
+      listeningLowerFlags = Array.from({ length: safeCount }, (_, i) => (
+        i % 2 === 0 ? startLower : !startLower
+      ));
+    }
+  }
+
   const roots = [];
-  while (roots.length < count) {
+  while (roots.length < safeCount) {
     roots.push(...SHUFFLE(UPPERCASE_ALPHABET));
   }
-  const selectedRoots = roots.slice(0, count);
+  const selectedRoots = roots.slice(0, safeCount);
 
   return selectedRoots.map((root, index) => {
     const upper = root;
@@ -93,7 +110,7 @@ export const generateQuizAlphabetQuestions = (quizType = 'upper_to_lower', count
 
     let promptText = '';
     let targetDisplay = '';
-    let audioText = root;
+    const audioText = upper;
     let correctAnswer = '';
     let isTargetLower = false;
 
@@ -108,22 +125,25 @@ export const generateQuizAlphabetQuestions = (quizType = 'upper_to_lower', count
       correctAnswer = upper;
       isTargetLower = false;
     } else {
-      // listening
+      // listening：依 alphaMode 嚴格區分全大寫 / 全小寫 / 逐題純粹交替（單題絕不混寫）
       promptText = '請聆聽字母發音，選出正確的字母：';
       targetDisplay = '🎧';
-      audioText = root;
-      correctAnswer = Math.random() < 0.5 ? upper : lower;
-      isTargetLower = correctAnswer === lower;
+      isTargetLower = Boolean(listeningLowerFlags?.[index]);
+      correctAnswer = isTargetLower ? lower : upper;
     }
 
-    // 生成干擾項：優先挑選混淆字母，不足時補隨機字母
+    // 生成干擾項：優先挑選外型相近之混淆字母（嚴禁與正解撞字且保持同題大小寫一致）
     const distractors = [];
     const confusable = CONFUSABLE_PAIRS.find(p => p.u === upper);
-    if (confusable) {
-      distractors.push(isTargetLower ? confusable.l : confusable.u);
+    const confCand = confusable
+      ? (isTargetLower ? confusable.l : confusable.l.toUpperCase())
+      : null;
+    if (confCand && confCand !== correctAnswer && !distractors.includes(confCand)) {
+      distractors.push(confCand);
     }
 
-    const otherRoots = UPPERCASE_ALPHABET.filter(r => r !== upper && (!confusable || r !== confusable.u.toUpperCase()));
+    const excludeUpper = confCand ? confCand.toUpperCase() : null;
+    const otherRoots = UPPERCASE_ALPHABET.filter(r => r !== upper && r !== excludeUpper);
     const shuffledOthers = SHUFFLE(otherRoots);
 
     while (distractors.length < 3 && shuffledOthers.length > 0) {
@@ -145,12 +165,13 @@ export const generateQuizAlphabetQuestions = (quizType = 'upper_to_lower', count
     }));
 
     return {
-      id: `q_alpha_${quizType}_${index}`,
+      id: `q_alpha_${quizType}_${normalizedAlphaMode}_${index}`,
       type: quizType,
+      isLower: isTargetLower,
       prompt: promptText,
       target: targetDisplay,
-      audioText: audioText,
-      en: quizType === 'upper_to_lower' ? upper : lower,
+      audioText,
+      en: quizType === 'upper_to_lower' ? upper : (quizType === 'lower_to_upper' ? lower : correctAnswer),
       zh: `字母 ${upper} / ${lower}`,
       correctAnswer,
       options: shuffledOptions
@@ -159,36 +180,48 @@ export const generateQuizAlphabetQuestions = (quizType = 'upper_to_lower', count
 };
 
 // ── 4. 單字積木拼裝：字母序列連續拼裝題型生成器 ──
-// 規則：4~5 個連續字母，純全大寫或純全小寫，挖空 1~2 個字母，下方候選積木保持同大小寫
-export const generateSpellingAlphabetQuestion = (index = 0) => {
-  const isUpper = Math.random() < 0.5;
+// 規則：一年級 4 個連續字母挖 1 格；二年級 5 個連續字母挖 1~2 格；候選積木嚴格保持同題一致大小寫
+export const generateSpellingAlphabetQuestion = (index = 0, options = {}) => {
+  const {
+    alphaMode = 'mixed',
+    alphaGrade = 2,
+    startIndex = null,
+    forceUpper = null
+  } = options || {};
+
+  const gradeNum = Number(alphaGrade) === 1 ? 1 : 2;
+  const normalizedMode = ['upper', 'lower', 'mixed'].includes(alphaMode) ? alphaMode : 'mixed';
+  const isUpper = typeof forceUpper === 'boolean'
+    ? forceUpper
+    : normalizedMode === 'upper'
+    ? true
+    : normalizedMode === 'lower'
+    ? false
+    : index % 2 === 0;
+
   const alphabet = isUpper ? UPPERCASE_ALPHABET : LOWERCASE_ALPHABET;
-  const seqLength = Math.random() < 0.5 ? 4 : 5; // 4 或 5 個連續字母
+  const seqLength = gradeNum === 1 ? 4 : 5;
   const maxStart = 26 - seqLength;
-  const startIdx = Math.floor(Math.random() * (maxStart + 1));
+  const startIdx = Number.isInteger(startIndex)
+    ? Math.max(0, Math.min(maxStart, startIndex))
+    : Math.floor(Math.random() * (maxStart + 1));
   const sequenceChars = alphabet.slice(startIdx, startIdx + seqLength);
 
-  // 挖空 1 或 2 個空格 (長度 4 挖 1 個，長度 5 挖 1~2 個)
-  const blankCount = seqLength === 5 && Math.random() < 0.4 ? 2 : 1;
-  const blankIndices = [];
-  // 優先挖中間的字母，讓前後有提示，若挖2個則分開
+  // 一年級固定挖 1 格；二年級交錯挖 1 或 2 格
+  const blankCount = gradeNum === 1 ? 1 : (index % 2 === 0 ? 1 : 2);
   const possibleIndices = Array.from({ length: seqLength }, (_, i) => i);
-  const shuffledIndices = SHUFFLE(possibleIndices);
-  for (let i = 0; i < blankCount; i++) {
-    blankIndices.push(shuffledIndices[i]);
-  }
-  blankIndices.sort((a, b) => a - b);
+  const blankIndices = SHUFFLE(possibleIndices).slice(0, blankCount).sort((a, b) => a - b);
 
   const correctAnswers = blankIndices.map(bIdx => sequenceChars[bIdx]);
 
-  // 生成干擾積木 (嚴格保持與題幹相同的大小寫！)
+  // 生成干擾積木（嚴格保持與題幹相同的大小寫！）
   const otherAlphabet = alphabet.filter(c => !sequenceChars.includes(c));
-  const distractorCount = blankCount === 1 ? 3 : 2; // 候選總數維持 4 塊積木
+  const distractorCount = Math.max(2, 4 - blankCount); // 候選區維持 4 塊積木
   const distractors = SHUFFLE(otherAlphabet).slice(0, distractorCount);
 
   const candidateTiles = SHUFFLE([
-    ...correctAnswers.map((char, i) => ({ id: `tile_ans_${i}_${char}`, char, isAnswer: true })),
-    ...distractors.map((char, i) => ({ id: `tile_dist_${i}_${char}`, char, isAnswer: false }))
+    ...correctAnswers.map((char, i) => ({ id: `tile_ans_${index}_${i}_${char}`, char, isAnswer: true })),
+    ...distractors.map((char, i) => ({ id: `tile_dist_${index}_${i}_${char}`, char, isAnswer: false }))
   ]);
 
   // 構成槽位定義
@@ -203,7 +236,10 @@ export const generateSpellingAlphabetQuestion = (index = 0) => {
   });
 
   return {
-    id: `spell_alpha_${index}`,
+    id: `spell_alpha_g${gradeNum}_${isUpper ? 'u' : 'l'}_${startIdx}_${index}`,
+    isAlphabetQuestion: true,
+    alphaGrade: gradeNum,
+    alphaMode: normalizedMode,
     isUpper,
     seqLength,
     blankCount,
@@ -211,9 +247,47 @@ export const generateSpellingAlphabetQuestion = (index = 0) => {
     slots,
     candidateTiles,
     targetWord: sequenceChars.join(''),
-    meaningZh: isUpper ? '大寫字母順序拼裝' : '小寫字母順序拼裝',
-    promptZh: `請依英文字母表的順序，拖曳或點選積木補齊空格：`
+    audioText: sequenceChars.join(', '),
+    meaningZh: isUpper ? '大寫字母連續填空' : '小寫字母連續填空',
+    promptZh: '請依英文字母表的順序，點選或拖曳積木補齊空格：'
   };
+};
+
+export const generateSpellingAlphabetRound = ({
+  count = 10,
+  alphaMode = 'upper',
+  alphaGrade = 1
+} = {}) => {
+  const gradeNum = Number(alphaGrade) === 2 ? 2 : 1;
+  const normalizedMode = ['upper', 'lower', 'mixed'].includes(alphaMode)
+    ? alphaMode
+    : (gradeNum === 2 ? 'lower' : 'upper');
+  const seqLength = gradeNum === 1 ? 4 : 5;
+  const maxWindows = 26 - seqLength + 1;
+  const targetCount = Math.min(Math.max(1, Number(count) || 10), maxWindows);
+
+  const startPool = SHUFFLE(Array.from({ length: maxWindows }, (_, i) => i)).slice(0, targetCount);
+
+  let upperFlags;
+  if (normalizedMode === 'upper') {
+    upperFlags = Array(targetCount).fill(true);
+  } else if (normalizedMode === 'lower') {
+    upperFlags = Array(targetCount).fill(false);
+  } else {
+    const startUpper = Math.random() < 0.5;
+    upperFlags = Array.from({ length: targetCount }, (_, i) => (
+      i % 2 === 0 ? startUpper : !startUpper
+    ));
+  }
+
+  return startPool.map((startIndex, idx) => (
+    generateSpellingAlphabetQuestion(idx, {
+      alphaMode: normalizedMode,
+      alphaGrade: gradeNum,
+      startIndex,
+      forceUpper: upperFlags[idx]
+    })
+  ));
 };
 
 // ── 5. 神祕密室逃脫：四大字母古代神石鎖題型生成器 ──

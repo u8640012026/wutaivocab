@@ -20,7 +20,7 @@ import {
   Sparkles, Keyboard, Swords, ChevronRight, ChevronLeft, ChevronDown, Compass, Flame,
   Coins, Award, Users, Crown, Zap, School, KeyRound, Eye, Headphones,
   PenTool, Mic, Volume2, VolumeX, Globe, Sun, Moon, User, CheckCircle2,
-  X, Maximize2, Star, ShieldCheck
+  X, Maximize2, Star, ShieldCheck, Layers
 } from 'lucide-react';
 
 // ── 年級分流設定 (保留 '一年級' 等標準文字供全自動測試點擊) ──
@@ -172,15 +172,16 @@ export const GAME_KING_CATEGORIES = [
   },
   {
     id: 'quiz',
-    title: '經典測驗',
+    title: '詞句試煉',
     icon: Keyboard,
     colorClass: 'border-sky-400 text-sky-300 bg-sky-500/15',
     activeClass: 'ring-2 ring-sky-400 border-sky-300 bg-sky-500/35 text-white shadow-sky-500/30 shadow-md',
     games: [
-      { id: 'quiz', name: '中英字義速辨', icon: Keyboard, unit: '分', modeKeys: ['quiz-choice', 'quiz-zh-en', 'quiz-en-zh', 'quiz-hard'] },
-      { id: 'listening', name: '聽力三合一', icon: Volume2, unit: '分', modeKeys: ['quiz-listening', 'quiz-listening-word', 'quiz-listening-sentence', 'quiz-listening-qa', 'listening_lab'] },
+      { id: 'sentence', name: '句型積木工坊', icon: Layers, unit: '分', modeKeys: ['sentence', 'sentence-abc'] },
+      { id: 'listening', name: '英語聽力試煉', icon: Volume2, unit: '分', modeKeys: ['quiz-listening', 'quiz-listening-word', 'quiz-listening-sentence', 'quiz-listening-qa', 'listening_lab'] },
       { id: 'spelling', name: '單字積木拼裝', icon: Puzzle, unit: '分', modeKeys: ['spelling', 'spelling-abc'] },
-      { id: 'handwriting', name: '神筆筆順書寫', icon: PenTool, unit: '分', modeKeys: ['handwriting', 'handwriting-abc'] }
+      { id: 'handwriting', name: '神筆筆順書寫', icon: PenTool, unit: '分', modeKeys: ['handwriting', 'handwriting-abc'] },
+      { id: 'quiz', name: '中英字義速辨 (歷史)', icon: Keyboard, unit: '分', modeKeys: ['quiz-choice', 'quiz-zh-en', 'quiz-en-zh', 'quiz-hard'] }
     ]
   },
   {
@@ -629,11 +630,11 @@ export const LeaderboardView = ({ onBack, onOpenTeacherHub }) => {
       return { ...r, nickname: parsed.nickname, badge: parsed.badge, full: parsed.full };
     });
 
-    // 4. 遊戲之王綜合榜：14 款單字遊戲綜合加總加權
+    // 4. 遊戲之王綜合榜：單字館與詞句遊戲綜合加總加權
     const arcadeTrackIds = [
       'escape', 'spotter', 'maze', 'memory',
       'mole', 'swipe', 'meteor', 'snake',
-      'quiz', 'listening', 'spelling', 'handwriting',
+      'sentence', 'listening', 'spelling', 'handwriting', 'quiz',
       'battle'
     ];
     const gameKingList = computeConsolidatedRank(arcadeTrackIds);
@@ -1327,7 +1328,7 @@ export const LeaderboardView = ({ onBack, onOpenTeacherHub }) => {
                       {/* ── 領域 D: 遊戲之王 (四大分類 ＋ 各小遊戲 Top 50) ── */}
                       {panel.id === 'game_king' && (
                         <div className="flex-1 flex flex-col overflow-hidden">
-                          {/* 四大領域切換膠囊 (探索解謎、極速反應、經典測驗、多人連線) */}
+                          {/* 四大領域切換膠囊 (探索解謎、極速反應、詞句試煉、多人連線) */}
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2 shrink-0">
                             {GAME_KING_CATEGORIES.map(cat => {
                               const isCatActive = activeGameCategory === cat.id;

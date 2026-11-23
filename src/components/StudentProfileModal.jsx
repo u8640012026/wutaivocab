@@ -10,6 +10,7 @@ import {
   formatStudentId,
   formatStudentDisplayName,
   formatStudentBadge,
+  doesLeaderboardEntryMatchStudent,
   getRandomFunNickname,
   pad2
 } from '../utils/studentIdHelper';
@@ -138,9 +139,6 @@ export const StudentProfileModal = () => {
       setIsLoadingHonors(true);
       try {
         const curWeek = getWeekNumber();
-        const studentBadge = formatStudentBadge(currentStudent, 'zh');
-        const studentNick = currentStudent.nickname;
-        const studentId = currentStudent.student_id;
 
         // 1. 全校冒險總積分榜永遠置頂
         const modesToCheck = [
@@ -159,6 +157,7 @@ export const StudentProfileModal = () => {
           snake: '🐍',
           quiz: '🎯',
           listening: '🎧',
+          sentence: '🧱',
           spelling: '🧩',
           handwriting: '✍️',
           battle: '⚔️',
@@ -169,10 +168,10 @@ export const StudentProfileModal = () => {
         if (Array.isArray(CONSOLIDATED_GAME_MODES)) {
           CONSOLIDATED_GAME_MODES.forEach((gm) => {
             if (!gm.id || gm.id === 'all' || gm.id === 'monopoly') return;
-            const queryKey = gm.modeKeys?.[0] || gm.id;
+            const queryMode = Array.isArray(gm.modeKeys) && gm.modeKeys.length > 0 ? gm.modeKeys : [gm.id];
             const iconChar = iconMap[gm.id] || '🏅';
             modesToCheck.push({
-              mode: queryKey,
+              mode: queryMode,
               title: `${gm.label}榮譽榜`,
               icon: iconChar
             });
@@ -185,11 +184,7 @@ export const StudentProfileModal = () => {
             try {
               const res = await fetchLeaderboard(curWeek, item.mode, 'all', 10);
               if (res && res.length > 0) {
-                const rankIdx = res.findIndex(r => 
-                  r.name?.includes(studentId) || 
-                  r.name?.includes(studentNick) ||
-                  (studentBadge && r.name?.includes(studentBadge))
-                );
+                const rankIdx = res.findIndex(r => doesLeaderboardEntryMatchStudent(r, currentStudent));
                 if (rankIdx !== -1 && rankIdx < 3) {
                   return {
                     rank: rankIdx + 1,

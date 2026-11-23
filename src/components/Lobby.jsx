@@ -6,6 +6,11 @@ import { formatStudentBadge } from '../utils/studentIdHelper';
 import { soundEngine } from '../services/audio';
 import { PowerUpCodexModal } from '../games/memory/PowerUpCodexModal';
 import {
+  getAvailableSentences,
+  getAvailableSentenceCount,
+  parseSelectedSentenceScope
+} from '../data/sentencePatterns';
+import {
   Home, Trophy, User, ArrowLeft, ArrowRight, Play,
   KeyRound, Eye, Compass, Puzzle, Flame, Rocket, PenTool,
   Sparkles, Keyboard, BookOpen, Volume2, Swords,
@@ -79,6 +84,7 @@ const GAME_SPOTLIGHT_ART = {
   maze: '/assets/screenshots/screenshot_maze.webp',
   swipe: '/assets/screenshots/screenshot_swipe.webp',
   memory: '/assets/memory/god_lightning.jpg',
+  sentence: '/assets/lobby/theme_quiz.jpg',
   spelling: '/assets/screenshots/screenshot_spelling.webp',
   'quiz-choice': '/assets/lobby/theme_quiz.jpg',
   handwriting: '/assets/lobby/theme_quiz.jpg',
@@ -232,6 +238,10 @@ export const Lobby = ({
   const [swipeMode, setSwipeMode] = useState(() => localStorage.getItem('wutai_swipe_mode') || 'vocab');
   const [quizChoiceDirection, setQuizChoiceDirection] = useState(() => localStorage.getItem('wutai_quiz_choice_dir') || 'mixed');
   const [quizListeningSubMode, setQuizListeningSubMode] = useState(() => localStorage.getItem('wutai_quiz_listening_sub') || 'word');
+  const [sentenceLevel, setSentenceLevel] = useState(() => {
+    const saved = localStorage.getItem('wutai_sentence_level');
+    return saved === 'lv3' || saved === 'lv2' ? saved : 'lv1';
+  });
 
   // ── 記住我的選擇核選狀態 ──
   const [rememberSelection, setRememberSelection] = useState(() => {
@@ -342,9 +352,9 @@ export const Lobby = ({
     },
     {
       id: 'quiz',
-      title: '經典測驗',
-      enTitle: 'CLASSIC ARENA',
-      icon: Keyboard,
+      title: '詞句試煉',
+      enTitle: 'WORD & SENTENCE TRIALS',
+      icon: Layers,
       bgImage: POSTER_QUIZ,
       tag: '4 款挑戰',
       colorName: 'blue',
@@ -354,12 +364,12 @@ export const Lobby = ({
       activeRingClass: 'ring-blue-400/60 border-blue-300',
       tagBadge: 'bg-blue-950/80 text-blue-300 border-blue-400/50',
       plaqueBg: 'bg-blue-950/75 border-blue-400/40 shadow-blue-950/50',
-      summary: '星空書閣 • 智慧結晶 • 全能評測',
+      summary: '星空書閣 • 積木造句 • 神筆聽寫',
       isDirectJump: false,
       games: [
-        { id: 'quiz-choice', name: '中英字義速辨', iconComp: Keyboard, iconColor: 'text-sky-400', iconBg: 'bg-sky-500/25 border-sky-400/40', badge: '雙向速測' },
-        { id: 'quiz-listening', name: '英語聽力', iconComp: Volume2, iconColor: 'text-cyan-400', iconBg: 'bg-cyan-500/25 border-cyan-400/40', badge: '聽音辨字' },
+        { id: 'sentence', name: '句型積木工坊', iconComp: Layers, iconColor: 'text-sky-400', iconBg: 'bg-sky-500/25 border-sky-400/40', badge: '句型重組' },
         { id: 'spelling', name: '單字積木拼裝', iconComp: Puzzle, iconColor: 'text-amber-400', iconBg: 'bg-amber-500/25 border-amber-400/40', badge: '積木拼字' },
+        { id: 'quiz-listening', name: '英語聽力試煉', iconComp: Volume2, iconColor: 'text-cyan-400', iconBg: 'bg-cyan-500/25 border-cyan-400/40', badge: '聲波搶答' },
         { id: 'handwriting', name: '神筆筆順書寫', iconComp: PenTool, iconColor: 'text-emerald-400', iconBg: 'bg-emerald-500/25 border-emerald-400/40', badge: '四線三格' }
       ]
     },
@@ -463,6 +473,7 @@ export const Lobby = ({
         setSettings(prev => ({
           ...prev,
           alphaMode: alphaMode,
+          alphaGrade: currentOptionData.grade,
           selectedUnits: ['abc']
         }));
       } else {
@@ -475,6 +486,7 @@ export const Lobby = ({
           ...prev,
           selectedBook: bKey,
           alphaMode: null,
+          alphaGrade: null,
           selectedUnits: allUnits
         }));
       }
@@ -582,12 +594,35 @@ export const Lobby = ({
     });
   };
 
-  // ── 已選單字總數 ──
+  // ── 已選單字總數 & 句型實際可玩題數 ──
   const selectedWordsCount = useMemo(() => {
     const sel = settings.selectedUnits || [];
     if (sel.includes('abc')) return 26;
     return words.filter(w => sel.includes(`${w.book}-${w.lesson}`)).length;
   }, [words, settings?.selectedUnits]);
+
+  const sentenceScopeInfo = useMemo(() => {
+    return parseSelectedSentenceScope(settings?.selectedUnits || [], qualifyingBook);
+  }, [settings?.selectedUnits, qualifyingBook]);
+
+  const availableSentenceCount = useMemo(() => {
+    return getAvailableSentenceCount({
+      selectedUnits: settings?.selectedUnits || [],
+      qualifyingBook,
+      level: sentenceLevel,
+      alphaGrade: currentOptionData?.grade || 1
+    });
+  }, [settings?.selectedUnits, qualifyingBook, sentenceLevel, currentOptionData?.grade]);
+
+  const unlockedCrossUnitCount = useMemo(() => {
+    if (selectedGame !== 'sentence') return 0;
+    return getAvailableSentences({
+      selectedUnits: settings?.selectedUnits || [],
+      qualifyingBook,
+      includeCrossUnit: true,
+      level: sentenceLevel
+    }).filter(q => q.isCrossUnit).length;
+  }, [selectedGame, settings?.selectedUnits, qualifyingBook, sentenceLevel]);
 
   // ── 點擊外層欄位 ──
   const handleColumnClick = (col) => {
@@ -632,6 +667,7 @@ export const Lobby = ({
         ...prev,
         selectedBook: bKey,
         alphaMode: currentOptionData.isAlpha ? alphaMode : null,
+        alphaGrade: currentOptionData.isAlpha ? currentOptionData.grade : null,
         selectedUnits: defaultUnits
       }));
     } else {
@@ -641,7 +677,15 @@ export const Lobby = ({
         setSettings(prev => ({
           ...prev,
           alphaMode: currentOptionData.isAlpha ? alphaMode : null,
+          alphaGrade: currentOptionData.isAlpha ? currentOptionData.grade : null,
           selectedUnits: defaultUnits
+        }));
+      } else if (currentOptionData.isAlpha) {
+        setSettings(prev => ({
+          ...prev,
+          alphaMode,
+          alphaGrade: currentOptionData.grade,
+          selectedUnits: ['abc']
         }));
       }
     }
@@ -671,6 +715,7 @@ export const Lobby = ({
       ...prev,
       selectedBook: bKey,
       alphaMode: optData.isAlpha ? nextAlphaMode : null,
+      alphaGrade: optData.isAlpha ? optData.grade : null,
       selectedUnits: newBookUnits
     }));
   };
@@ -679,7 +724,11 @@ export const Lobby = ({
   const handleSelectAlphaMode = (mode) => {
     soundEngine.click();
     setAlphaMode(mode);
-    setSettings(prev => ({ ...prev, alphaMode: mode }));
+    setSettings(prev => ({
+      ...prev,
+      alphaMode: mode,
+      alphaGrade: currentOptionData.isAlpha ? currentOptionData.grade : null
+    }));
   };
 
   // ── 點選通用單元 ──
@@ -741,6 +790,33 @@ export const Lobby = ({
         localStorage.setItem('wutai_swipe_mode', swipeMode);
       } catch (e) {}
       onNavigate('swipe');
+    } else if (selectedGame === 'sentence') {
+      const isAlphaSentence = Boolean(currentOptionData?.isAlpha || (settings.selectedUnits || []).includes('abc'));
+      if (isAlphaSentence) {
+        const launchAlphaGrade = currentOptionData?.grade === 2 ? 2 : 1;
+        try {
+          localStorage.setItem('wutai_sentence_units', JSON.stringify(['abc']));
+          localStorage.setItem('wutai_sentence_alpha_mode', alphaMode);
+          localStorage.setItem('wutai_sentence_alpha_grade', String(launchAlphaGrade));
+        } catch (e) {}
+        onNavigate('sentence', {
+          units: 'abc',
+          alphaMode,
+          alphaGrade: launchAlphaGrade
+        });
+      } else {
+        const launchUnits = (settings.selectedUnits || []).length > 0
+          ? settings.selectedUnits
+          : [`${currentOptionData?.book || '1'}-all`];
+        try {
+          localStorage.setItem('wutai_sentence_level', sentenceLevel);
+          localStorage.setItem('wutai_sentence_units', JSON.stringify(launchUnits));
+        } catch (e) {}
+        onNavigate('sentence', {
+          units: launchUnits.join(','),
+          level: sentenceLevel
+        });
+      }
     } else if (selectedGame === 'quiz-choice') {
       try {
         localStorage.setItem('wutai_quiz_choice_dir', quizChoiceDirection);
@@ -1563,6 +1639,13 @@ export const Lobby = ({
                       <BookOpen className="w-4 h-4 text-stone-950" />
                       <span>🏛️ 查看 8 大希臘眾神圖鑑 (3D 輪轉)</span>
                     </button>
+                  ) : selectedGame === 'sentence' ? (
+                    <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-bold flex items-center gap-1.5 shadow ${
+                      isDark ? 'bg-sky-500/20 text-sky-300 border-sky-400/40' : 'bg-sky-50 text-sky-800 border-sky-300'
+                    }`}>
+                      <Trophy className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
+                      <span>已全面開放：一～二年級 abc ＋ 第 1～8 冊（支援英雄榜＆八冊秘典）</span>
+                    </span>
                   ) : (
                     /* 當前上榜資質標牌 */
                     <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-bold flex items-center gap-1.5 shadow ${
@@ -1810,7 +1893,11 @@ export const Lobby = ({
                           <span>3. 目前已選出征範圍 (點擊下方四碼膠囊可移除)：</span>
                         </span>
                         <span className={`text-[10px] font-mono font-bold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-                          共選取 {(settings.selectedUnits || []).length} 個單元 • 合計 {selectedWordsCount} 字
+                          {selectedGame === 'sentence'
+                            ? (currentOptionData.isAlpha
+                              ? `低年級連續 ${currentOptionData.grade === 2 ? 5 : 3} 字母順序 • 共 10 題`
+                              : `共選取 ${(settings.selectedUnits || []).length} 個單元 • 實際可玩句型 ${availableSentenceCount} 題`)
+                            : `共選取 ${(settings.selectedUnits || []).length} 個單元 • 合計 ${selectedWordsCount} 字`}
                         </span>
                       </div>
 
@@ -1855,7 +1942,7 @@ export const Lobby = ({
                     </div>
 
                     {/* ═══ 【第四層：玩法風格微調 (已預選推薦，告別遊戲內二次彈窗)】 ═══ */}
-                    {(selectedGame === 'snake' || selectedGame === 'swipe' || selectedGame === 'quiz-choice' || selectedGame === 'quiz-listening' || selectedGame === 'escape') && (
+                    {(selectedGame === 'snake' || selectedGame === 'swipe' || selectedGame === 'sentence' || selectedGame === 'quiz-choice' || selectedGame === 'quiz-listening' || selectedGame === 'escape') && (
                       <div className={`w-full shrink-0 flex flex-wrap items-center justify-between gap-1.5 px-2.5 py-1 rounded-xl border backdrop-blur-md animate-fadeIn ${
                         isDark ? 'bg-amber-950/40 border-amber-500/30 text-amber-200' : 'bg-amber-50/90 border-amber-300/80 text-amber-900'
                       }`}>
@@ -1865,6 +1952,56 @@ export const Lobby = ({
                         </div>
                         
                         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                          {selectedGame === 'sentence' && (
+                            currentOptionData.isAlpha ? (
+                              <span
+                                data-lobby-alpha-sequence-pill="true"
+                                className={`px-2.5 py-0.5 rounded-lg text-[11px] font-black border ${
+                                  isDark
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40'
+                                    : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                }`}
+                              >
+                                🔤 {currentOptionData.grade === 2 ? '二年級：連續 5 字母順序排列' : '一年級：連續 3 字母順序排列'}（免選難度）
+                              </span>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => { soundEngine.click(); setSentenceLevel('lv1'); }}
+                                  className={`px-2 py-0.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                                    sentenceLevel === 'lv1'
+                                      ? 'bg-sky-500 text-white shadow-sm font-extrabold ring-1 ring-sky-300'
+                                      : isDark ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-white text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  ⭐ Lv.1 基礎重組
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { soundEngine.click(); setSentenceLevel('lv2'); }}
+                                  className={`px-2 py-0.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                                    sentenceLevel === 'lv2'
+                                      ? 'bg-rose-500 text-white shadow-sm font-extrabold ring-1 ring-rose-300'
+                                      : isDark ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-white text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  🔥 Lv.2 干擾陷阱
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { soundEngine.click(); setSentenceLevel('lv3'); }}
+                                  className={`px-2 py-0.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                                    sentenceLevel === 'lv3'
+                                      ? 'bg-violet-500 text-white shadow-sm font-extrabold ring-1 ring-violet-300'
+                                      : isDark ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-white text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  🧠 Lv.3 情境挑戰
+                                </button>
+                              </>
+                            )
+                          )}
                           {selectedGame === 'escape' && (
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-[10px] font-bold text-emerald-500 dark:text-emerald-300">四大秘境：</span>
@@ -2051,6 +2188,36 @@ export const Lobby = ({
                       <span className="text-amber-500 dark:text-amber-300 font-black">
                         {currentOptionData.label} (全冊 3D 紙雕尋寶)
                       </span>
+                    ) : selectedGame === 'sentence' ? (
+                      currentOptionData.isAlpha ? (
+                        <span className="text-emerald-600 dark:text-emerald-300 font-black">
+                          連續 {currentOptionData.grade === 2 ? 5 : 3} 字母順序排列（{alphaMode === 'upper' ? '全大寫' : alphaMode === 'lower' ? '全小寫' : '純大／純小輪流'}）• 10 題 • 支援英雄榜與八冊秘典
+                        </span>
+                      ) : availableSentenceCount > 0 ? (
+                        <span className="text-sky-500 dark:text-sky-300 font-black">
+                          實際可玩 {availableSentenceCount} 題句型
+                          {unlockedCrossUnitCount > 0 ? `（含 U4 解鎖之 ${unlockedCrossUnitCount} 題跨單元綜合句）` : ''}
+                          {sentenceScopeInfo.unsupportedBooks?.size > 0 ? ` • 已略過未收錄之第 ${Array.from(sentenceScopeInfo.unsupportedBooks).join('、')} 冊` : ''}
+                          {sentenceScopeInfo.unsupportedUnits?.size > 0 ? ` • 已略過無對應單元：${Array.from(sentenceScopeInfo.unsupportedUnits).join('、')}` : ''}
+                          {sentenceScopeInfo.skippedAbc ? ' • 字母與課本分開練習，已略過字母範圍' : ''}
+                          {' '}• 單冊雙單元以上即可衝榜與點亮八星
+                        </span>
+                      ) : (
+                        <span className="text-amber-500 dark:text-amber-300 font-black flex items-center gap-1.5 flex-wrap">
+                          <span>
+                            {sentenceScopeInfo.hasUnsupportedOnly
+                              ? `🚧 所選「${Array.from(sentenceScopeInfo.unsupportedBooks).map(b => `第 ${b} 冊`).join('、')}」尚未收錄句型，已全面開放低年級與第 1～8 冊`
+                              : '請選一年級/二年級或第 1～8 冊任一單元試玩句型'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectBookOption('b1')}
+                            className="px-2 py-0.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-white text-[11px] font-black cursor-pointer"
+                          >
+                            🚀 一鍵選第 1 冊
+                          </button>
+                        </span>
+                      )
                     ) : (settings.selectedUnits || []).length > 0 ? (
                       <span className="text-amber-500 dark:text-amber-300 font-black">
                         {currentOptionData.isAlpha ? '26 字母全套' : `${(settings.selectedUnits || []).length} 個單元 (${selectedWordsCount} 字)`}
@@ -2062,7 +2229,7 @@ export const Lobby = ({
                       </span>
                     )}
 
-                    {(isWholeBookOnlyGame || (settings.selectedUnits || []).length > 0) && (
+                    {selectedGame !== 'sentence' && (isWholeBookOnlyGame || (settings.selectedUnits || []).length > 0) && (
                       <span className="text-emerald-600 dark:text-emerald-400 font-black hidden sm:inline ml-1">
                         • 英雄榜榮譽資格已啟用
                       </span>

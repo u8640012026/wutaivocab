@@ -21,7 +21,7 @@ const DICTIONARY = {
     vocabModuleTitle: '英語單字冒險館',
     vocabLobbyTitle: '霧臺國小 英語單字冒險館',
     vocabModuleBadge: '課本題庫・多人對戰・趣味遊戲',
-    vocabModuleDesc: '收錄教育部教材與任課教師專區 600+ 單字！包含多人連線競技擂台、隕石防衛、貪食蛇、拖曳拼字、記憶翻牌與四大經典測驗。',
+    vocabModuleDesc: '收錄教育部教材與任課教師專區 600+ 單字！包含多人連線競技擂台、隕石防衛、貪食蛇、記憶翻牌與詞句試煉（句型積木、聽力、拼字、神筆）。',
     vocabModuleEnter: '進入單字冒險',
     phonicsModuleTitle: '自然發音探索館',
     phonicsModuleBadge: '8大規則卡池・CVC拼讀・聽力評量',
@@ -60,7 +60,7 @@ const DICTIONARY = {
     rankHint: '需選取同冊且超過 20 字，或包含 2 個以上單元，即可登錄榜單。',
     secSolo: '🚀 單人冒險挑戰',
     secMulti: '⚔️ 多人連線競技',
-    secClassic: '📝 經典學習測驗',
+    secClassic: '✨ 詞句試煉工坊',
 
     // 遊戲標題與描述
     meteorTitle: '隕石防衛戰',

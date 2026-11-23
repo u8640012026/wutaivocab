@@ -17,6 +17,8 @@ export const HonorSubmissionCard = ({
   book,
   qualifyingBook,
   score = 0,
+  correctCount,
+  practiceOnly = false,
   time = 0,
   totalCount = 20,
   rangeText = '',
@@ -25,7 +27,7 @@ export const HonorSubmissionCard = ({
 }) => {
   const { t } = useI18n();
   const { currentStudent, isLoggedIn, addCoins, openModal, coins } = useStudent();
-  const [status, setStatus] = useState('checking'); // 'checking' | 'not_qualifying_book' | 'not_top50' | 'qualified' | 'submitting' | 'submitted'
+  const [status, setStatus] = useState(practiceOnly ? 'practice_only' : 'checking'); // 'checking' | 'practice_only' | 'not_qualifying_book' | 'not_top50' | 'qualified' | 'submitting' | 'submitted'
   const [playerName, setPlayerName] = useState(() => {
     return localStorage.getItem('wutai_player_name') || '';
   });
@@ -50,7 +52,11 @@ export const HonorSubmissionCard = ({
 
   // ── 金幣經濟結算與防刷防作弊機制 ──
   useEffect(() => {
-    if (status === 'checking') return;
+    if (practiceOnly) {
+      setAwardedInfo({ delta: 0, reason: '試玩／練習模式不計入排行榜或金幣。', type: 'practice_only' });
+      return;
+    }
+    if (status === 'checking' || status === 'practice_only') return;
 
     // 防刷門檻 (Anti-exploit Gate)：答題數 >= 5、總題數 >= 10，或挑戰時間 >= 20 秒，或密室逃脫通關
     const isLegitimateSession = totalCount >= 10 || score >= 5 || time >= 20 || actualMode === 'escape';
@@ -93,25 +99,31 @@ export const HonorSubmissionCard = ({
       hasAwardedCoinsRef.current = true;
       addCoins(coinDelta);
     }
-  }, [status, effectiveBook, totalCount, score, time, currentStudent, isLoggedIn, addCoins, isAlphabet, mode]);
+  }, [practiceOnly, status, effectiveBook, totalCount, score, time, currentStudent, isLoggedIn, addCoins, isAlphabet, mode]);
 
   // 當學生在結算卡片點擊「登入」後立即補發金幣
   useEffect(() => {
+    if (practiceOnly) return;
     if (isLoggedIn && awardedInfo.delta > 0 && !hasAwardedCoinsRef.current) {
       hasAwardedCoinsRef.current = true;
       addCoins(awardedInfo.delta);
     }
-  }, [isLoggedIn, awardedInfo.delta, addCoins]);
+  }, [practiceOnly, isLoggedIn, awardedInfo.delta, addCoins]);
   const [grimoireNotice, setGrimoireNotice] = useState(null);
   const hasRecordedGrimoireStarRef = useRef(false);
 
-  // 答對率計算
-  const accuracy = totalCount > 0 ? Math.min(100, Math.round((score / totalCount) * 100)) : 100;
+  // 首答正確題數與答對率計算（與局內連擊/速度加分徹底分離，杜絕答對題數 > 總題數）
+  const rawCorrect = typeof correctCount === 'number' ? correctCount : score;
+  const effectiveCorrectCount = totalCount > 0
+    ? Math.min(totalCount, Math.max(0, Math.round(rawCorrect)))
+    : Math.max(0, Math.round(rawCorrect));
+  const accuracy = totalCount > 0 ? Math.min(100, Math.round((effectiveCorrectCount / totalCount) * 100)) : 100;
   const level = getAccuracyLevel(accuracy);
 
   // ── 神山八冊秘典典藏館進度連動（點亮星星與書籍完成度） ──
   useEffect(() => {
-    if (status === 'checking' || hasRecordedGrimoireStarRef.current) return;
+    if (practiceOnly) return;
+    if (status === 'checking' || status === 'practice_only' || hasRecordedGrimoireStarRef.current) return;
 
     const targetBook = (effectiveBook && effectiveBook !== 'abc')
       ? String(effectiveBook)
@@ -132,11 +144,16 @@ export const HonorSubmissionCard = ({
         });
       }
     }
-  }, [status, actualMode, effectiveBook, accuracy, currentStudent, isAlphabet]);
+  }, [practiceOnly, status, actualMode, effectiveBook, accuracy, currentStudent, isAlphabet]);
 
 
   useEffect(() => {
     let isCancelled = false;
+
+    if (practiceOnly) {
+      setStatus('practice_only');
+      return;
+    }
 
     // 1. 若未滿足單冊單元範圍門檻 (跨多冊或題數不足)，但字母類遊戲不受單冊冊數限制！
     if (!effectiveBook && !isAlphabet) {
@@ -171,10 +188,11 @@ export const HonorSubmissionCard = ({
     return () => {
       isCancelled = true;
     };
-  }, [actualMode, effectiveBook, score, time, isAlphabet]);
+  }, [practiceOnly, actualMode, effectiveBook, score, time, isAlphabet]);
 
   // ── 智慧自動上榜防呆機制：若學生已登入座號，突破 Top 50 時自動背景登錄，杜絕忘按送出漏失 ──
   useEffect(() => {
+    if (practiceOnly) return;
     if (status === 'qualified' && isLoggedIn && !hasSubmittedRef.current) {
       const autoName = (formatStudentDisplayName(currentStudent) || playerName || '').trim();
       if (autoName) {
@@ -289,6 +307,16 @@ export const HonorSubmissionCard = ({
       </div>
 
       {/* ── 下部：英雄榜上榜狀態與身分確認 (緊湊防呆一頁式) ── */}
+      {/* 狀況 0：試玩 / 練習模式 (絕不寫入排行榜或發放金幣) */}
+      {status === 'practice_only' && (
+        <div className="p-2.5 rounded-xl bg-sky-50/90 dark:bg-sky-950/35 border border-sky-200 dark:border-sky-800/70 text-left">
+          <p className="text-[11px] font-bold text-sky-700 dark:text-sky-300 flex items-center gap-1.5">
+            <span>🌱</span>
+            <span>目前為自主試玩／練習模式（不計入排行榜與金幣，可隨時列印成績單留念）。</span>
+          </p>
+        </div>
+      )}
+
       {/* 狀況 1：未選取符合排行榜門檻的範圍 */}
       {status === 'not_qualifying_book' && (
         <div className="p-2.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-left">
@@ -426,7 +454,7 @@ export const HonorSubmissionCard = ({
         studentName={playerName || formatStudentDisplayName(currentStudent) || '優秀學生'}
         rangeText={effectiveRangeText}
         totalCount={totalCount}
-        correctCount={score}
+        correctCount={effectiveCorrectCount}
         accuracy={accuracy}
         reviewWords={reviewWords}
       />
