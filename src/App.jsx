@@ -17,7 +17,9 @@ import { VocabEscapeGame } from './games/escape/VocabEscapeGame';
 import { VocabSpotterGame } from './games/spotter/VocabSpotterGame';
 import { SpotterTestWorkbench } from './games/spotter/SpotterTestWorkbench';
 import { WhackAMoleGame } from './games/mole/WhackAMoleGame';
-import { PhonicsBoard } from './features/phonics/PhonicsBoard';
+import { EnglishTeachingStudio } from './features/teaching/EnglishTeachingStudio';
+import { LiveStudentRoom } from './features/teaching/LiveStudentRoom';
+import { resolveLobbySelectedUnits } from './features/teaching/data/curriculumUnits';
 import { Portal } from './components/Portal';
 import { WutaiTownGame } from './games/town/WutaiTownGame';
 import { TextbookViewer } from './components/TextbookViewer';
@@ -109,7 +111,7 @@ export function App() {
       if (target === 'vocab' || target === 'lobby') return 'lobby';
 
       const VALID_VIEWS = [
-        'phonics', 'lobby', 'town', 'textbook', 'langlab', 'mcq-exam', 'priori',
+        'phonics', 'teaching', 'live', 'lobby', 'town', 'textbook', 'langlab', 'mcq-exam', 'priori',
         'escape', 'spotter', 'spotter-test', 'maze', 'memory',
         'mole', 'swipe', 'meteor', 'snake', 'sentence', 'spelling', 'handwriting',
         'battle', 'leaderboard', 'teacher-hub', 'preloader-showcase', 'loader-showcase', 'zoom-showcase'
@@ -151,9 +153,10 @@ export function App() {
             selectedUnits: parsedUnits,
             count: '20',
             distractorMode: 'strict',
-            selectedBook: isAbc ? 'abc' : parsedUnits[0].split('-')[0],
+            selectedBook: urlParams.get('book') || (isAbc ? 'abc' : parsedUnits[0].split('-')[0]),
             alphaMode,
-            alphaGrade
+            alphaGrade,
+            forceWordMode: urlParams.get('from') === 'teaching' && urlParams.get('mode') === 'word'
           };
         }
       }
@@ -168,18 +171,46 @@ export function App() {
           distractorMode: 'strict',
           selectedBook: normBook,
           alphaMode,
-          alphaGrade
+          alphaGrade,
+          forceWordMode: false
         };
       }
+      return {
+        selectedUnits: [],
+        count: '20',
+        distractorMode: 'strict',
+        forceWordMode: urlParams.get('from') === 'teaching' && urlParams.get('mode') === 'word'
+      };
     } catch (e) {}
     return {
       selectedUnits: [],
       count: '20',
-      distractorMode: 'strict'
+      distractorMode: 'strict',
+      forceWordMode: false
     };
   });
 
   const [autoJoinCode, setAutoJoinCode] = useState(null);
+  const [returnToTeaching, setReturnToTeaching] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('from') === 'teaching';
+    } catch {
+      return false;
+    }
+  });
+  const [teachingReturnContext, setTeachingReturnContext] = useState(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('from') !== 'teaching') return null;
+      return {
+        book: urlParams.get('tBook') || urlParams.get('book') || '3',
+        unit: urlParams.get('tUnit') ?? '0',
+        tab: urlParams.get('tTab') || 'phonics',
+      };
+    } catch {
+      return null;
+    }
+  });
   const [initialPrioriPaper] = useState(() => {
     try {
       return new URLSearchParams(window.location.search).get('paper') || null;
@@ -224,6 +255,25 @@ export function App() {
           setCurrentView(resolveViewFromUrl());
         }
         const urlParams = new URLSearchParams(window.location.search);
+        const fromTeaching =
+          e.state?.queryParams?.from === 'teaching' || urlParams.get('from') === 'teaching';
+        const nextForceWord =
+          fromTeaching && ((e.state?.queryParams?.mode || urlParams.get('mode')) === 'word');
+
+        if (fromTeaching) {
+          setReturnToTeaching(true);
+          setTeachingReturnContext(
+            e.state?.teachingContext || {
+              book: e.state?.queryParams?.tBook || urlParams.get('tBook') || urlParams.get('book') || '3',
+              unit: e.state?.queryParams?.tUnit ?? urlParams.get('tUnit') ?? '0',
+              tab: e.state?.queryParams?.tTab || urlParams.get('tTab') || 'phonics',
+            }
+          );
+        } else {
+          setReturnToTeaching(false);
+          setTeachingReturnContext(null);
+        }
+
         const unitsParam = urlParams.get('units');
         if (unitsParam) {
           const parsedUnits = unitsParam.split(',').map(s => s.trim()).filter(Boolean);
@@ -233,9 +283,10 @@ export function App() {
             setSettings(prev => ({
               ...prev,
               selectedUnits: parsedUnits,
-              selectedBook: isAbc ? 'abc' : parsedUnits[0].split('-')[0],
+              selectedBook: urlParams.get('book') || (isAbc ? 'abc' : parsedUnits[0].split('-')[0]),
               alphaMode,
-              alphaGrade
+              alphaGrade,
+              forceWordMode: nextForceWord
             }));
             return;
           }
@@ -250,9 +301,15 @@ export function App() {
             selectedUnits: isAbc ? ['abc'] : [`${normBook}-1`, `${normBook}-2`],
             selectedBook: normBook,
             alphaMode,
-            alphaGrade
+            alphaGrade,
+            forceWordMode: nextForceWord
           }));
+          return;
         }
+        setSettings(prev => ({
+          ...prev,
+          forceWordMode: nextForceWord
+        }));
       } catch (e) {}
     };
     window.addEventListener('popstate', handlePopState);
@@ -303,8 +360,13 @@ export function App() {
     }
   };
 
-  const handleNavigate = (view, queryParams = null) => {
+  const handleNavigate = (view, queryParams = null, historyExtra = null) => {
     soundEngine.init();
+    if (view === 'portal' || view === 'phonics' || view === 'teaching') {
+      setReturnToTeaching(false);
+      setTeachingReturnContext(null);
+      setSettings((prev) => (prev.forceWordMode ? { ...prev, forceWordMode: false } : prev));
+    }
     setCurrentView(view);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -327,7 +389,7 @@ export function App() {
       }
 
       if (`${window.location.pathname}${window.location.search}` !== targetUrl) {
-        window.history.pushState({ view, queryParams }, '', targetUrl);
+        window.history.pushState({ view, queryParams, ...(historyExtra || {}) }, '', targetUrl);
       }
     } catch (e) {}
   };
@@ -351,8 +413,108 @@ export function App() {
     };
   }, []);
 
+  const handleReturnToTeaching = () => {
+    let ctx = teachingReturnContext;
+    if (!ctx) {
+      try {
+        const raw = sessionStorage.getItem('wutai_teaching_state_v1');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            ctx = {
+              book: parsed.selectedBook || '3',
+              unit: parsed.selectedUnit ?? '0',
+              tab: parsed.activeTab || 'phonics',
+            };
+          }
+        }
+      } catch {}
+    }
+    const targetCtx = ctx || { book: '3', unit: '0', tab: 'phonics' };
+    handleNavigate('teaching', {
+      book: targetCtx.book,
+      unit: targetCtx.unit,
+      tab: targetCtx.tab,
+    });
+  };
+
+  const handleLaunchGameFromTeaching = (
+    targetView,
+    { book = '3', unit = '0', tab = 'phonics', mode = 'word', openInNewTab = false } = {}
+  ) => {
+    const rawBook = String(book || '3');
+    const rawUnit = String(unit ?? '0');
+    const rawTab = String(tab || 'phonics');
+    const isFreeBook = rawBook === 'free';
+    const isAlphaHandwriting = targetView === 'handwriting' && mode === 'alphabet';
+    const forceWordMode = targetView === 'handwriting' && !isAlphaHandwriting;
+    const returnCtx = { book: rawBook, unit: rawUnit, tab: rawTab };
+
+    const queryParams = {
+      from: 'teaching',
+      tBook: rawBook,
+      tUnit: rawUnit,
+      tTab: rawTab,
+    };
+
+    let nextSettingsPatch = null;
+
+    if (isAlphaHandwriting) {
+      queryParams.units = 'abc';
+      queryParams.book = 'abc';
+      queryParams.alphaMode = 'mixed';
+      queryParams.alphaGrade = 1;
+      nextSettingsPatch = {
+        selectedUnits: ['abc'],
+        selectedBook: 'abc',
+        alphaMode: 'mixed',
+        alphaGrade: 1,
+        forceWordMode: false,
+      };
+    } else if (isFreeBook) {
+      if (forceWordMode) {
+        queryParams.mode = 'word';
+      }
+      nextSettingsPatch = {
+        selectedUnits: [],
+        selectedBook: null,
+        alphaMode: null,
+        alphaGrade: null,
+        forceWordMode,
+      };
+    } else {
+      const targetUnits = resolveLobbySelectedUnits(rawBook, rawUnit, words);
+      queryParams.units = targetUnits.join(',');
+      queryParams.book = rawBook;
+      if (forceWordMode) {
+        queryParams.mode = 'word';
+      }
+      nextSettingsPatch = {
+        selectedUnits: targetUnits,
+        selectedBook: rawBook,
+        alphaMode: null,
+        alphaGrade: null,
+        forceWordMode,
+      };
+    }
+
+    if (openInNewTab) {
+      const qs = new URLSearchParams({ view: targetView, ...queryParams }).toString();
+      window.open(`/?${qs}`, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    setSettings((prev) => ({
+      ...prev,
+      ...nextSettingsPatch,
+    }));
+    setTeachingReturnContext(returnCtx);
+    setReturnToTeaching(true);
+    handleNavigate(targetView, queryParams, { teachingContext: returnCtx });
+  };
+
   // 當處於單字學習遊戲或大廳且單字尚未同步完成時顯示輕量載入動畫
-  if (isLoading && words.length === 0 && currentView !== 'portal' && currentView !== 'phonics' && currentView !== 'textbook' && currentView !== 'langlab' && currentView !== 'town' && currentView !== 'mcq-exam' && currentView !== 'priori') {
+  if (isLoading && words.length === 0 && currentView !== 'portal' && currentView !== 'phonics' && currentView !== 'teaching' && currentView !== 'live' && currentView !== 'textbook' && currentView !== 'langlab' && currentView !== 'town' && currentView !== 'mcq-exam' && currentView !== 'priori') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
         <div className="w-16 h-16 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin mb-4" />
@@ -368,8 +530,8 @@ export function App() {
 
   const handleGoParent = () => {
     // 依層級關係精確返回上一層：
-    // 若當前在單字學習館大廳 (lobby)、自然發音 (phonics)、小鎮 (town)、電子書 (textbook)、聽說館 (langlab)、題庫檢定館 (mcq-exam) 或學習扶助練習館 (priori)，上一層為學習宇宙首頁 (portal)
-    if (currentView === 'lobby' || currentView === 'phonics' || currentView === 'town' || currentView === 'textbook' || currentView === 'langlab' || currentView === 'mcq-exam' || currentView === 'priori') {
+    // 若當前在單字學習館大廳 (lobby)、英語教學館 (phonics/teaching/live)、小鎮 (town)、電子書 (textbook)、聽說館 (langlab)、題庫檢定館 (mcq-exam) 或學習扶助練習館 (priori)，上一層為學習宇宙首頁 (portal)
+    if (currentView === 'lobby' || currentView === 'phonics' || currentView === 'teaching' || currentView === 'live' || currentView === 'town' || currentView === 'textbook' || currentView === 'langlab' || currentView === 'mcq-exam' || currentView === 'priori') {
       handleNavigate('portal');
     } else if (currentView !== 'portal') {
       // 若當前在任何單字遊戲、字母迷宮、排行榜或教師後台，上一層為單字學習館 (lobby)
@@ -379,8 +541,8 @@ export function App() {
 
   return (
     <div className="min-h-screen flex flex-col transition-colors duration-300">
-      {/* 全域統一導覽列 (大廳、排行榜、打地鼠、句型積木工坊、課本題庫檢定館與學習扶助練習館擁有專屬零干擾頂欄，其餘頁面維持標準 Header) */}
-      {currentView !== 'lobby' && currentView !== 'leaderboard' && currentView !== 'mole' && currentView !== 'sentence' && currentView !== 'mcq-exam' && currentView !== 'priori' && (
+      {/* 全域統一導覽列 (大廳、排行榜、打地鼠、句型積木工坊、英語教學館、即時連線室、課本題庫檢定館與學習扶助練習館擁有專屬零干擾頂欄，其餘頁面維持標準 Header) */}
+      {currentView !== 'lobby' && currentView !== 'leaderboard' && currentView !== 'mole' && currentView !== 'sentence' && currentView !== 'mcq-exam' && currentView !== 'priori' && currentView !== 'phonics' && currentView !== 'teaching' && currentView !== 'live' && (
         <Header
           onOpenTeacherHub={handleOpenTeacherHub}
           onOpenLeaderboard={() => handleNavigate('leaderboard')}
@@ -395,7 +557,7 @@ export function App() {
       {/* 畫面路由視圖切換 (含全域安全防護熔斷) */}
       <main className="flex-1 flex flex-col">
         <ErrorBoundary
-          onReset={() => handleNavigate(currentView === 'portal' || currentView === 'phonics' || currentView === 'priori' ? 'portal' : 'lobby')}
+          onReset={() => handleNavigate(currentView === 'portal' || currentView === 'phonics' || currentView === 'teaching' || currentView === 'priori' ? 'portal' : 'lobby')}
           onOpenTeacherHub={handleOpenTeacherHub}
         >
           {currentView === 'portal' && (
@@ -416,6 +578,8 @@ export function App() {
               onOpenLeaderboard={() => handleNavigate('leaderboard')}
               onOpenTeacherHub={handleOpenTeacherHub}
               qualifyingBook={qualifyingBook}
+              returnToTeaching={returnToTeaching}
+              onReturnToTeaching={handleReturnToTeaching}
             />
           )}
 
@@ -475,7 +639,8 @@ export function App() {
             <SentenceBuilderGame
               settings={settings}
               qualifyingBook={qualifyingBook}
-              onBack={() => handleNavigate('lobby')}
+              returnToTeaching={returnToTeaching}
+              onBack={() => (returnToTeaching ? handleReturnToTeaching() : handleNavigate('lobby'))}
             />
           )}
 
@@ -583,7 +748,8 @@ export function App() {
               settings={settings}
               words={words}
               qualifyingBook={qualifyingBook}
-              onBack={() => handleNavigate('lobby')}
+              returnToTeaching={returnToTeaching}
+              onBack={() => (returnToTeaching ? handleReturnToTeaching() : handleNavigate('lobby'))}
             />
           )}
 
@@ -620,19 +786,24 @@ export function App() {
             />
           )}
 
-          {currentView === 'phonics' && (
-            <PhonicsBoard
-              onBackToLobby={() => handleNavigate('portal')}
-              initialLang={lang === 'en' ? 'en' : 'zh'}
-              initialTheme={isDark ? 'dark' : 'light'}
-              onLangChangeGlobal={(newPhonicsLang) => {
-                setLang(newPhonicsLang === 'en' ? 'en' : 'zh-TW');
-              }}
-              onThemeChangeGlobal={(newPhonicsTheme) => {
-                if ((newPhonicsTheme === 'dark') !== isDark) {
-                  toggleTheme();
+          {(currentView === 'phonics' || currentView === 'teaching') && (
+            <EnglishTeachingStudio
+              words={words}
+              onBackToPortal={() => handleNavigate('portal')}
+              onLaunchGame={handleLaunchGameFromTeaching}
+            />
+          )}
+
+          {currentView === 'live' && (
+            <LiveStudentRoom
+              initialRoom={(() => {
+                try {
+                  return new URLSearchParams(window.location.search).get('room') || '';
+                } catch {
+                  return '';
                 }
-              }}
+              })()}
+              onBack={() => handleNavigate('portal')}
             />
           )}
         </ErrorBoundary>

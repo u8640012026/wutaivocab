@@ -217,7 +217,8 @@ export const INITIAL_CARDS: PhonicsCard[] = [
   { id: 'vt_ea', grapheme: 'ea', displayText: 'ea', category: 'vowel_teams', phonemeSound: '/iː/', sampleWord: 'leaf', sampleWordZh: '樹葉', emoji: '🍃' },
   { id: 'vt_igh', grapheme: 'igh', displayText: 'igh', category: 'vowel_teams', phonemeSound: '/aɪ/', sampleWord: 'night', sampleWordZh: '夜晚', emoji: '🌙' },
   { id: 'vt_oa', grapheme: 'oa', displayText: 'oa', category: 'vowel_teams', phonemeSound: '/oʊ/', sampleWord: 'boat', sampleWordZh: '小船', emoji: '⛵' },
-  { id: 'vt_ow', grapheme: 'ow', displayText: 'ow', category: 'vowel_teams', phonemeSound: '/oʊ/ or /aʊ/', sampleWord: 'snow', sampleWordZh: '雪花', emoji: '❄️' },
+  { id: 'vt_ow', grapheme: 'ow', displayText: 'ow', category: 'vowel_teams', phonemeSound: '/oʊ/', sampleWord: 'snow', sampleWordZh: '雪花', emoji: '❄️' },
+  { id: 'vt_ow_au', grapheme: 'ow(au)', displayText: 'ow', category: 'vowel_teams', phonemeSound: '/aʊ/', sampleWord: 'cow', sampleWordZh: '乳牛', emoji: '🐮' },
   { id: 'vt_oi', grapheme: 'oi', displayText: 'oi', category: 'vowel_teams', phonemeSound: '/ɔɪ/', sampleWord: 'coin', sampleWordZh: '硬幣', emoji: '🪙' },
   { id: 'vt_oy', grapheme: 'oy', displayText: 'oy', category: 'vowel_teams', phonemeSound: '/ɔɪ/', sampleWord: 'toy', sampleWordZh: '玩具', emoji: '🧸' },
   { id: 'vt_ou', grapheme: 'ou', displayText: 'ou', category: 'vowel_teams', phonemeSound: '/aʊ/', sampleWord: 'house', sampleWordZh: '房屋', emoji: '🏠' },
@@ -225,6 +226,10 @@ export const INITIAL_CARDS: PhonicsCard[] = [
   { id: 'vt_au', grapheme: 'au', displayText: 'au', category: 'vowel_teams', phonemeSound: '/ɔː/', sampleWord: 'autumn', sampleWordZh: '秋天', emoji: '🍂' },
   { id: 'vt_aw', grapheme: 'aw', displayText: 'aw', category: 'vowel_teams', phonemeSound: '/ɔː/', sampleWord: 'paw', sampleWordZh: '動物爪子', emoji: '🐾' },
   { id: 'vt_ew', grapheme: 'ew', displayText: 'ew', category: 'vowel_teams', phonemeSound: '/juː/', sampleWord: 'chew', sampleWordZh: '咀嚼', emoji: '🍬' },
+  { id: 'vt_ie', grapheme: 'ie', displayText: 'ie', category: 'vowel_teams', phonemeSound: '/aɪ/', sampleWord: 'pie', sampleWordZh: '派', emoji: '🥧' },
+  { id: 'vt_ue', grapheme: 'ue', displayText: 'ue', category: 'vowel_teams', phonemeSound: '/uː/', sampleWord: 'blue', sampleWordZh: '藍色', emoji: '🔷' },
+  { id: 'vt_ui', grapheme: 'ui', displayText: 'ui', category: 'vowel_teams', phonemeSound: '/uː/', sampleWord: 'fruit', sampleWordZh: '水果', emoji: '🍓' },
+  { id: 'vt_y', grapheme: 'y(i)', displayText: '-y', category: 'vowel_teams', phonemeSound: '/aɪ/', sampleWord: 'sky', sampleWordZh: '天空', emoji: '🌌' },
 
   // 7. R-Controlled Vowels (9)
   { id: 'rc_ar', grapheme: 'ar', displayText: 'ar', category: 'r_controlled', phonemeSound: '/ɑːr/', sampleWord: 'car', sampleWordZh: '車子', emoji: '🚗' },

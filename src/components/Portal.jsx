@@ -181,7 +181,7 @@ export const Portal = ({
             </div>
           </div>
 
-          {/* 5. 自然發音探索館 */}
+          {/* 5. 霧臺英語教學館 */}
           <div
             onClick={() => onNavigate('phonics')}
             className="p-2.5 px-3 rounded-2xl bg-gradient-to-r from-purple-500/15 via-violet-500/10 to-transparent dark:from-purple-950/60 dark:to-slate-900/60 border-2 border-purple-400/70 dark:border-purple-600/70 flex items-center justify-between gap-2.5 shadow-sm active:scale-98 transition-all cursor-pointer"
@@ -195,7 +195,7 @@ export const Portal = ({
                   {t.phonicsModuleTitle}
                 </h3>
                 <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-purple-600 text-white shrink-0">
-                  自然發音
+                  教學白板
                 </span>
               </div>
             </div>
@@ -429,7 +429,7 @@ export const Portal = ({
             </div>
           </GlassCard>
 
-          {/* 5. 自然發音探索館 */}
+          {/* 5. 霧臺英語教學館 */}
           <GlassCard
             hoverable={true}
             onClick={() => onNavigate('phonics')}
@@ -446,11 +446,11 @@ export const Portal = ({
                       {t.phonicsModuleTitle}
                     </h3>
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-purple-600 text-white">
-                      8 大發音規則・CVC 拼讀
+                      {t.phonicsModuleBadge}
                     </span>
                   </div>
                   <p className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 truncate">
-                    包含短母音、長母音與複合子音卡池，支援磁吸拼讀導軌與聽音辨字挑戰。
+                    {t.phonicsModuleDesc}
                   </p>
                 </div>
               </div>

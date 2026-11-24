@@ -6,6 +6,8 @@ import { useStudent } from '../../context/StudentContext';
 import { useTheme } from '../../context/ThemeContext';
 import { soundEngine, speakEnglish } from '../../services/audio';
 import { HonorSubmissionCard } from '../../components/HonorSubmissionCard';
+import { normalizeLessonToken } from '../../data/sentencePatterns';
+import { getCurriculumUnitVocab } from '../../features/teaching/data/curriculumUnits';
 import {
   FOUR_LINES,
   getLetterStrokes,
@@ -27,6 +29,7 @@ export const HandwritingGame = ({
   settings,
   words = [],
   qualifyingBook,
+  returnToTeaching = false,
   onBack
 }) => {
   const { t } = useI18n();
@@ -94,7 +97,8 @@ export const HandwritingGame = ({
   // ── 題庫初始化 ──
   useEffect(() => {
     let list = [];
-    const isAlphabetMode = Boolean(
+    const hasExplicitWordScope = Boolean(settings?.forceWordMode);
+    const isAlphabetMode = !hasExplicitWordScope && Boolean(
       studentGradeNum === 1 ||
       studentGradeNum === 2 ||
       qualifyingBook === 'abc' ||
@@ -127,7 +131,22 @@ export const HandwritingGame = ({
       }));
     } else {
       // 3~6 年級單字模式：篩選單元單字 (支援長單字如 supermarket, banana, apple)
-      let filtered = words.filter(w => settings?.selectedUnits?.includes(`${w.book}-${w.lesson}`));
+      const selUnits = settings?.selectedUnits || [];
+      let filtered = words.filter(w => selUnits.includes(`${w.book}-${w.lesson}`));
+      if (filtered.length === 0 && selUnits.length > 0) {
+        filtered = words.filter(w =>
+          selUnits.some(sel => {
+            const [sb, su] = String(sel).split('-');
+            return String(w.book) === sb && normalizeLessonToken(w.lesson || '') === normalizeLessonToken(su || '');
+          })
+        );
+      }
+      if (filtered.length === 0 && selUnits.length > 0) {
+        const [sb, su] = String(selUnits[0]).split('-');
+        if (sb && sb !== 'abc') {
+          filtered = getCurriculumUnitVocab(sb, su || '0', words);
+        }
+      }
       if (filtered.length === 0 && words.length > 0) {
         filtered = words;
       }
@@ -765,16 +784,30 @@ export const HandwritingGame = ({
             </div>
           ) : (
             <div className="mb-6">
-              <HonorSubmissionCard
-                gameMode="handwriting"
-                book={qualifyingBook || (studentGradeNum === 1 || studentGradeNum === 2 ? 'abc' : '1')}
-                score={avgScore}
-                correctCount={passedCount}
-                time={elapsedTime}
-                totalCount={questions.length}
-                rangeText={qualifyingBook ? `第 ${qualifyingBook} 冊` : (studentGradeNum === 1 ? '一年級大寫' : '二年級小寫')}
-                onSuccess={() => {}}
-              />
+              {(() => {
+                const isAlphabetSession = questions.length > 0 && questions.every((q) => q.type === 'letter');
+                const safeBook = isAlphabetSession ? 'abc' : (qualifyingBook || null);
+                const fallbackRange = isAlphabetSession
+                  ? (studentGradeNum === 2 ? '二年級小寫' : '一年級大寫')
+                  : qualifyingBook
+                  ? `第 ${qualifyingBook} 冊`
+                  : ((settings?.selectedUnits || []).length > 0
+                      ? (settings.selectedUnits || []).slice(0, 3).join(', ')
+                      : '單課練習');
+                return (
+                  <HonorSubmissionCard
+                    gameMode={isAlphabetSession ? 'handwriting-abc' : 'handwriting'}
+                    book={safeBook}
+                    practiceOnly={!safeBook}
+                    score={avgScore}
+                    correctCount={passedCount}
+                    time={elapsedTime}
+                    totalCount={questions.length}
+                    rangeText={fallbackRange}
+                    onSuccess={() => {}}
+                  />
+                );
+              })()}
             </div>
           )}
 
@@ -804,7 +837,7 @@ export const HandwritingGame = ({
               再練一次
             </Button3D>
             <Button3D variant="slate" size="md" onClick={onBack} className="w-full">
-              {t.backLobby}
+              {returnToTeaching ? '← 回霧臺英語教學館' : t.backLobby}
             </Button3D>
           </div>
         </GlassCard>
@@ -831,10 +864,11 @@ export const HandwritingGame = ({
         <button
           type="button"
           onClick={onBack}
-          className="p-2 sm:p-2.5 rounded-2xl bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:scale-105 active:scale-95 transition-transform shadow-sm cursor-pointer"
-          title={t.backLobby}
+          className="px-2.5 py-2 sm:py-2.5 rounded-2xl bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:scale-105 active:scale-95 transition-transform shadow-sm cursor-pointer flex items-center gap-1.5 text-xs font-black"
+          title={returnToTeaching ? '返回霧臺英語教學館' : t.backLobby}
         >
           <ArrowLeft className="w-5 h-5" />
+          {returnToTeaching && <span className="hidden sm:inline">回教學館</span>}
         </button>
 
         {/* 雙模式切換膠囊 [✏️ 描寫自學版 | ⚔️ 實戰默寫版] */}

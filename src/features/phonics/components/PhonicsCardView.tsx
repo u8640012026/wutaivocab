@@ -2,6 +2,7 @@ import React from 'react';
 import type { PhonicsCard } from '../types/phonics';
 import { CATEGORIES_META } from '../data/phonicsData';
 import { speakPhoneme } from '../utils/audio';
+import { isElementarySafeWord } from '../../../services/profanityFilter';
 import { X } from 'lucide-react';
 
 import type { PronunciationMode } from '../utils/audio';
@@ -38,6 +39,13 @@ export const PhonicsCardView: React.FC<PhonicsCardViewProps> = ({
 
   const handleCardClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (
+      !isElementarySafeWord(card.grapheme) ||
+      (card.displayText && !isElementarySafeWord(card.displayText)) ||
+      (pronunciationMode === 'word' && card.sampleWord && !isElementarySafeWord(card.sampleWord))
+    ) {
+      return;
+    }
     // Default action: speak phoneme sound with chosen pronunciation mode
     speakPhoneme(card, pronunciationMode);
     if (onClick) {

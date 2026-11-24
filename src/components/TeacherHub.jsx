@@ -23,6 +23,8 @@ import {
 import { ExamAuditZone } from './exam/ExamAuditZone';
 import { TeacherMasteryAnalytics } from './exam/TeacherMasteryAnalytics';
 import { TeacherPromotionZone } from './TeacherPromotionZone';
+import { LocalRosterModal } from './LocalRosterModal';
+import { getLocalRosterCount, subscribeLocalRoster } from '../utils/localRoster';
 
 class ExamAuditErrorBoundary extends React.Component {
   state = { hasError: false };
@@ -117,6 +119,12 @@ export const TeacherHub = ({ onBack, words = [], onRefreshWords, onOpenShowcase,
   // ── Tab 4: 系統狀態與雲端體檢 ──
   const [systemStats, setSystemStats] = useState(null);
   const [isTestingSystem, setIsTestingSystem] = useState(false);
+  const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
+  const [localRosterCount, setLocalRosterCount] = useState(() => getLocalRosterCount());
+
+  useEffect(() => {
+    return subscribeLocalRoster((map) => setLocalRosterCount(Object.keys(map).length));
+  }, []);
 
   // ── Tab 5: 全校公告廣播 ──
   const [announcementActive, setAnnouncementActive] = useState(() => {
@@ -556,6 +564,17 @@ export const TeacherHub = ({ onBack, words = [], onRefreshWords, onOpenShowcase,
           </button>
 
           <button
+            type="button"
+            data-testid="open-local-roster-btn"
+            onClick={() => setIsRosterModalOpen(true)}
+            className="px-3 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/35 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25 text-xs font-black flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            title="本機匯入座號與姓名對照表（不上傳雲端）"
+          >
+            <Users className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>一鍵匯入姓名{localRosterCount > 0 ? ` (${localRosterCount})` : ''}</span>
+          </button>
+
+          <button
             onClick={handleExportWordsBackup}
             className="px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 text-xs font-black flex items-center gap-1.5 shadow-sm transition-all"
             title="下載全校單字庫 JSON 備份檔"
@@ -565,6 +584,15 @@ export const TeacherHub = ({ onBack, words = [], onRefreshWords, onOpenShowcase,
           </button>
         </div>
       </div>
+
+      <LocalRosterModal
+        isOpen={isRosterModalOpen}
+        onClose={() => setIsRosterModalOpen(false)}
+        onSaved={(cnt) => {
+          setLocalRosterCount(cnt);
+          showToast(cnt > 0 ? `本機已更新 ${cnt} 筆座號姓名對應（未上傳雲端）` : '已清除本機名冊');
+        }}
+      />
 
       {toast && (
         <div className={`mb-6 p-4 rounded-2xl flex items-center gap-2 font-black text-sm shadow-md animate-fadeIn ${

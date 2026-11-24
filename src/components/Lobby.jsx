@@ -192,7 +192,9 @@ export const Lobby = ({
   onNavigate,
   onOpenLeaderboard,
   onOpenTeacherHub,
-  qualifyingBook
+  qualifyingBook,
+  returnToTeaching = false,
+  onReturnToTeaching = null
 }) => {
   const { t, lang, toggleLang } = useI18n();
   const { currentStudent, isLoggedIn, openModal } = useStudent();
@@ -208,8 +210,15 @@ export const Lobby = ({
   // ── 當前選中的遊戲 ID ──
   const [selectedGame, setSelectedGame] = useState('escape');
 
-  // ── 選定的冊次選項 ID (預設對應學生年級) ──
-  const [selectedOptionId, setSelectedOptionId] = useState('b1');
+  // ── 選定的冊次選項 ID (預設對應學生年級；若從教學館跳轉而來則優先套用帶入的冊別) ──
+  const [selectedOptionId, setSelectedOptionId] = useState(() => {
+    if (returnToTeaching && settings?.selectedBook) {
+      const b = String(settings.selectedBook);
+      if (b === 'abc') return settings?.alphaGrade === 2 ? 'g2' : 'g1';
+      if (/^[1-8]$/.test(b)) return `b${b}`;
+    }
+    return 'b1';
+  });
 
   // ── 單元選取模式：'all' | 'starter' | 'unit1' | 'unit2' | 'unit3' | 'unit4' | 'festival' ──
   const [selectedUnitFilter, setSelectedUnitFilter] = useState('all');
@@ -287,8 +296,9 @@ export const Lobby = ({
     return 3;
   }, [currentStudent]);
 
-  // ── 根據學生年級自動初始化預設選項 ──
+  // ── 根據學生年級自動初始化預設選項 (僅在非教學館跳轉時依年級重設) ──
   useEffect(() => {
+    if (returnToTeaching) return;
     if (studentGradeNum === 1) {
       setSelectedOptionId('g1');
       setAlphaMode('upper');
@@ -300,7 +310,19 @@ export const Lobby = ({
     else if (studentGradeNum === 4) setSelectedOptionId('b3');
     else if (studentGradeNum === 5) setSelectedOptionId('b5');
     else if (studentGradeNum === 6) setSelectedOptionId('b7');
-  }, [studentGradeNum]);
+  }, [studentGradeNum, returnToTeaching]);
+
+  // ── 當從英語教學館跳轉進入大廳時，同步選中冊別膠囊 ──
+  useEffect(() => {
+    if (!returnToTeaching || !settings?.selectedBook) return;
+    const b = String(settings.selectedBook);
+    if (b === 'abc') {
+      setSelectedOptionId(settings?.alphaGrade === 2 ? 'g2' : 'g1');
+      setAlphaMode(settings?.alphaMode || 'upper');
+    } else if (/^[1-8]$/.test(b)) {
+      setSelectedOptionId(`b${b}`);
+    }
+  }, [returnToTeaching]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 五大欄位定義 ──
   const COLUMNS = useMemo(() => [
@@ -672,8 +694,9 @@ export const Lobby = ({
       }));
     } else {
       // 若玩家未勾選記憶選擇，或者目前尚無已選單元，預設帶入當前冊次全單元，確保出征按鈕立即可點！
+      // （若從英語教學館帶單元跳轉過來，則保留原單元範圍不強制覆蓋）
       const currentSelected = settings.selectedUnits || [];
-      if (!rememberSelection || currentSelected.length === 0) {
+      if ((!rememberSelection && !returnToTeaching) || currentSelected.length === 0) {
         setSettings(prev => ({
           ...prev,
           alphaMode: currentOptionData.isAlpha ? alphaMode : null,
@@ -744,6 +767,8 @@ export const Lobby = ({
       setStep('game');
     } else if (activeCol !== null) {
       setActiveCol(null);
+    } else if (returnToTeaching && typeof onReturnToTeaching === 'function') {
+      onReturnToTeaching();
     } else {
       onNavigate('portal');
     }
@@ -875,12 +900,17 @@ export const Lobby = ({
               ? 'bg-slate-900/90 hover:bg-slate-800 text-slate-100 hover:text-white border-white/20'
               : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-sm'
           }`}
-          title={step === 'scope' ? '返回選擇其他遊戲' : '返回英語學習宇宙首頁'}
+          title={step === 'scope' ? '返回選擇其他遊戲' : returnToTeaching ? '返回霧臺英語教學館' : '返回英語學習宇宙首頁'}
         >
           {step === 'scope' ? (
             <>
               <ArrowLeft className="w-4 h-4 text-amber-500 dark:text-amber-400" />
               <span className="hidden sm:inline">回選遊戲</span>
+            </>
+          ) : returnToTeaching ? (
+            <>
+              <ArrowLeft className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              <span className="hidden sm:inline">回霧臺英語教學館</span>
             </>
           ) : (
             <>

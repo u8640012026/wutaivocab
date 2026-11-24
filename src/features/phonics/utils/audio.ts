@@ -1,4 +1,5 @@
 import type { PhonicsCard } from '../types/phonics';
+import { isElementarySafeWord } from '../../../services/profanityFilter';
 
 // Audio Context singleton for pure Web Audio API sound synthesis & audio buffer playback
 let audioCtx: AudioContext | null = null;
@@ -246,15 +247,24 @@ function createBlendedAudioBuffer(
  * or dynamically synthesize consonant blends if no direct recording is found.
  * Returns true if played with 0ms latency.
  */
+const PHONEME_AUDIO_FILE_ALIASES: Record<string, string[]> = {
+  vt_ow: ['oa', 'vt_oa'],       // /oʊ/ 對應 B5 U3 (snow)
+  vt_ow_au: ['ou', 'vt_ou'],    // /aʊ/ 對應 B7 U4 (cow)
+  vt_ui: ['ue', 'vt_oo'],       // /uː/ 對應 B5 U4 (fruit)
+  vt_y: ['ie', 'vt_igh'],       // /aɪ/ 對應 B5 U2 (sky / cry)
+};
+
 export async function playPhonemeAudioFile(card: PhonicsCard): Promise<boolean> {
   const ctx = getAudioContext();
   if (!ctx) return false;
 
   const cleanGrapheme = card.grapheme.toLowerCase().replace(/[^a-z]/g, '');
 
-  // Step 1: Direct static file lookup (card.id, cleanGrapheme, and categorized prefixes)
+  // Step 1: Direct static file lookup (aliases first, then card.id, cleanGrapheme, and prefixes)
   // Tries lossless .wav first (e.g. authentic studio blend recordings), then .mp3
+  const aliasKeys = PHONEME_AUDIO_FILE_ALIASES[card.id] || [];
   const candidateKeys = [
+    ...aliasKeys,
     card.id,
     cleanGrapheme,
     `bb_${cleanGrapheme}`,
@@ -501,6 +511,11 @@ const PHONEME_SPEECH_MAP: Record<string, string> = {
   'au': 'aw',
   'aw': 'aw',
   'ew': 'U',
+  'ie': 'I',
+  'ue': 'oo',
+  'ui': 'oo',
+  'y(i)': 'I',
+  'ow(au)': 'ow',
 
   // Bossy R
   'ar': 'are',
@@ -610,11 +625,19 @@ export type PronunciationMode = 'phoneme' | 'word';
  *   3. If other card: fallback to clean speech synthesis without spelling letters.
  */
 export async function speakPhoneme(card: PhonicsCard, mode: PronunciationMode = 'phoneme'): Promise<void> {
+  if (
+    !isElementarySafeWord(card.grapheme) ||
+    (card.displayText && !isElementarySafeWord(card.displayText))
+  ) {
+    return;
+  }
+
   const g = card.grapheme.toLowerCase();
 
   // In 'word' mode: speak standard anchor word
   if (mode === 'word') {
     const word = VOWEL_ANCHORS[g] || card.sampleWord || g;
+    if (!isElementarySafeWord(word)) return;
     await speakWord(word, 0.85);
     return;
   }
@@ -671,6 +694,9 @@ export async function speakPhoneme(card: PhonicsCard, mode: PronunciationMode = 
 }
 
 export function speakWord(word: string, rate: number = 0.85): Promise<void> {
+  if (!isElementarySafeWord(word)) {
+    return Promise.resolve();
+  }
   return new Promise((resolve) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) {
       resolve();

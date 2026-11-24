@@ -3,6 +3,7 @@ import type { PhonicsCard, PhonicsCategory, Language, DeckPreset } from '../type
 import { CATEGORIES_META, PRESET_DECKS } from '../data/phonicsData';
 import { PhonicsCardView } from './PhonicsCardView';
 import { getT } from '../utils/i18n';
+import { isElementarySafeWord } from '../../../services/profanityFilter';
 import {
   X,
   Search,
@@ -116,17 +117,28 @@ export const SoundBankModal: React.FC<SoundBankModalProps> = ({
 
   const handleAddCustom = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customGrapheme.trim()) return;
+    const rawGrapheme = customGrapheme.trim();
+    const rawSound = customSound.trim();
+    if (!rawGrapheme) return;
+
+    if (!isElementarySafeWord(rawGrapheme) || (rawSound && !isElementarySafeWord(rawSound))) {
+      showToast(
+        lang === 'zh'
+          ? '⚠️ 此字卡包含不適合國小課堂的字詞，已攔截！'
+          : '⚠️ Blocked inappropriate classroom word!'
+      );
+      return;
+    }
 
     const newCard: PhonicsCard = {
       id: `custom_${Date.now()}`,
-      grapheme: customGrapheme.trim().toLowerCase(),
-      displayText: customGrapheme.trim(),
+      grapheme: rawGrapheme.toLowerCase(),
+      displayText: rawGrapheme,
       category: customCategory,
-      phonemeSound: customSound.trim() || `/${customGrapheme.trim()}/`,
+      phonemeSound: rawSound || `/${rawGrapheme}/`,
       sampleWord: 'custom',
       isCustom: true,
-      isSplit: customGrapheme.includes('_'),
+      isSplit: rawGrapheme.includes('_'),
     };
 
     onAddCustomCard(newCard);

@@ -278,12 +278,20 @@ export const checkIfQualifiesForTop50 = async ({ mode, book, score, time }) => {
       return false; // 秒數無效 (<= minValidTime) 絕對不予留名
     }
 
+    const isHandwritingAlphabet =
+      mode === 'handwriting-abc' || (mode === 'handwriting' && actualBook === 'abc');
+
     let query = supabase
       .from('leaderboard')
       .select('score, time')
       .eq('week', currentWeek)
-      .eq('mode', mode)
       .eq('book', actualBook);
+
+    if (isHandwritingAlphabet) {
+      query = query.in('mode', ['handwriting', 'handwriting-abc']);
+    } else {
+      query = query.eq('mode', mode);
+    }
 
     if (isTimeAscending) {
       query = query.gt('time', minValidTime).order('time', { ascending: true }).order('score', { ascending: false });
@@ -291,9 +299,25 @@ export const checkIfQualifiesForTop50 = async ({ mode, book, score, time }) => {
       query = query.order('score', { ascending: false }).order('time', { ascending: true });
     }
 
-    const { data, error } = await query.limit(50);
+    let timeoutId;
+    let data = null;
+    let error = null;
+    try {
+      const res = await Promise.race([
+        query.limit(50),
+        new Promise((resolve) => {
+          timeoutId = setTimeout(() => {
+            resolve({ data: null, error: new Error('top50_timeout') });
+          }, 3500);
+        }),
+      ]);
+      data = res?.data ?? null;
+      error = res?.error ?? null;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
 
-    if (error) return true; // 若連線異常，直接允許留名鼓勵學生
+    if (error) return null; // 若連線異常或逾時，回傳 null 代表「暫未確認」，避免誤判上榜
     if (!data || data.length < 50) return true; // 未滿 50 人，任何正分皆可上榜！
 
     // 已滿 50 人門檻比較
@@ -302,7 +326,7 @@ export const checkIfQualifiesForTop50 = async ({ mode, book, score, time }) => {
       ? ((time > 0 && (last50th.time <= minValidTime || time < last50th.time)) || (time === last50th.time && score > last50th.score))
       : (score > last50th.score || (score === last50th.score && (last50th.time === 0 || time < last50th.time)));
   } catch (e) {
-    return true;
+    return null;
   }
 };
 

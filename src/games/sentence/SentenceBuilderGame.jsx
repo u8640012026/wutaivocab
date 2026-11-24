@@ -40,6 +40,7 @@ const readSavedSentenceLevel = () => {
 export const SentenceBuilderGame = ({
   settings,
   qualifyingBook,
+  returnToTeaching = false,
   onBack
 }) => {
   const { t } = useI18n();
@@ -78,6 +79,9 @@ export const SentenceBuilderGame = ({
       if (urlBook === 'abc') return ['abc'];
       if (urlBook) return [`${urlBook}-all`];
       if (urlGrade === 1 || urlGrade === 2) return ['abc'];
+      if (urlParams.get('from') === 'teaching' && urlParams.get('tBook') === 'free') {
+        return ['1-all', '2-all', '3-all', '4-all', '5-all', '6-all', '7-all', '8-all'];
+      }
 
       const savedRaw = localStorage.getItem('wutai_sentence_units');
       if (savedRaw) {
@@ -690,7 +694,7 @@ export const SentenceBuilderGame = ({
               🐣 一鍵體驗一年級 3 字母排序
             </Button3D>
             <Button3D variant="slate" size="md" onClick={handleExit} icon={ArrowLeft}>
-              {t.backLobby}
+              {returnToTeaching ? '回霧臺英語教學館' : t.backLobby}
             </Button3D>
           </div>
         </GlassCard>
@@ -825,7 +829,7 @@ export const SentenceBuilderGame = ({
                 再練一輪
               </Button3D>
               <Button3D variant="slate" size="md" onClick={handleExit} icon={ArrowLeft}>
-                {t.backLobby}
+                {returnToTeaching ? '回霧臺英語教學館' : t.backLobby}
               </Button3D>
             </div>
           </GlassCard>
@@ -870,8 +874,16 @@ export const SentenceBuilderGame = ({
       <div className="relative z-10 w-full max-w-4xl mx-auto h-full flex flex-col justify-between gap-2">
         {/* ── 頂部 HUD 導航列 ── */}
         <header className="flex items-center justify-between gap-2 shrink-0">
-          <Button3D variant="slate" size="sm" onClick={handleExit} icon={ArrowLeft}>
-            <span className="hidden xs:inline">{t.backLobby}</span>
+          <Button3D
+            variant="slate"
+            size="sm"
+            onClick={handleExit}
+            icon={ArrowLeft}
+            title={returnToTeaching ? '返回霧臺英語教學館' : t.backLobby}
+          >
+            <span className={returnToTeaching ? 'hidden sm:inline' : 'hidden xs:inline'}>
+              {returnToTeaching ? '回教學館' : t.backLobby}
+            </span>
           </Button3D>
 
           {/* 中央進度星點列與難度／年級徽章 */}

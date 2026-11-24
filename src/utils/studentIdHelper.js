@@ -149,7 +149,8 @@ export const isAlphabetGameMode = (mode, book) => {
   const m = String(mode);
   return (
     m.startsWith('maze') ||
-    m.startsWith('handwriting') ||
+    m === 'handwriting-abc' ||
+    (m === 'handwriting' && (!book || book === 'abc')) ||
     m.includes('abc') ||
     m.endsWith('-abc') ||
     m === 'swipe-abc' ||

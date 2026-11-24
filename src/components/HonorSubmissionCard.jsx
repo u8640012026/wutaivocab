@@ -27,12 +27,12 @@ export const HonorSubmissionCard = ({
 }) => {
   const { t } = useI18n();
   const { currentStudent, isLoggedIn, addCoins, openModal, coins } = useStudent();
-  const [status, setStatus] = useState(practiceOnly ? 'practice_only' : 'checking'); // 'checking' | 'practice_only' | 'not_qualifying_book' | 'not_top50' | 'qualified' | 'submitting' | 'submitted'
+  const [status, setStatus] = useState(practiceOnly ? 'practice_only' : 'checking'); // 'checking' | 'practice_only' | 'not_qualifying_book' | 'not_top50' | 'unconfirmed' | 'qualified' | 'submitting' | 'submitted'
   const [playerName, setPlayerName] = useState(() => {
     return localStorage.getItem('wutai_player_name') || '';
   });
 
-  const hasAwardedCoinsRef = useRef(false);
+  const grantedCoinsRef = useRef(0);
   const [awardedInfo, setAwardedInfo] = useState({ delta: 0, reason: '', type: 'none' });
 
   // 支援雙向相容 mode/gameMode 與 book/qualifyingBook
@@ -95,22 +95,24 @@ export const HonorSubmissionCard = ({
       type: rewardType
     });
 
-    if (isLoggedIn && !hasAwardedCoinsRef.current) {
-      hasAwardedCoinsRef.current = true;
-      addCoins(coinDelta);
+    if (isLoggedIn && coinDelta > grantedCoinsRef.current) {
+      const diff = coinDelta - grantedCoinsRef.current;
+      grantedCoinsRef.current = coinDelta;
+      addCoins(diff);
     }
   }, [practiceOnly, status, effectiveBook, totalCount, score, time, currentStudent, isLoggedIn, addCoins, isAlphabet, mode]);
 
   // 當學生在結算卡片點擊「登入」後立即補發金幣
   useEffect(() => {
     if (practiceOnly) return;
-    if (isLoggedIn && awardedInfo.delta > 0 && !hasAwardedCoinsRef.current) {
-      hasAwardedCoinsRef.current = true;
-      addCoins(awardedInfo.delta);
+    if (isLoggedIn && awardedInfo.delta > grantedCoinsRef.current) {
+      const diff = awardedInfo.delta - grantedCoinsRef.current;
+      grantedCoinsRef.current = awardedInfo.delta;
+      addCoins(diff);
     }
   }, [practiceOnly, isLoggedIn, awardedInfo.delta, addCoins]);
   const [grimoireNotice, setGrimoireNotice] = useState(null);
-  const hasRecordedGrimoireStarRef = useRef(false);
+  const highestRecordedGrimoireStarsRef = useRef(0);
 
   // 首答正確題數與答對率計算（與局內連擊/速度加分徹底分離，杜絕答對題數 > 總題數）
   const rawCorrect = typeof correctCount === 'number' ? correctCount : score;
@@ -120,10 +122,10 @@ export const HonorSubmissionCard = ({
   const accuracy = totalCount > 0 ? Math.min(100, Math.round((effectiveCorrectCount / totalCount) * 100)) : 100;
   const level = getAccuracyLevel(accuracy);
 
-  // ── 神山八冊秘典典藏館進度連動（點亮星星與書籍完成度） ──
+  // ── 神山八冊秘典典藏館進度連動（點亮星星與書籍完成度；逾時後重試上榜時補升至 3 星） ──
   useEffect(() => {
     if (practiceOnly) return;
-    if (status === 'checking' || status === 'practice_only' || hasRecordedGrimoireStarRef.current) return;
+    if (status === 'checking' || status === 'practice_only') return;
 
     const targetBook = (effectiveBook && effectiveBook !== 'abc')
       ? String(effectiveBook)
@@ -134,9 +136,10 @@ export const HonorSubmissionCard = ({
       if (gId) {
         // 評定星數：滿80%或突破Top50為三星，60%為二星，其餘有效完成為一星
         const stars = (status === 'qualified' || status === 'submitted' || accuracy >= 80) ? 3 : (accuracy >= 60 ? 2 : 1);
+        if (stars <= highestRecordedGrimoireStarsRef.current) return;
         const sId = currentStudent?.student_id || 'guest';
         recordGrimoireStar(sId, targetBook, gId, stars);
-        hasRecordedGrimoireStarRef.current = true;
+        highestRecordedGrimoireStarsRef.current = stars;
         setGrimoireNotice({
           bookId: targetBook,
           gameId: gId,
@@ -172,23 +175,50 @@ export const HonorSubmissionCard = ({
     checkIfQualifiesForTop50({ mode: actualMode, book: effectiveBook || 'abc', score, time })
       .then((qualified) => {
         if (isCancelled) return;
-        if (qualified) {
+        if (qualified === true) {
           setStatus('qualified');
           try {
             confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
           } catch (e) {}
-        } else {
+        } else if (qualified === false) {
           setStatus('not_top50');
+        } else {
+          setStatus('unconfirmed');
         }
       })
       .catch(() => {
-        if (!isCancelled) setStatus('qualified'); // 網路異常時以鼓勵優先
+        if (!isCancelled) setStatus('unconfirmed'); // 網路異常或逾時保持暫未確認，不誤判上榜
       });
 
     return () => {
       isCancelled = true;
     };
   }, [practiceOnly, actualMode, effectiveBook, score, time, isAlphabet]);
+
+  const handleRetryTop50Check = async () => {
+    if (practiceOnly || status === 'checking') return;
+    setStatus('checking');
+    try {
+      const qualified = await checkIfQualifiesForTop50({
+        mode: actualMode,
+        book: effectiveBook || 'abc',
+        score,
+        time,
+      });
+      if (qualified === true) {
+        setStatus('qualified');
+        try {
+          confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+        } catch (e) {}
+      } else if (qualified === false) {
+        setStatus('not_top50');
+      } else {
+        setStatus('unconfirmed');
+      }
+    } catch {
+      setStatus('unconfirmed');
+    }
+  };
 
   // ── 智慧自動上榜防呆機制：若學生已登入座號，突破 Top 50 時自動背景登錄，杜絕忘按送出漏失 ──
   useEffect(() => {
@@ -359,6 +389,35 @@ export const HonorSubmissionCard = ({
               登入座號領金幣 🪙
             </button>
           )}
+        </div>
+      )}
+
+      {/* 狀況 3.5：門檻查詢逾時或網路異常（暫未確認，不誤判上榜） */}
+      {status === 'unconfirmed' && (
+        <div
+          data-testid="honor-top50-unconfirmed"
+          className="p-2.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 flex items-center justify-between gap-2 text-left"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+            <div>
+              <p className="text-xs font-black text-slate-800 dark:text-slate-200">
+                恭喜完成挑戰！本週 Top 50 榜單門檻暫未確認
+              </p>
+              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                遊戲成績與自主練習獎勵已正常結算；待連線恢復可重新比對門檻，確認上榜後再登錄英雄榜。
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            data-testid="retry-top50-btn"
+            onClick={handleRetryTop50Check}
+            className="px-2.5 py-1.5 rounded-lg text-xs font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs shrink-0 flex items-center gap-1 cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>重新比對門檻</span>
+          </button>
         </div>
       )}
 
