@@ -120,8 +120,9 @@
 
 ## 五、 專案現況進度與待辦清單 (Current Status & Next)
 
-**2026-11-27 霧臺小鎮 3D 沉浸式體驗原型 (`?view=town-3d`)**
+**2026-11-27 霧臺小鎮 3D 沉浸式體驗原型 (`?view=town-3d`) ＋ 霧臺國小真實 3D 教室 (`wutai_school_indoor`)**
 - **資料驅動 3D 世界架構 (`src/games/world3d/`)**：基於專案既有 `three` 建立 `wutaiWorld.js`（9 大地標座標、風格與道路資料包）、`townBuilders3D.js`（低模山林／石板廣場／9 座地標建築／人物動態／日夜燈光連動 `ThemeContext`）與 `World3DCanvas.jsx`（支援第三人稱追隨與 `V` 鍵切換第一人稱、WASD／觸控虛擬搖桿／點擊地面或地標自動走過去、對話過肩特寫運鏡、懸浮雙語標籤與小地圖雷達）。
+- **霧臺國小 3D 教室與室外↔室內進出切換 (`wutaiSchoolIndoor.js` / `classroomBuilders3D.js`)**：支援從霧臺國小大門淡入淡出進入室內教室並由教室門墊／「回街道」精準返回門口；教室內建單面內向剔除牆與大門（第三人稱鏡頭零遮擋）、採光窗戶、點擊朗讀英語黑板、講台講桌、書櫃公佈欄、9 組可實際彎腿入座與起身的課桌椅，以及於教室走道巡迴踱步、靠近停步面對玩家對話的校長 NPC。
 - **非遮擋 RPG 底部對話 HUD 與共用經濟 (`Town3DDialogueHud.jsx` / `useTownEconomy.js`)**：於 3D 場景內直接呼出半透明 RPG 對話框，完整複用既有 `townData.js` 對話樹、角色語音 (`speakEnglish`)、商店、任務欄、山豬影城時刻表與每日 6 金幣上限／外師彩蛋／52 題每日任務進度；2D 原版 `WutaiTownGame.jsx` 同步重構共用 `useTownEconomy.js` 並新增「`3D 試玩`」切換鈕（`App.jsx` 掛載 `?view=town-3d`）。
 
 **2026-11-27 PWA App 化上線 ＋ 教學館介面精修 ＋ 檢定/學扶館雙語補齊 ＋ UI 三同步規範**

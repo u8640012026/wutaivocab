@@ -35,7 +35,10 @@ export const WUTAI_3D_WORLD = {
       npcPosition: [0, -8.3],
       npcBodyColor: 0x1e3a8a,
       npcHeadColor: 0xfde68a,
-      triggerRadius: 3.8
+      triggerRadius: 3.8,
+      indoorWorldId: 'wutai_school_indoor',
+      exitSpawnPoint: [0, -6.2],
+      exitYaw: 0
     },
     {
       locationId: 'bookstore',
