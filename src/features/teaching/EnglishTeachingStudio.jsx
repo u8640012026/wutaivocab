@@ -95,6 +95,8 @@ export function EnglishTeachingStudio({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const scopeMenuRef = useRef(null);
   const settingsMenuRef = useRef(null);
+  const rootRef = useRef(null);
+  const leftAnchorRef = useRef(null);
 
   // 同步目前冊課與分頁至 sessionStorage 及網址列參數，確保遊戲返回／重整／瀏覽器上一頁均精準恢復現場
   useEffect(() => {
@@ -238,35 +240,58 @@ export function EnglishTeachingStudio({
     return `B${selectedBook} ${uTag}`;
   }, [selectedBook, selectedUnit, isOfficialBook, uiLang]);
 
+  useEffect(() => {
+    const rootEl = rootRef.current;
+    const anchorEl = leftAnchorRef.current;
+    if (!rootEl || !anchorEl) return undefined;
+    const updateOffset = () => {
+      const headerPad = window.innerWidth >= 640 ? 16 : 8;
+      const offset = Math.round(headerPad + anchorEl.getBoundingClientRect().width + 12);
+      rootEl.style.setProperty('--studio-subbar-pl', `${offset}px`);
+    };
+    updateOffset();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateOffset) : null;
+    ro?.observe(anchorEl);
+    window.addEventListener('resize', updateOffset);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', updateOffset);
+    };
+  }, [selectedBook, selectedUnit, uiLang]);
+
   return (
-    <div className="h-[100dvh] w-full flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors">
+    <div
+      ref={rootRef}
+      className="h-[100dvh] w-full flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors"
+    >
       {/* ════════════════════════════════════════════════════════════════ */}
-      {/* 單一常駐極簡主頂欄：[← 首頁] 霧臺英語教學館 [📘 冊課選單 ▾] │ [4大模組] │ [⛶] [⚙️] */}
+      {/* 單一常駐主頂欄：桌面左錨([首頁][館名][冊課▾])＋緊鄰[4大模組]對齊下方子列；手機極簡[🏠][冊課▾][4模][⚙️] */}
       {/* ════════════════════════════════════════════════════════════════ */}
       <header className="h-13 px-2 sm:px-4 bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 shrink-0 shadow-xs z-40">
-        {/* 左側：回首頁 + 館名 + 精簡冊課選擇膠囊 */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={onBackToPortal}
-            className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-black text-slate-700 dark:text-slate-200 flex items-center gap-1 transition cursor-pointer"
-            title={uiLang === 'zh' ? '返回學習宇宙首頁' : 'Back to Home'}
-          >
-            <Home className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-            <span className="hidden lg:inline">{uiLang === 'zh' ? '首頁' : 'Home'}</span>
-          </button>
+        <div className="flex items-center gap-1.5 md:gap-3 min-w-0 flex-1">
+          {/* 左側錨點：回首頁 + 館名（手機隱藏）+ 冊課選擇膠囊 */}
+          <div ref={leftAnchorRef} className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={onBackToPortal}
+              className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-black text-slate-700 dark:text-slate-200 flex items-center gap-1 transition cursor-pointer"
+              title={uiLang === 'zh' ? '返回學習宇宙首頁' : 'Back to Home'}
+            >
+              <Home className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              <span className="hidden lg:inline">{uiLang === 'zh' ? '首頁' : 'Home'}</span>
+            </button>
 
-          <div className="flex items-center gap-1.5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-purple-600 via-indigo-600 to-fuchsia-600 text-white flex items-center justify-center shadow-xs shrink-0">
-              <GraduationCap className="w-4 h-4" />
+            <div className="hidden md:flex items-center gap-1.5">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-purple-600 via-indigo-600 to-fuchsia-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                <GraduationCap className="w-4 h-4" />
+              </div>
+              <h1 className="font-heading font-black text-sm lg:text-base text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                {uiLang === 'zh' ? '霧臺英語教學館' : 'Wutai English Studio'}
+              </h1>
             </div>
-            <h1 className="hidden md:block font-heading font-black text-sm lg:text-base text-slate-800 dark:text-slate-100 whitespace-nowrap">
-              {uiLang === 'zh' ? '霧臺英語教學館' : 'Wutai English Studio'}
-            </h1>
-          </div>
 
-          {/* 冊課選單收合膠囊（展開為冊別與單元彈窗，節省常駐橫幅空間） */}
-          <div ref={scopeMenuRef} className="relative">
+            {/* 冊課選單收合膠囊（展開為冊別與單元彈窗，節省常駐橫幅空間） */}
+            <div ref={scopeMenuRef} className="relative">
             <button
               type="button"
               data-testid="curriculum-scope-trigger"
@@ -365,42 +390,43 @@ export function EnglishTeachingStudio({
                 )}
               </div>
             )}
+            </div>
           </div>
+
+          {/* 4 大主分頁切換（緊鄰冊課錨點右側，與第二排子模組垂直對齊） */}
+          <nav
+            aria-label="Teaching Studio Tabs"
+            className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 sm:p-1 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto scrollbar-none"
+          >
+            {MAIN_TABS.map((tab) => {
+              const active = activeTab === tab.id;
+              const TabIcon = tab.Icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-2 sm:px-3.5 py-1 rounded-lg text-xs sm:text-sm font-black transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer ${
+                    active
+                      ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <TabIcon className="w-3.5 h-3.5 shrink-0 hidden sm:block" />
+                  <span>{uiLang === 'zh' ? tab.labelZh : tab.labelEn}</span>
+                </button>
+              );
+            })}
+          </nav>
         </div>
 
-        {/* 中央：4 大主分頁切換 */}
-        <nav
-          aria-label="Teaching Studio Tabs"
-          className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 sm:p-1 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto scrollbar-none"
-        >
-          {MAIN_TABS.map((tab) => {
-            const active = activeTab === tab.id;
-            const TabIcon = tab.Icon;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-2.5 sm:px-3.5 py-1 rounded-lg text-xs sm:text-sm font-black transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                  active
-                    ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <TabIcon className="w-3.5 h-3.5 shrink-0" />
-                <span>{uiLang === 'zh' ? tab.labelZh : tab.labelEn}</span>
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* 右側：全螢幕 + ⚙️ 介面顯示設定（日夜與中英收進彈窗） */}
+        {/* 右側：全螢幕（手機隱藏）+ 介面顯示設定 */}
         <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={toggleFullscreen}
             title={uiLang === 'zh' ? '全螢幕切換' : 'Fullscreen'}
-            className="flex p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer"
+            className="hidden sm:flex p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer"
           >
             {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
           </button>

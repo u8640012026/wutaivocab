@@ -60,11 +60,11 @@ export const PhonicsCardView: React.FC<PhonicsCardViewProps> = ({
     }
   };
 
-  // Dimensions based on size (lg 自動依手機螢幕縮放，維持單一行不折行)
+  // Dimensions based on size (lg 適度精簡尺寸，確保右上角刪除鈕完整顯示且單行可容納更多字卡)
   const sizeClasses = {
     sm: 'w-14 h-17 text-xl sm:w-16 sm:h-20 sm:text-2xl',
-    md: 'w-18 h-22 text-2xl sm:w-22 sm:h-28 sm:text-4xl',
-    lg: 'w-[70px] h-[90px] text-3xl sm:w-24 sm:h-28 sm:text-4xl md:w-28 md:h-32 md:text-5xl',
+    md: 'w-18 h-22 text-2xl sm:w-22 sm:h-26 sm:text-3xl',
+    lg: 'w-[66px] h-[84px] text-2xl sm:w-20 sm:h-24 sm:text-3xl md:w-24 md:h-28 md:text-4xl',
   }[size];
 
   // Check if it's a split digraph like a_e
@@ -114,9 +114,9 @@ export const PhonicsCardView: React.FC<PhonicsCardViewProps> = ({
           type="button"
           onClick={handleRemoveClick}
           aria-label="Remove card"
-          className="absolute -top-2.5 -right-2.5 w-6 h-6 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-md transition-transform hover:scale-115 active:scale-95 z-30"
+          className="absolute -top-2 -right-2 w-5 h-5 sm:w-6 sm:h-6 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-md transition-transform hover:scale-115 active:scale-95 z-30"
         >
-          <X className="w-4 h-4 stroke-[2.5]" />
+          <X className="w-3.5 h-3.5 stroke-[2.75]" />
         </button>
       )}
     </div>

@@ -481,7 +481,7 @@ export function PhonicsStudio({
   return (
     <div className="w-full h-full flex flex-col justify-between overflow-hidden relative">
       {/* 精簡子模式列：[自然拼音 | 聽音小測] + 目標標籤 │ [＋加一排][卡匣開關][⚙️ 選項] */}
-      <div className="w-full px-3 sm:px-5 py-1.5 flex flex-wrap items-center justify-between gap-2 bg-white/80 dark:bg-slate-900/80 border-b border-slate-200/80 dark:border-slate-800 shrink-0">
+      <div data-testid="studio-subbar" className="w-full px-3 sm:px-5 md:[padding-left:var(--studio-subbar-pl,20px)] py-1.5 flex flex-wrap items-center justify-between gap-2 bg-white/80 dark:bg-slate-900/80 border-b border-slate-200/80 dark:border-slate-800 shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
             <button
@@ -671,8 +671,8 @@ export function PhonicsStudio({
                       : 'bg-white/75 dark:bg-slate-900/70 border-slate-200 dark:border-slate-800 hover:border-indigo-300'
                   }`}
                 >
-                  {/* 左側：排號 + 卡片槽位區（靠左對齊以利上下對照） */}
-                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 overflow-x-auto py-1 scrollbar-none">
+                  {/* 左側：排號 + 卡片槽位區（保留足夠上方內距，避免字卡右上角紅色刪除鈕被水平捲動容器裁切） */}
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 overflow-x-auto pt-3.5 pb-2 px-1 scrollbar-none">
                     {/* 排號標記 */}
                     <div className="flex flex-col items-center justify-center shrink-0 w-7 sm:w-8">
                       <span
@@ -743,7 +743,7 @@ export function PhonicsStudio({
                             key={`empty_${row.id}_${slotIdx}`}
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={(e) => handleDropOnSlot(e, row.id, slotIdx, false)}
-                            className="w-[70px] h-[90px] sm:w-24 sm:h-28 md:w-28 md:h-32 shrink-0 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/30 hover:border-indigo-400 flex flex-col items-center justify-center text-slate-400 transition-colors"
+                            className="w-[66px] h-[84px] sm:w-20 sm:h-24 md:w-24 md:h-28 shrink-0 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/30 hover:border-indigo-400 flex flex-col items-center justify-center text-slate-400 transition-colors"
                           >
                             <PlusCircle className="w-5 h-5 opacity-45" />
                             <span className="text-[10px] font-bold opacity-60 hidden sm:inline mt-0.5">

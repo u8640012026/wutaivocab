@@ -1027,7 +1027,7 @@ export function BoardStudio({
       {/* ════════════════════════════════════════════════════════════════ */}
       {/* 精簡單一板書控制列：[三模式切換] │ [本模式精簡主控] │ [🎮 神筆遊戲] */}
       {/* ════════════════════════════════════════════════════════════════ */}
-      <div className="w-full px-3 sm:px-5 py-1.5 flex flex-wrap items-center justify-between gap-2 bg-white/85 dark:bg-slate-900/85 border-b border-slate-200 dark:border-slate-800 shrink-0">
+      <div data-testid="studio-subbar" className="w-full px-3 sm:px-5 md:[padding-left:var(--studio-subbar-pl,20px)] py-1.5 flex flex-wrap items-center justify-between gap-2 bg-white/85 dark:bg-slate-900/85 border-b border-slate-200 dark:border-slate-800 shrink-0">
         {/* 左：三模式切換 */}
         <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
           <button

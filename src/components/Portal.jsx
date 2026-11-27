@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GlassCard } from './ui/GlassCard';
 import { Button3D } from './ui/Button3D';
+import { InstallAppButton } from './InstallAppButton';
 import { useI18n } from '../context/I18nContext';
 import { useTheme } from '../context/ThemeContext';
 import { useEasterEgg } from '../hooks/useEasterEgg';
@@ -534,16 +535,17 @@ export const Portal = ({
           </GlassCard>
         </div>
 
-        {/* ── 頁尾 QR Code 與開發者標記 ── */}
+        {/* ── 頁尾 QR Code、安裝 App 與開發者標記 ── */}
         <footer className="pt-2 sm:pt-4 flex flex-col items-center justify-center text-center">
-          <div className="sm:hidden mb-2">
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-2 sm:mb-3">
+            <InstallAppButton />
             <button
               type="button"
               onClick={() => setShowMobileQr(!showMobileQr)}
-              className="text-[11px] font-black text-slate-500 dark:text-slate-400 hover:text-emerald-600 flex items-center gap-1 py-1 px-2.5 rounded-xl bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700"
+              className="sm:hidden text-[11px] font-black text-slate-500 dark:text-slate-400 hover:text-emerald-600 flex items-center gap-1 py-1.5 px-2.5 rounded-xl bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700"
             >
               <QrCode className="w-3 h-3 text-emerald-600" />
-              <span>{showMobileQr ? '收合網站 QR Code' : '📱 顯示網站 QR Code 分享'}</span>
+              <span>{showMobileQr ? '收合網站 QR Code' : '顯示網站 QR Code 分享'}</span>
               {showMobileQr ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
           </div>

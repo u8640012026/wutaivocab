@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, ShieldCheck, KeyRound, Upload, Lock, Users, CheckCircle2 } from 'lucide-react';
+import { X, ShieldCheck, KeyRound, Upload, Lock, Users, CheckCircle2, Download } from 'lucide-react';
 import {
   parseRosterInput,
   encryptRosterEntries,
   decryptRosterEnvelope,
   saveEncryptedRosterEnvelope,
 } from './prioriSecurity';
+import { parseXlsxRosterFile, downloadRosterXlsxTemplate } from '../../utils/localRoster';
 
 /**
  * 學習扶助教師後台：全校去識別化加密名冊管理彈窗
@@ -49,8 +50,14 @@ export function PrioriRosterModal({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const text = await file.text();
-      setRawInput(text);
+      if (file.name.toLowerCase().endsWith('.xlsx')) {
+        const buf = await file.arrayBuffer();
+        const entries = await parseXlsxRosterFile(buf);
+        setRawInput(entries.map((item) => `${item.seatCode},${item.name}`).join('\n'));
+      } else {
+        const text = await file.text();
+        setRawInput(text);
+      }
       setErrorMsg('');
     } catch {
       setErrorMsg('讀取檔案失敗，請改為複製內容直接貼上');
@@ -209,18 +216,28 @@ export function PrioriRosterModal({
           <form onSubmit={handleEncryptAndSave} className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="text-xs font-black text-slate-700 dark:text-slate-200">
-                貼上名冊或選擇檔案（相容 classqna roster.json、CSV 或 Excel 貼上）
+                貼上名冊或選擇檔案（相容 JSON、CSV、.xlsx）
               </label>
-              <label className="px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 text-slate-700 dark:text-slate-200 text-xs font-black flex items-center gap-1 cursor-pointer">
-                <Upload className="w-3.5 h-3.5" />
-                <span>選擇 JSON / CSV 檔</span>
-                <input
-                  type="file"
-                  accept=".json,.csv,.txt"
-                  onChange={handleFilePick}
-                  className="hidden"
-                />
-              </label>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={downloadRosterXlsxTemplate}
+                  className="px-2.5 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800 hover:bg-teal-100 text-teal-800 dark:text-teal-200 text-xs font-black flex items-center gap-1 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>空白名單 (.xlsx)</span>
+                </button>
+                <label className="px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 text-slate-700 dark:text-slate-200 text-xs font-black flex items-center gap-1 cursor-pointer">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>選擇檔案</span>
+                  <input
+                    type="file"
+                    accept=".json,.csv,.txt,.xlsx"
+                    onChange={handleFilePick}
+                    className="hidden"
+                  />
+                </label>
+              </div>
             </div>
 
             <textarea

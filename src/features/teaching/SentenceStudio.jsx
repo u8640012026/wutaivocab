@@ -548,7 +548,7 @@ export function SentenceStudio({
   return (
     <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden bg-slate-50/70 dark:bg-slate-950/60">
       {/* Slim 1-Row Sentence Studio Control Bar */}
-      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 px-3 sm:px-5 py-2 bg-white/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800">
+      <div data-testid="studio-subbar" className="shrink-0 flex flex-wrap items-center justify-between gap-2 px-3 sm:px-5 md:[padding-left:var(--studio-subbar-pl,20px)] py-2 bg-white/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800">
         {/* 左：5 大教學模式 */}
         <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto max-w-full">
           {subModes.map((m) => {

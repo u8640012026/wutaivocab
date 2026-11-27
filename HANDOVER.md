@@ -120,6 +120,11 @@
 
 ## 五、 專案現況進度與待辦清單 (Current Status & Next)
 
+**2026-11-27 PWA App 化上線 ＋ 教學館介面精修（名冊雙頁籤範本／頂端對齊／浮動音效膠囊）**
+- **PWA（漸進式網頁 App）全裝置免裝 APK 直裝**：新增 `public/manifest.webmanifest`、`public/icons/icon-{192,512}.png`、Network-First `public/sw.js`（確保永遠優先抓最新題庫並跳過 Supabase）、`index.html` `overscroll-y-none` 與 Apple PWA meta，並於首頁（`Portal.jsx`）新增 `InstallAppButton`（Android/Chrome 一鍵安裝；iOS/iPadOS 兩步驟引導；已於獨立 App 模式開啟時自動隱藏）。
+- **本機名冊彈窗與雙頁籤 `.xlsx` 範本**：`LocalRosterModal.jsx` 改用 `createPortal` 修復課堂抽屜內開啟時的遮蔽與捲動問題並精簡文字；`localRoster.js` 新增純瀏覽器雙頁籤 `.xlsx` 範本產生器（Sheet1 匯入用名單、Sheet2 甲班在上乙班在下 180 組代碼參考），同步掛載至學扶館 `PrioriRosterModal.jsx`。
+- **教學館頂端左錨對齊 & 拼音／音效優化**：桌面上排主分頁緊鄰「冊課 ▾」並透過 `--studio-subbar-pl` 與下排子模組 0 px 對齊，手機維持極簡單排；`PhonicsCardView` 卡片微縮並留足上方內距解決刪除鈕裁切；`audio.js` 新增 4 組多層次課室音效並支援 `ClassroomDock` 獨立純圖示可收合／展開浮動音效膠囊。
+
 **2026-11-24 霧臺英語教學館（Phase 1～3 全量定案發布）＋ 本機名冊解譯 ＋ 秘典斷線補星修復**
 - **Phase 1～3 霧臺英語教學館 (`?view=teaching`)**：整合自然發音與拼字組合（Magic e 限定五組分離母音）、隨堂聽音測驗、四線三格數位板書（依冊課保留草稿與筆跡）、單字三模式（音節／IPA/KK／拖曳遮卡／線性配對）、句型五模式（點讀／重點插槽代換＋即時文法檢核／無提示重組／問答遮罩／中翻英拖曳遮簾）與十大核心文法表。
 - **課堂萬用工具列 (`ClassroomDock`) & 即時連線室 (`?view=live&room=XXXX`)**：全面移除 UI Emoji 改為 `lucide-react` 與自製向量 SVG（`WutaiAnimalIcon`、`GrammarIcon`）；展開抽屜支援全屏自由拖曳與半透明毛玻璃樣式，縮小記分板支援獨立拖曳、單擊組徽展開 `−/+` 加減分與雙擊還原；即時連線室改為常駐掛載並僅以 6 碼 `seatCode` 廣播（座號昇冪排列、同座號重連去重計票、搶答第一筆立即廣播閉題）。

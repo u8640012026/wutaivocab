@@ -906,6 +906,157 @@ class SoundEngine {
     setTimeout(() => this.playTone(1046.5, 'sine', 0.14, 0.10), 55);
   }
 
+  // ── 課室互動音效盤專用（多層次合成，免外部檔案、離線可用、存在感強）──
+  // 1. 過關掌聲＋勝利號角（約 1.7 秒）
+  classroomApplause() {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const ctx = this.ctx;
+      const now = ctx.currentTime;
+
+      // 勝利短號角和弦 C5-E5-G5-C6
+      const fanfare = [
+        { freq: 523.25, start: 0.0, dur: 0.18 },
+        { freq: 659.25, start: 0.11, dur: 0.18 },
+        { freq: 783.99, start: 0.22, dur: 0.22 },
+        { freq: 1046.5, start: 0.34, dur: 0.55 },
+      ];
+      fanfare.forEach(({ freq, start, dur }) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + start);
+        gain.gain.setValueAtTime(0.001, now + start);
+        gain.gain.linearRampToValueAtTime(0.16, now + start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + start);
+        osc.stop(now + start + dur + 0.02);
+      });
+
+      // 多拍節奏掌聲（帶通濾波白噪音脈衝）
+      const clapTimes = [0.05, 0.18, 0.30, 0.42, 0.54, 0.65, 0.77, 0.89, 1.02, 1.15, 1.29, 1.44];
+      const bufferLen = Math.floor(ctx.sampleRate * 0.09);
+      const noiseBuffer = ctx.createBuffer(1, bufferLen, ctx.sampleRate);
+      const data = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferLen; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.028));
+      }
+
+      clapTimes.forEach((t, idx) => {
+        const src = ctx.createBufferSource();
+        src.buffer = noiseBuffer;
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1400 + (idx % 3) * 350, now + t);
+        filter.Q.setValueAtTime(1.1, now + t);
+        const gain = ctx.createGain();
+        const amp = idx > 8 ? 0.22 * (1 - (idx - 8) * 0.18) : 0.24;
+        gain.gain.setValueAtTime(amp, now + t);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + t + 0.09);
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        src.start(now + t);
+      });
+    } catch (e) {}
+  }
+
+  // 2. 答對叮咚（雙層鐘琴共鳴，約 1.0 秒）
+  classroomDingDong() {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const ctx = this.ctx;
+      const now = ctx.currentTime;
+      const chimes = [
+        { freq: 783.99, start: 0.0, dur: 0.45 },   // G5 (Ding)
+        { freq: 1567.98, start: 0.0, dur: 0.32 },  // G6 overtone
+        { freq: 1046.5, start: 0.18, dur: 0.78 },  // C6 (Dong)
+        { freq: 2093.0, start: 0.18, dur: 0.48 },  // C7 overtone
+      ];
+      chimes.forEach(({ freq, start, dur }, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+        osc.frequency.setValueAtTime(freq, now + start);
+        const peak = idx % 2 === 0 ? 0.22 : 0.07;
+        gain.gain.setValueAtTime(0.001, now + start);
+        gain.gain.linearRampToValueAtTime(peak, now + start + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + start);
+        osc.stop(now + start + dur + 0.02);
+      });
+    } catch (e) {}
+  }
+
+  // 3. 再試一次（溫和節目感雙低音嗡鳴，約 0.75 秒）
+  classroomBuzzerWrong() {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const ctx = this.ctx;
+      const now = ctx.currentTime;
+      const steps = [
+        { f1: 220, f2: 233, start: 0.0, dur: 0.24 },
+        { f1: 164.81, f2: 174.61, start: 0.25, dur: 0.48 },
+      ];
+      steps.forEach(({ f1, f2, start, dur }) => {
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(620, now + start);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.001, now + start);
+        gain.gain.linearRampToValueAtTime(0.16, now + start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+
+        [f1, f2].forEach((freq) => {
+          const osc = ctx.createOscillator();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, now + start);
+          osc.connect(filter);
+          osc.start(now + start);
+          osc.stop(now + start + dur + 0.02);
+        });
+      });
+    } catch (e) {}
+  }
+
+  // 4. 重點提示（魔法豎琴上行琶音，約 1.0 秒）
+  classroomSparkle() {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const ctx = this.ctx;
+      const now = ctx.currentTime;
+      const notes = [659.25, 783.99, 987.77, 1318.51, 1567.98];
+      notes.forEach((freq, idx) => {
+        const start = idx * 0.075;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + start);
+        gain.gain.setValueAtTime(0.001, now + start);
+        gain.gain.linearRampToValueAtTime(0.16, now + start + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + start + 0.42);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + start);
+        osc.stop(now + start + 0.45);
+      });
+    } catch (e) {}
+  }
+
   // 跨平台觸覺微脈衝 (支援 Android 實體震動 + Web Audio 超低頻 55Hz 衝擊，在 iPad/PC 上營造擊打受力感)
   hapticPulse(strength = 'normal') {
     if (this.isMuted) return;

@@ -70,6 +70,45 @@ const PEN_COLORS = [
   { id: 'green', hex: '#10b981', label: '綠' },
 ];
 
+const CLASSROOM_SFX_ITEMS = [
+  {
+    id: 'applause',
+    labelZh: '過關掌聲',
+    labelEn: 'Applause',
+    Icon: Award,
+    iconColor: 'text-amber-500',
+    bgHover: 'hover:bg-amber-50 dark:hover:bg-amber-950/50',
+    fn: () => soundEngine.classroomApplause(),
+  },
+  {
+    id: 'ding',
+    labelZh: '答對叮咚',
+    labelEn: 'Correct',
+    Icon: CheckCircle2,
+    iconColor: 'text-emerald-500',
+    bgHover: 'hover:bg-emerald-50 dark:hover:bg-emerald-950/50',
+    fn: () => soundEngine.classroomDingDong(),
+  },
+  {
+    id: 'wrong',
+    labelZh: '再試一次',
+    labelEn: 'Try Again',
+    Icon: XCircle,
+    iconColor: 'text-rose-500',
+    bgHover: 'hover:bg-rose-50 dark:hover:bg-rose-950/50',
+    fn: () => soundEngine.classroomBuzzerWrong(),
+  },
+  {
+    id: 'sparkle',
+    labelZh: '重點提示',
+    labelEn: 'Highlight',
+    Icon: Sparkles,
+    iconColor: 'text-indigo-500',
+    bgHover: 'hover:bg-indigo-50 dark:hover:bg-indigo-950/50',
+    fn: () => soundEngine.classroomSparkle(),
+  },
+];
+
 const formatSeconds = (totalSec) => {
   const s = Math.max(0, Math.floor(totalSec));
   const mins = Math.floor(s / 60);
@@ -98,6 +137,10 @@ export function ClassroomDock({ lang = 'zh' }) {
     if (typeof window === 'undefined') return { x: 760, y: 64 };
     return clampViewportPos(window.innerWidth - 260, 64, 240, 44);
   });
+  const [sfxPos, setSfxPos] = useState(() => {
+    if (typeof window === 'undefined') return { x: 20, y: 620 };
+    return clampViewportPos(20, window.innerHeight - 68, 220, 48);
+  });
 
   const drawerRef = useRef(null);
   const dockDragRef = useRef(null);
@@ -105,6 +148,7 @@ export function ClassroomDock({ lang = 'zh' }) {
   const drawerDragRef = useRef(null);
   const miniDragRef = useRef(null);
   const miniMovedRef = useRef(false);
+  const sfxDragRef = useRef(null);
 
   useEffect(() => {
     const onResize = () => {
@@ -112,6 +156,7 @@ export function ClassroomDock({ lang = 'zh' }) {
       setDockPos((p) => clampViewportPos(p.x, p.y, 116, 40));
       setDrawerPos((p) => clampViewportPos(p.x, p.y, drawerWidth, h));
       setMiniPos((p) => clampViewportPos(p.x, p.y, 240, 44));
+      setSfxPos((p) => clampViewportPos(p.x, p.y, 220, 48));
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
@@ -215,6 +260,32 @@ export function ClassroomDock({ lang = 'zh' }) {
   const endMiniDrag = useCallback(() => {
     miniDragRef.current = null;
   }, []);
+
+  const startSfxDrag = useCallback((e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    sfxDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: sfxPos.x,
+      originY: sfxPos.y,
+    };
+  }, [sfxPos]);
+
+  const moveSfxDrag = useCallback((e) => {
+    const drag = sfxDragRef.current;
+    if (!drag) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    setSfxPos(clampViewportPos(drag.originX + dx, drag.originY + dy, 220, 48));
+  }, []);
+
+  const endSfxDrag = useCallback(() => {
+    sfxDragRef.current = null;
+  }, []);
+
+  const [pinSfxMini, setPinSfxMini] = useState(false);
+  const [sfxExpanded, setSfxExpanded] = useState(true);
 
   // ── 1. 霧臺神獸分組記分板 ──
   const [teams, setTeams] = useState(() =>
@@ -535,6 +606,70 @@ export function ClassroomDock({ lang = 'zh' }) {
                 </div>
               );
             })}
+        </div>
+      )}
+
+      {/* 獨立純圖示浮動音效膠囊（仿 classqna：一鍵收合／展開、左側把手自由拖曳） */}
+      {pinSfxMini && (
+        <div
+          data-testid="classroom-sfx-floating"
+          style={{ left: sfxPos.x, top: sfxPos.y }}
+          className="fixed z-35 flex items-center gap-1 p-1.5 rounded-full bg-white/75 dark:bg-slate-900/75 border border-white/50 dark:border-slate-700/60 shadow-xl backdrop-blur-xl select-none"
+        >
+          <span
+            data-testid="classroom-sfx-drag-handle"
+            onPointerDown={startSfxDrag}
+            onPointerMove={moveSfxDrag}
+            onPointerUp={endSfxDrag}
+            onPointerCancel={endSfxDrag}
+            className="text-slate-400 dark:text-slate-500 hover:text-indigo-500 flex items-center pl-1 pr-0.5 py-1 cursor-grab active:cursor-grabbing touch-none"
+            title={isZh ? '拖曳移動音效盤' : 'Drag soundboard'}
+          >
+            <GripVertical className="w-4 h-4" />
+          </span>
+
+          <button
+            type="button"
+            data-testid="classroom-sfx-toggle-btn"
+            onClick={() => setSfxExpanded((v) => !v)}
+            title={sfxExpanded ? (isZh ? '收合音效列' : 'Collapse') : isZh ? '展開課室音效盤' : 'Expand Soundboard'}
+            aria-label={isZh ? '收合或展開音效盤' : 'Toggle Soundboard'}
+            className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition ${
+              sfxExpanded
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200'
+            }`}
+          >
+            <Volume2 className="w-4 h-4" />
+          </button>
+
+          <div
+            className={`flex items-center gap-1 overflow-hidden transition-all duration-200 ${
+              sfxExpanded ? 'max-w-[160px] opacity-100 scale-100 pr-0.5' : 'max-w-0 opacity-0 scale-90 pointer-events-none'
+            }`}
+          >
+            {CLASSROOM_SFX_ITEMS.map((sfx) => {
+              const SfxIcon = sfx.Icon;
+              const label = isZh ? sfx.labelZh : sfx.labelEn;
+              return (
+                <button
+                  key={sfx.id}
+                  type="button"
+                  data-testid={`floating-sfx-${sfx.id}`}
+                  onClick={() => {
+                    try {
+                      sfx.fn();
+                    } catch {}
+                  }}
+                  title={label}
+                  aria-label={label}
+                  className={`w-8 h-8 rounded-full bg-white/90 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700 ${sfx.bgHover} flex items-center justify-center cursor-pointer active:scale-90 transition`}
+                >
+                  <SfxIcon className={`w-4 h-4 ${sfx.iconColor}`} />
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -1002,21 +1137,35 @@ export function ClassroomDock({ lang = 'zh' }) {
                 </div>
 
                 <div className="space-y-2">
-                  <div className="text-xs font-black text-slate-500 flex items-center gap-1.5">
-                    <Volume2 className="w-4 h-4 text-indigo-500" />
-                    <span>{isZh ? '課室互動音效盤' : 'Classroom Soundboard'}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs font-black text-slate-500 flex items-center gap-1.5">
+                      <Volume2 className="w-4 h-4 text-indigo-500" />
+                      <span>{isZh ? '課室互動音效盤' : 'Classroom Soundboard'}</span>
+                    </div>
+                    <button
+                      type="button"
+                      data-testid="pin-sfx-mini-btn"
+                      onClick={() => {
+                        setPinSfxMini((p) => !p);
+                        setSfxExpanded(true);
+                      }}
+                      className={`px-2 py-1 rounded-lg border text-xs font-black flex items-center gap-1 cursor-pointer ${
+                        pinSfxMini
+                          ? 'bg-amber-500 text-white border-amber-500'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                      }`}
+                    >
+                      {pinSfxMini ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
+                      <span>{isZh ? '懸浮圖示' : 'Float'}</span>
+                    </button>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { label: '過關掌聲', Icon: Award, iconColor: 'text-amber-500', fn: () => soundEngine.win() },
-                      { label: '答對叮咚', Icon: CheckCircle2, iconColor: 'text-emerald-500', fn: () => soundEngine.correct() },
-                      { label: '再試一次', Icon: XCircle, iconColor: 'text-rose-500', fn: () => soundEngine.wrong() },
-                      { label: '重點提示', Icon: Sparkles, iconColor: 'text-indigo-500', fn: () => soundEngine.hintPing() },
-                    ].map((sfx) => {
+                    {CLASSROOM_SFX_ITEMS.map((sfx) => {
                       const SfxIcon = sfx.Icon;
+                      const label = isZh ? sfx.labelZh : sfx.labelEn;
                       return (
                         <button
-                          key={sfx.label}
+                          key={sfx.id}
                           type="button"
                           onClick={() => {
                             try {
@@ -1026,7 +1175,7 @@ export function ClassroomDock({ lang = 'zh' }) {
                           className="py-2.5 px-3 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 hover:border-indigo-400 text-xs font-black text-slate-800 dark:text-slate-100 cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
                         >
                           <SfxIcon className={`w-4 h-4 ${sfx.iconColor}`} />
-                          <span>{sfx.label}</span>
+                          <span>{label}</span>
                         </button>
                       );
                     })}

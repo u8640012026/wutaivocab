@@ -269,3 +269,168 @@ export async function parseXlsxRosterFile(arrayBuffer) {
 
   return parseRosterText(lines.join('\n'));
 }
+
+// ── 輕量純瀏覽器雙頁籤 .xlsx 範本產生器（Sheet1: 匯入用名單；Sheet2: 甲班在上・乙班在下全校座號參考）──
+const crc32Table = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = crc32Table[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function buildZipStoreBlob(fileEntries) {
+  const encoder = new TextEncoder();
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  for (const { name, content } of fileEntries) {
+    const nameBytes = encoder.encode(name);
+    const dataBytes = typeof content === 'string' ? encoder.encode(content) : content;
+    const sum = crc32(dataBytes);
+
+    const lh = new Uint8Array(30 + nameBytes.length);
+    const lv = new DataView(lh.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint16(4, 20, true);
+    lv.setUint16(6, 0x0800, true); // UTF-8
+    lv.setUint16(8, 0, true); // store
+    lv.setUint32(14, sum, true);
+    lv.setUint32(18, dataBytes.length, true);
+    lv.setUint32(22, dataBytes.length, true);
+    lv.setUint16(26, nameBytes.length, true);
+    lh.set(nameBytes, 30);
+
+    const ch = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(ch.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0x0800, true);
+    cv.setUint16(10, 0, true);
+    cv.setUint32(16, sum, true);
+    cv.setUint32(20, dataBytes.length, true);
+    cv.setUint32(24, dataBytes.length, true);
+    cv.setUint16(28, nameBytes.length, true);
+    cv.setUint32(42, offset, true);
+    ch.set(nameBytes, 46);
+
+    localParts.push(lh, dataBytes);
+    centralParts.push(ch);
+    offset += lh.length + dataBytes.length;
+  }
+
+  const cdSize = centralParts.reduce((s, a) => s + a.length, 0);
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, fileEntries.length, true);
+  ev.setUint16(10, fileEntries.length, true);
+  ev.setUint32(12, cdSize, true);
+  ev.setUint32(16, offset, true);
+
+  return new Blob([...localParts, ...centralParts, eocd], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+}
+
+function escapeXml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function colLetter(idx) {
+  let n = idx + 1;
+  let s = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+function buildWorksheetXml(rows) {
+  const rowsXml = rows
+    .map((cells, rIdx) => {
+      const cellsXml = cells
+        .map(
+          (val, cIdx) =>
+            `<c r="${colLetter(cIdx)}${rIdx + 1}" t="inlineStr"><is><t>${escapeXml(val)}</t></is></c>`
+        )
+        .join('');
+      return `<row r="${rIdx + 1}">${cellsXml}</row>`;
+    })
+    .join('');
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rowsXml}</sheetData></worksheet>`;
+}
+
+export function buildRosterXlsxTemplateBlob() {
+  const sheet1Rows = [
+    ['座號代碼', '學生姓名'],
+    ['010101', '範例學生甲'],
+    ['010102', '範例學生乙'],
+  ];
+
+  const sheet2Rows = [['座號代碼', '班級座號', '班別']];
+  // 甲班在上（010101 ~ 060115），乙班在下（010201 ~ 060215）
+  for (const [classCode, className] of [
+    ['01', '甲班'],
+    ['02', '乙班'],
+  ]) {
+    for (let g = 1; g <= 6; g++) {
+      const g2 = String(g).padStart(2, '0');
+      for (let s = 1; s <= 15; s++) {
+        const s2 = String(s).padStart(2, '0');
+        const code = `${g2}${classCode}${s2}`;
+        sheet2Rows.push([code, formatSeatCodeLabel(code), `${g}年${className}`]);
+      }
+    }
+  }
+
+  return buildZipStoreBlob([
+    {
+      name: '[Content_Types].xml',
+      content:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.worksheet+xml"/></Types>',
+    },
+    {
+      name: '_rels/.rels',
+      content:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+    },
+    {
+      name: 'xl/_rels/workbook.xml.rels',
+      content:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>',
+    },
+    {
+      name: 'xl/workbook.xml',
+      content:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="匯入用名單" sheetId="1" r:id="rId1"/><sheet name="全校座號代碼參考" sheetId="2" r:id="rId2"/></sheets></workbook>',
+    },
+    { name: 'xl/worksheets/sheet1.xml', content: buildWorksheetXml(sheet1Rows) },
+    { name: 'xl/worksheets/sheet2.xml', content: buildWorksheetXml(sheet2Rows) },
+  ]);
+}
+
+export function downloadRosterXlsxTemplate() {
+  const blob = buildRosterXlsxTemplateBlob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'wutai_roster_template.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
+}
