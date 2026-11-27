@@ -22,6 +22,7 @@ import { LiveStudentRoom } from './features/teaching/LiveStudentRoom';
 import { resolveLobbySelectedUnits } from './features/teaching/data/curriculumUnits';
 import { Portal } from './components/Portal';
 import { WutaiTownGame } from './games/town/WutaiTownGame';
+import { WutaiTown3DGame } from './games/world3d/WutaiTown3DGame';
 import { TextbookViewer } from './components/TextbookViewer';
 import { PreloaderShowcase } from './components/PreloaderShowcase';
 import { ImageZoomShowcase } from './components/exam/ImageZoomShowcase';
@@ -111,7 +112,7 @@ export function App() {
       if (target === 'vocab' || target === 'lobby') return 'lobby';
 
       const VALID_VIEWS = [
-        'phonics', 'teaching', 'live', 'lobby', 'town', 'textbook', 'langlab', 'mcq-exam', 'priori',
+        'phonics', 'teaching', 'live', 'lobby', 'town', 'town-3d', 'textbook', 'langlab', 'mcq-exam', 'priori',
         'escape', 'spotter', 'spotter-test', 'maze', 'memory',
         'mole', 'swipe', 'meteor', 'snake', 'sentence', 'spelling', 'handwriting',
         'battle', 'leaderboard', 'teacher-hub', 'preloader-showcase', 'loader-showcase', 'zoom-showcase'
@@ -514,7 +515,7 @@ export function App() {
   };
 
   // 當處於單字學習遊戲或大廳且單字尚未同步完成時顯示輕量載入動畫
-  if (isLoading && words.length === 0 && currentView !== 'portal' && currentView !== 'phonics' && currentView !== 'teaching' && currentView !== 'live' && currentView !== 'textbook' && currentView !== 'langlab' && currentView !== 'town' && currentView !== 'mcq-exam' && currentView !== 'priori') {
+  if (isLoading && words.length === 0 && currentView !== 'portal' && currentView !== 'phonics' && currentView !== 'teaching' && currentView !== 'live' && currentView !== 'textbook' && currentView !== 'langlab' && currentView !== 'town' && currentView !== 'town-3d' && currentView !== 'mcq-exam' && currentView !== 'priori') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
         <div className="w-16 h-16 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin mb-4" />
@@ -531,7 +532,7 @@ export function App() {
   const handleGoParent = () => {
     // 依層級關係精確返回上一層：
     // 若當前在單字學習館大廳 (lobby)、英語教學館 (phonics/teaching/live)、小鎮 (town)、電子書 (textbook)、聽說館 (langlab)、題庫檢定館 (mcq-exam) 或學習扶助練習館 (priori)，上一層為學習宇宙首頁 (portal)
-    if (currentView === 'lobby' || currentView === 'phonics' || currentView === 'teaching' || currentView === 'live' || currentView === 'town' || currentView === 'textbook' || currentView === 'langlab' || currentView === 'mcq-exam' || currentView === 'priori') {
+    if (currentView === 'lobby' || currentView === 'phonics' || currentView === 'teaching' || currentView === 'live' || currentView === 'town' || currentView === 'town-3d' || currentView === 'textbook' || currentView === 'langlab' || currentView === 'mcq-exam' || currentView === 'priori') {
       handleNavigate('portal');
     } else if (currentView !== 'portal') {
       // 若當前在任何單字遊戲、字母迷宮、排行榜或教師後台，上一層為單字學習館 (lobby)
@@ -542,7 +543,7 @@ export function App() {
   return (
     <div className="min-h-screen flex flex-col transition-colors duration-300">
       {/* 全域統一導覽列 (大廳、排行榜、打地鼠、句型積木工坊、英語教學館、即時連線室、課本題庫檢定館與學習扶助練習館擁有專屬零干擾頂欄，其餘頁面維持標準 Header) */}
-      {currentView !== 'lobby' && currentView !== 'leaderboard' && currentView !== 'mole' && currentView !== 'sentence' && currentView !== 'mcq-exam' && currentView !== 'priori' && currentView !== 'phonics' && currentView !== 'teaching' && currentView !== 'live' && (
+      {currentView !== 'lobby' && currentView !== 'leaderboard' && currentView !== 'mole' && currentView !== 'sentence' && currentView !== 'mcq-exam' && currentView !== 'priori' && currentView !== 'phonics' && currentView !== 'teaching' && currentView !== 'live' && currentView !== 'town-3d' && (
         <Header
           onOpenTeacherHub={handleOpenTeacherHub}
           onOpenLeaderboard={() => handleNavigate('leaderboard')}
@@ -770,6 +771,14 @@ export function App() {
           {currentView === 'town' && (
             <WutaiTownGame
               onBack={() => handleNavigate('portal')}
+              onSwitchTo3D={() => handleNavigate('town-3d')}
+            />
+          )}
+
+          {currentView === 'town-3d' && (
+            <WutaiTown3DGame
+              onBack={() => handleNavigate('portal')}
+              onSwitchTo2D={() => handleNavigate('town')}
             />
           )}
 

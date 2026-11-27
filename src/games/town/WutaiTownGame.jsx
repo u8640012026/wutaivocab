@@ -1,18 +1,13 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { Button3D } from '../../components/ui/Button3D';
+import React, { useState, useEffect } from 'react';
 import { useI18n } from '../../context/I18nContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useStudent } from '../../context/StudentContext';
 import {
   TOWN_LOCATIONS,
-  TOWN_ITEMS,
   TOWN_MAP_PANORAMA_IMG,
-  TOWN_MAP_PANORAMA_NIGHT_IMG,
-  getTodayDateStr,
-  getDailyVisitingTeacherInfo,
-  getLocationDailyTheme,
-  DAILY_QUEST_MASTER_POOL
+  TOWN_MAP_PANORAMA_NIGHT_IMG
 } from './townData';
+import { useTownEconomy } from './useTownEconomy';
 import { DialogueEngine } from './DialogueEngine';
 import { HomeScene } from './HomeScene';
 import { ShopModal } from './ShopModal';
@@ -21,12 +16,10 @@ import { QuestBoardModal } from './QuestBoardModal';
 import { soundEngine, stopSpeech } from '../../services/audio';
 import {
   ArrowLeft, Coins, Trophy, Package, ScrollText, Sparkles,
-  Compass, ChevronRight, Gift, Music, VolumeX, MessageSquare,
-  Sun, Moon
+  Compass, Music, VolumeX, MessageSquare, Sun, Moon, Box
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 
-export const WutaiTownGame = ({ onBack }) => {
+export const WutaiTownGame = ({ onBack, onSwitchTo3D }) => {
   const { lang } = useI18n();
   const { isDark, toggleTheme, isAuto } = useTheme();
   const {
@@ -40,12 +33,22 @@ export const WutaiTownGame = ({ onBack }) => {
     addQuestPoints
   } = useStudent();
 
-  // 計算今日客座外師巡迴狀態
-  const todayStr = useMemo(() => getTodayDateStr(), []);
-  const teacherInfo = useMemo(() => getDailyVisitingTeacherInfo(todayStr), [todayStr]);
-  const studentId = currentStudent?.student_id || 'guest';
-  const dialogueStorageKey = `wutai_town_dialogues_${studentId}_${todayStr}`;
-  const hasMetTeacherToday = currentStudent?.daily_quest?.teacherMetDate === todayStr;
+  const {
+    teacherInfo,
+    hasMetTeacherToday,
+    dailyDialogueRecord,
+    townDialogueToast,
+    teacherBonusToast,
+    handleDialogueComplete,
+    handleTeacherBonusClaimed,
+    handleQuestProgress
+  } = useTownEconomy({
+    currentStudent,
+    addCoins,
+    addQuestPoints,
+    updateDailyQuest,
+    claimTeacherBonus
+  });
 
   // 畫面模態與地標狀態
   const [activeDialogueLocation, setActiveDialogueLocation] = useState(null);
@@ -54,262 +57,9 @@ export const WutaiTownGame = ({ onBack }) => {
   const [isHomeOpen, setIsHomeOpen] = useState(false);
   const [isBackpackOpen, setIsBackpackOpen] = useState(false);
   const [isQuestBoardOpen, setIsQuestBoardOpen] = useState(false);
-  const [teacherBonusToast, setTeacherBonusToast] = useState(null);
   const [hoveredLocation, setHoveredLocation] = useState(null);
   const [isTownBgmActive, setIsTownBgmActive] = useState(true);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const [townDialogueToast, setTownDialogueToast] = useState(null);
-
-  // 今日生活對話完成紀錄 (防刷防通膨：每地標每日限領 1 金幣，每日小鎮上限 6 枚金幣)
-  const [dailyDialogueRecord, setDailyDialogueRecord] = useState(() => {
-    try {
-      const saved = localStorage.getItem(dialogueStorageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed.coinsEarned === 'number' && Array.isArray(parsed.completedLocations)) {
-          return parsed;
-        }
-      }
-    } catch (e) {}
-    return { date: todayStr, coinsEarned: 0, completedLocations: [] };
-  });
-
-  // 完成生活對話結算 (Anti-Inflation Dialogue Reward System)
-  const handleDialogueComplete = useCallback(async (locationId) => {
-    if (!locationId) return;
-
-    let currentRecord = dailyDialogueRecord;
-    try {
-      const saved = localStorage.getItem(dialogueStorageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed.coinsEarned === 'number' && Array.isArray(parsed.completedLocations)) {
-          currentRecord = parsed;
-        }
-      }
-    } catch (e) {}
-
-    const isFirstTimeAtLocationToday = !currentRecord.completedLocations.includes(locationId);
-    const hasReachedDailyCoinCap = currentRecord.coinsEarned >= 6;
-
-    let toastInfo = null;
-
-    if (isFirstTimeAtLocationToday && !hasReachedDailyCoinCap) {
-      // 1. 今日首次在該地標完成對話且未達上限：+1 金幣
-      const newCoinsEarned = currentRecord.coinsEarned + 1;
-      const updated = {
-        date: todayStr,
-        coinsEarned: newCoinsEarned,
-        completedLocations: [...currentRecord.completedLocations, locationId]
-      };
-      setDailyDialogueRecord(updated);
-      try {
-        localStorage.setItem(dialogueStorageKey, JSON.stringify(updated));
-      } catch (e) {}
-
-      if (addCoins) {
-        await addCoins(1);
-      }
-      soundEngine.win();
-      try {
-        confetti({ particleCount: 55, spread: 65, origin: { y: 0.6 } });
-      } catch (e) {}
-
-      toastInfo = {
-        icon: '🪙',
-        title: '完成生活英語對話！',
-        desc: `獲得宇宙金幣 +1！(今日小鎮金幣: ${newCoinsEarned}/6)`,
-        type: 'coin'
-      };
-    } else if (isFirstTimeAtLocationToday && hasReachedDailyCoinCap) {
-      // 2. 今日首次在該地標，但已達小鎮 6 金幣每日上限：+1 探索積分 (防通膨標準)
-      const updated = {
-        date: todayStr,
-        coinsEarned: currentRecord.coinsEarned,
-        completedLocations: [...currentRecord.completedLocations, locationId]
-      };
-      setDailyDialogueRecord(updated);
-      try {
-        localStorage.setItem(dialogueStorageKey, JSON.stringify(updated));
-      } catch (e) {}
-
-      if (addQuestPoints) {
-        await addQuestPoints(1);
-      }
-      soundEngine.correct();
-
-      toastInfo = {
-        icon: '🌟',
-        title: '今日小鎮金幣已達上限 (6/6)',
-        desc: '持續自主生活英語探索，獲得榮譽探索積分 +1！',
-        type: 'points'
-      };
-    } else {
-      // 3. 今日已在該地標對話過 (反覆練習同一地標)：+1 探索積分 (可重複刷取標準 +1)
-      if (addQuestPoints) {
-        await addQuestPoints(1);
-      }
-      soundEngine.correct();
-
-      toastInfo = {
-        icon: '💬',
-        title: '溫故知新，練習生活美語！',
-        desc: '今日該地標已領取金幣，反覆自主練習獲得探索積分 +1！',
-        type: 'points'
-      };
-    }
-
-    if (toastInfo) {
-      setTownDialogueToast(toastInfo);
-      setTimeout(() => {
-        setTownDialogueToast(null);
-      }, 4200);
-    }
-  }, [todayStr, dailyDialogueRecord, addCoins, addQuestPoints]);
-
-  // 領取外師每日彩蛋積分處理 (提升至 10 ~ 20 探索積分，尊榮外師每日限定)
-  const handleTeacherBonusClaimed = async () => {
-    // 立即安全關閉外師對話視窗，避免在淡出動畫期間閃爍切換至原場景角色
-    stopSpeech();
-    setActiveDialogueLocation(null);
-    setActiveDialogueIsTeacher(false);
-
-    const bonus = Math.floor(Math.random() * 11) + 10; // 隨機 10 ~ 20 探索積分
-    soundEngine.win();
-    try {
-      confetti({ particleCount: 90, spread: 75, origin: { y: 0.6 } });
-    } catch (e) {}
-
-    if (claimTeacherBonus) {
-      await claimTeacherBonus(bonus, teacherInfo.teacher.nameZh);
-    }
-
-    setTeacherBonusToast({
-      teacherName: teacherInfo.teacher.nameZh,
-      points: bonus
-    });
-
-    setTimeout(() => {
-      setTeacherBonusToast(null);
-    }, 4500);
-  };
-
-  // 任務進度監聽處理 (全自動適配 52 款大師任務池：單點交談、單品採買、類別採購、雙點巡禮、三地標大巡查)
-  const handleQuestProgress = useCallback(async (actionType, param1, param2) => {
-    const dailyQuest = currentStudent?.daily_quest;
-    if (!dailyQuest || dailyQuest.completed || dailyQuest.rewardClaimed) return;
-
-    const currentQuestId = dailyQuest.questId || dailyQuest.activeQuestId;
-    if (!currentQuestId) return;
-
-    const template = DAILY_QUEST_MASTER_POOL.find(q => q.id === currentQuestId);
-    if (!template) return;
-
-    // 累積記錄進度：造訪過的地標與購買過的道具
-    const prevProgress = (typeof dailyQuest.progress === 'object' && dailyQuest.progress) ? dailyQuest.progress : {};
-    const visitedLocations = Array.isArray(prevProgress.visitedLocations) ? [...prevProgress.visitedLocations] : [];
-    const boughtItems = Array.isArray(prevProgress.boughtItems) ? [...prevProgress.boughtItems] : [];
-
-    let progressChanged = false;
-
-    // 1. 對話推進 (param1: locationId, param2: currentNodeId)
-    if (actionType === 'dialogue' && param1 && param2 && param2 !== 'welcome') {
-      if (!visitedLocations.includes(param1)) {
-        visitedLocations.push(param1);
-        progressChanged = true;
-      }
-    }
-
-    // 2. 道具購買 (param1: item.category, param2: item.id)
-    if (actionType === 'buy' && param2) {
-      if (!boughtItems.includes(param2)) {
-        boughtItems.push(param2);
-        progressChanged = true;
-      }
-      const shopLoc = TOWN_ITEMS.find(it => it.id === param2)?.shopId;
-      if (shopLoc && !visitedLocations.includes(shopLoc)) {
-        visitedLocations.push(shopLoc);
-        progressChanged = true;
-      }
-    }
-
-    let shouldComplete = false;
-
-    // ── 依任務類型進行達成判定 ──
-    // A. 單地標生活英語交談 (talk)
-    if (template.type === 'talk') {
-      if (visitedLocations.includes(template.targetLocation)) {
-        shouldComplete = true;
-      }
-    }
-    // B. 指定單品採買 (buy_item)
-    else if (template.type === 'buy_item') {
-      if (boughtItems.includes(template.targetItemId)) {
-        shouldComplete = true;
-      }
-    }
-    // C. 類別採買 (buy_category)
-    else if (template.type === 'buy_category') {
-      if (actionType === 'buy' && param1 === template.targetCategory) {
-        shouldComplete = true;
-      }
-    }
-    // D. 地標交談或採買皆可 (talk_or_buy)
-    else if (template.type === 'talk_or_buy') {
-      if (visitedLocations.includes(template.targetLocation)) {
-        shouldComplete = true;
-      }
-    }
-    // E. 雙地標跨點巡禮 (multi_tour)
-    else if (template.type === 'multi_tour') {
-      if (Array.isArray(template.targetLocations) && template.targetLocations.every(loc => visitedLocations.includes(loc))) {
-        shouldComplete = true;
-      }
-    }
-    // F. 複合任務：買道具 + 指定地點對話 (buy_and_visit)
-    else if (template.type === 'buy_and_visit') {
-      const hasBought = Array.isArray(template.validItemIds)
-        ? template.validItemIds.some(id => boughtItems.includes(id))
-        : boughtItems.length > 0;
-      const hasVisited = visitedLocations.includes(template.targetLocation);
-      if (hasBought && hasVisited) {
-        shouldComplete = true;
-      }
-    }
-    // G. 三地標大巡禮 (grand_tour)
-    else if (template.type === 'grand_tour') {
-      if (visitedLocations.length >= (template.requiredCount || 3)) {
-        shouldComplete = true;
-      }
-    }
-
-    if (shouldComplete) {
-      soundEngine.win();
-      try {
-        confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
-      } catch (e) {}
-
-      const updated = {
-        ...dailyQuest,
-        completed: true,
-        completedAt: new Date().toISOString(),
-        progress: {
-          visitedLocations,
-          boughtItems
-        }
-      };
-      await updateDailyQuest(updated);
-    } else if (progressChanged) {
-      // 僅更新中間進度供 UI 即時打勾
-      await updateDailyQuest({
-        ...dailyQuest,
-        progress: {
-          visitedLocations,
-          boughtItems
-        }
-      });
-    }
-  }, [currentStudent?.daily_quest, updateDailyQuest]);
 
   // ── 全自動場景背景音樂無縫切換 (Town / Home / Sub-scenes) ──
   useEffect(() => {
@@ -441,6 +191,21 @@ export const WutaiTownGame = ({ onBack }) => {
             <span className="text-xs sm:text-lg font-black font-heading text-white drop-shadow hidden xs:inline sm:inline">
               🏔️ 霧臺小鎮
             </span>
+
+            {onSwitchTo3D && (
+              <button
+                onClick={() => {
+                  stopSpeech();
+                  soundEngine.stopSceneBgm();
+                  onSwitchTo3D();
+                }}
+                className="px-2 py-1 rounded-xl bg-emerald-500/30 hover:bg-emerald-500/50 border border-emerald-300/50 text-emerald-200 text-[11px] font-black flex items-center gap-1 shadow cursor-pointer active:scale-95 transition-all"
+                title="搶先體驗 3D 沉浸版霧臺小鎮"
+              >
+                <Box className="w-3.5 h-3.5" />
+                <span>3D 試玩</span>
+              </button>
+            )}
           </div>
 
           {/* 🌟 中央核心：僅在平板與電腦寬螢幕顯示地點資訊 (手機版隱藏，徹底避免被擠成 6 行) ── */}
@@ -768,7 +533,12 @@ export const WutaiTownGame = ({ onBack }) => {
           onQuestProgress={handleQuestProgress}
           isVisitingTeacher={activeDialogueIsTeacher}
           visitingTeacher={teacherInfo.teacher}
-          onTeacherBonusClaimed={handleTeacherBonusClaimed}
+          onTeacherBonusClaimed={() =>
+            handleTeacherBonusClaimed(() => {
+              setActiveDialogueLocation(null);
+              setActiveDialogueIsTeacher(false);
+            })
+          }
           onDialogueComplete={handleDialogueComplete}
         />
       )}
