@@ -81,7 +81,7 @@ export const Portal = ({
                   {t.townModuleTitle}
                 </h3>
                 <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-amber-600 text-white shrink-0">
-                  生活RPG
+                  {t.townModuleShortBadge}
                 </span>
               </div>
             </div>
@@ -104,7 +104,7 @@ export const Portal = ({
                   {t.vocabModuleTitle}
                 </h3>
                 <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-emerald-600 text-white shrink-0">
-                  單字冒險
+                  {t.vocabModuleShortBadge}
                 </span>
               </div>
             </div>
@@ -127,7 +127,7 @@ export const Portal = ({
                   {t.langlabModuleTitle || '雙語聽說探險館'}
                 </h3>
                 <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-rose-600 text-white shrink-0">
-                  聽說探險
+                  {t.langlabModuleShortBadge}
                 </span>
               </div>
             </div>
@@ -147,10 +147,10 @@ export const Portal = ({
               </div>
               <div className="flex items-center gap-2 min-w-0">
                 <h3 className="text-[15px] font-black text-slate-800 dark:text-slate-100 font-heading truncate">
-                  霧臺英語檢定館
+                  {t.examModuleTitle}
                 </h3>
                 <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-indigo-600 text-white shrink-0">
-                  英語檢定
+                  {t.examModuleShortBadge}
                 </span>
               </div>
             </div>
@@ -170,10 +170,10 @@ export const Portal = ({
               </div>
               <div className="flex items-center gap-2 min-w-0">
                 <h3 className="text-[15px] font-black text-slate-800 dark:text-slate-100 font-heading truncate">
-                  學習扶助練習館
+                  {t.prioriModuleTitle}
                 </h3>
                 <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-lime-500 text-lime-950 shrink-0">
-                  篩選練習
+                  {t.prioriModuleShortBadge}
                 </span>
               </div>
             </div>
@@ -196,7 +196,7 @@ export const Portal = ({
                   {t.phonicsModuleTitle}
                 </h3>
                 <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-purple-600 text-white shrink-0">
-                  教學白板
+                  {t.phonicsModuleShortBadge}
                 </span>
               </div>
             </div>
@@ -221,7 +221,7 @@ export const Portal = ({
                   {t.classqnaModuleTitle}
                 </h3>
                 <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-sky-600 text-white shrink-0">
-                  互動教室
+                  {t.classqnaModuleShortBadge}
                 </span>
               </div>
             </div>
@@ -244,7 +244,7 @@ export const Portal = ({
                   {t.textbookModuleTitle || '自編英語電子教科書'}
                 </h3>
                 <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-amber-800 text-amber-50 shrink-0">
-                  電子課本
+                  {t.textbookModuleShortBadge}
                 </span>
               </div>
             </div>
@@ -376,20 +376,20 @@ export const Portal = ({
                 <div className="space-y-1 flex-1 min-w-0">
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <h3 className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100 font-heading">
-                      霧臺英語檢定館
+                      {t.examModuleTitle}
                     </h3>
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-indigo-600 text-white">
-                      課本同步・學力檢測・Pre-A1 官方模擬
+                      {t.examModuleBadge}
                     </span>
                   </div>
                   <p className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 truncate">
-                    專業一頁一題語言測驗，涵蓋課本同步複習、國小學力成就評量與教育部 Pre-A1 官方實戰模擬。
+                    {t.examModuleDesc}
                   </p>
                 </div>
               </div>
               <Button3D variant="indigo" size="md" className="shrink-0">
                 <div className="flex items-center gap-1.5">
-                  <span>進入檢定館</span>
+                  <span>{t.examModuleEnter}</span>
                   <ArrowRight className="w-4 h-4" />
                 </div>
               </Button3D>
@@ -410,20 +410,20 @@ export const Portal = ({
                 <div className="space-y-1 flex-1 min-w-0">
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <h3 className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100 font-heading">
-                      學習扶助練習館
+                      {t.prioriModuleTitle}
                     </h3>
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-lime-500 text-lime-950">
-                      114 三科官方・115 數學・互動計算紙
+                      {t.prioriModuleBadge}
                     </span>
                   </div>
                   <p className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 truncate">
-                    國／英／數分科篩選測驗自主練習與錯題沉底特訓，不影響單字館金幣或積分。
+                    {t.prioriModuleDesc}
                   </p>
                 </div>
               </div>
               <Button3D variant="lime" size="md" className="shrink-0">
                 <div className="flex items-center gap-1.5">
-                  <span>進入練習館</span>
+                  <span>{t.prioriModuleEnter}</span>
                   <ArrowRight className="w-4 h-4" />
                 </div>
               </Button3D>
@@ -545,7 +545,7 @@ export const Portal = ({
               className="sm:hidden text-[11px] font-black text-slate-500 dark:text-slate-400 hover:text-emerald-600 flex items-center gap-1 py-1.5 px-2.5 rounded-xl bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700"
             >
               <QrCode className="w-3 h-3 text-emerald-600" />
-              <span>{showMobileQr ? '收合網站 QR Code' : '顯示網站 QR Code 分享'}</span>
+              <span>{showMobileQr ? t.hideQrBtn : t.showQrBtn}</span>
               {showMobileQr ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
           </div>

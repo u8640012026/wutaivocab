@@ -27,8 +27,9 @@ import {
   SlidersHorizontal,
   FileText,
   Type,
-  Maximize2
+  Maximize2,
 } from 'lucide-react';
+import { useI18n } from '../../context/I18nContext';
 import {
   CANONICAL_STATS,
   EXAM_TRACKS,
@@ -137,6 +138,8 @@ function formatQuestionStem(text) {
 
 export function PureMcqExamView({ settings, onBack, onComplete }) {
   const { currentStudent, isLoggedIn, addCoins, openModal, coins } = useStudent();
+  const { t, lang } = useI18n();
+  const isEn = lang === 'en';
 
   // 依據學生年級或外部傳入設定決定預設冊別
   const initialBook = useMemo(() => {
@@ -1632,11 +1635,11 @@ export function PureMcqExamView({ settings, onBack, onComplete }) {
             {setupSubView === 'mistakes' && <RotateCcw className="text-rose-600 dark:text-rose-400" size={22} />}
             <div>
               <h1 className="text-base sm:text-lg md:text-xl font-black tracking-tight text-slate-900 dark:text-white leading-tight">
-                {setupSubView === 'hub' && '霧臺英語檢定館'}
-                {setupSubView === 'textbook' && '課本題庫練習'}
-                {setupSubView === 'saa' && '學力檢測練習'}
-                {setupSubView === 'preA1' && 'Pre A1 檢測練習'}
-                {setupSubView === 'mistakes' && '個人易錯題複習'}
+                {setupSubView === 'hub' && t.examModuleTitle}
+                {setupSubView === 'textbook' && (isEn ? 'Textbook Practice' : '課本題庫練習')}
+                {setupSubView === 'saa' && (isEn ? 'Taiwan SAA Practice' : '學力檢測練習')}
+                {setupSubView === 'preA1' && (isEn ? 'Pre-A1 Mock Exam' : 'Pre A1 檢測練習')}
+                {setupSubView === 'mistakes' && (isEn ? 'Personal Mistakes Review' : '個人易錯題複習')}
               </h1>
               <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 -mt-0.5 hidden sm:block">
                 {setupSubView === 'hub' && 'Wutai English Assessment Arena'}

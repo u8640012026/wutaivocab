@@ -120,7 +120,8 @@
 
 ## 五、 專案現況進度與待辦清單 (Current Status & Next)
 
-**2026-11-27 PWA App 化上線 ＋ 教學館介面精修（名冊雙頁籤範本／頂端對齊／浮動音效膠囊）**
+**2026-11-27 PWA App 化上線 ＋ 教學館介面精修 ＋ 檢定/學扶館雙語補齊 ＋ UI 三同步規範**
+- **檢定館與學扶館雙語補齊（`I18nContext.jsx` / `Portal.jsx` / `PureMcqExamView.jsx` / `PrioriPracticeHub.jsx`）**：補齊首頁「霧臺英語檢定館（`Wutai English Assessment Hub`）」、「學習扶助練習館（`PRIORI Remedial Practice Hub`）」與手機版短標籤的英文對照，並將兩館頂端標題與返回鈕接入 `useI18n()`；同步於 `AGENTS.md` 第 8 條確立「僅於規劃新功能或更改 UI 時，同步檢視中英雙語／日夜版／手機極簡自適應」。
 - **PWA（漸進式網頁 App）全裝置免裝 APK 直裝**：新增 `public/manifest.webmanifest`、`public/icons/icon-{192,512}.png`、Network-First `public/sw.js`（確保永遠優先抓最新題庫並跳過 Supabase）、`index.html` `overscroll-y-none` 與 Apple PWA meta，並於首頁（`Portal.jsx`）新增 `InstallAppButton`（Android/Chrome 一鍵安裝；iOS/iPadOS 兩步驟引導；已於獨立 App 模式開啟時自動隱藏）。
 - **本機名冊彈窗與雙頁籤 `.xlsx` 範本**：`LocalRosterModal.jsx` 改用 `createPortal` 修復課堂抽屜內開啟時的遮蔽與捲動問題並精簡文字；`localRoster.js` 新增純瀏覽器雙頁籤 `.xlsx` 範本產生器（Sheet1 匯入用名單、Sheet2 甲班在上乙班在下 180 組代碼參考），同步掛載至學扶館 `PrioriRosterModal.jsx`。
 - **教學館頂端左錨對齊 & 拼音／音效優化**：桌面上排主分頁緊鄰「冊課 ▾」並透過 `--studio-subbar-pl` 與下排子模組 0 px 對齊，手機維持極簡單排；`PhonicsCardView` 卡片微縮並留足上方內距解決刪除鈕裁切；`audio.js` 新增 4 組多層次課室音效並支援 `ClassroomDock` 獨立純圖示可收合／展開浮動音效膠囊。

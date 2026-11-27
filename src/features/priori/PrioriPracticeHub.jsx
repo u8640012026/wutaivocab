@@ -26,6 +26,7 @@ import {
   Smartphone,
   Compass,
 } from 'lucide-react';
+import { useI18n } from '../../context/I18nContext';
 import {
   PRIORI_SUBJECTS,
   PRIORI_PAPERS,
@@ -103,6 +104,8 @@ function formatDuration(seconds) {
 export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
   const { currentStudent, isLoggedIn, openModal, logoutStudent } = useStudent();
   const { isDark } = useTheme();
+  const { t, lang } = useI18n();
+  const isEn = lang === 'en';
   const studentKey = currentStudent?.student_id || 'guest';
 
   const initialPaper =
@@ -954,14 +957,14 @@ export function PrioriPracticeHub({ onBack, initialPaperId = null }) {
                 className="px-3 py-2 rounded-2xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs sm:text-sm flex items-center gap-1.5 transition cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>返回首頁</span>
+                <span>{isEn ? 'Home' : '返回首頁'}</span>
               </button>
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-lime-400 to-lime-600 text-lime-950 flex items-center justify-center shadow-sm shrink-0">
                   <LilyEmblem className="w-5 h-5" />
                 </div>
                 <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
-                  霧臺國小・學習扶助自主練習館
+                  {t.prioriModuleTitle}
                 </h1>
               </div>
             </div>
